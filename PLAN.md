@@ -56,6 +56,35 @@
   - "Soll: 168.00h | Ist: 142.50h | Differenz: -25.50h"
 - Auch im Excel/PDF Export als zusaetzliche Zeile
 
+## Jira-Ticket-Links
+
+- Tickets in der Tabelle als klickbare Links anzeigen (z.B. DMZ-14754 → oeffnet im Browser)
+- Link-URL aus Settings: `{jira_host}/browse/{ticket_key}`
+- Ticket-URL wird noch bekanntgegeben
+- Im Excel-Export: Ticket-Spalte als Hyperlink
+- Im PDF-Export: Ticket als klickbarer Link (fpdf2 unterstuetzt das)
+
+## Weitere Jira-Informationen
+
+- Pruefen welche zusaetzlichen Felder aus Jira nuetzlich waeren
+- Moegliche Kandidaten: Epic, Sprint, Status, Labels, Komponenten
+- Konfigurierbar welche Felder angezeigt werden
+
+## Jahresstunden-Tracker
+
+- Gesamtstunden berechnen von 01. Januar bis heute
+- Anzeige in der Zusammenfassung: "Jahressumme: 1.024 / 1.720h (max)"
+- Max-Jahresstunden konfigurierbar in Settings (default: z.B. 1.720h fuer Vollzeit)
+- Warnung wenn Limit nahe oder ueberschritten
+- Benoetigt separaten API-Abruf fuer das gesamte Jahr (oder kumuliert aus Monatsdaten)
+
+## GitHub Actions (CI/CD)
+
+- Linting: mypy strict, flake8 oder ruff
+- Tests: pytest mit Coverage
+- Build-Check: pip install -e . auf Ubuntu/Windows
+- Optional: automatisches Release mit PyInstaller (Standalone-EXE)
+
 ## Umlaute korrigieren
 
 - PDF-Export: Helvetica unterstuetzt keine Umlaute (ae, oe, ue, ss)
