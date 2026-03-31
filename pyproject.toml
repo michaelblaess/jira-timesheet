@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jira-timesheet"
+version = "1.0.0"
+description = "TUI tool for generating timesheets from Jira worklogs"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Michael Blaess"},
+]
+dependencies = [
+    "textual>=0.40",
+    "rich>=13.0",
+    "httpx>=0.25",
+    "openpyxl>=3.1",
+    "fpdf2>=2.7",
+    "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "mypy>=1.8",
+]
+
+[project.scripts]
+jira-timesheet = "jira_timesheet.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"

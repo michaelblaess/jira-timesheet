@@ -1,0 +1,38 @@
+Screen {
+    layout: vertical;
+}
+
+#main-container {
+    height: 1fr;
+    layout: vertical;
+    padding: 0 1;
+}
+
+ConfigPanel {
+    height: auto;
+    margin-bottom: 1;
+}
+
+TimesheetTable {
+    height: 1fr;
+    min-height: 10;
+    border: solid $accent;
+}
+
+SummaryPanel {
+    height: auto;
+    margin-top: 1;
+}
+
+#log-panel {
+    height: 8;
+    min-height: 4;
+    max-height: 15;
+    margin-top: 1;
+    border: solid $accent;
+    display: block;
+}
+
+#log-panel.hidden {
+    display: none;
+}
