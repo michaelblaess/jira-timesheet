@@ -22,10 +22,12 @@ class ExcelExporter:
         logo_path: str = "",
         jira_host: str = "",
         hours_per_day: float = 8.0,
+        show_ticket_links: bool = False,
     ) -> None:
         self._logo_path = logo_path
         self._jira_host = jira_host.rstrip("/")
         self._hours_per_day = hours_per_day
+        self._show_ticket_links = show_ticket_links
 
     def export(
         self,
@@ -217,7 +219,7 @@ class ExcelExporter:
                 cell_d.value = entry.ticket
                 cell_d.font = font_normal
                 cell_d.alignment = align_left
-                if self._jira_host and entry.ticket:
+                if self._show_ticket_links and self._jira_host and entry.ticket:
                     cell_d.hyperlink = f"{self._jira_host}/browse/{entry.ticket}"
                     cell_d.font = Font(name="Arial", size=10, color="0563C1", underline="single")
 
