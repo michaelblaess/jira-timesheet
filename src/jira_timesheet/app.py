@@ -49,7 +49,7 @@ class JiraTimesheetApp(App):
         Binding("i", "show_info", "Info"),
         Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
         Binding("j", "show_year", "Jahr"),
-        Binding("l", "toggle_log", "Log"),
+        Binding("l", "toggle_log", "Log anzeigen"),
         Binding("comma", "prev_month", "Monat", key_display="<"),
         Binding("full_stop", "next_month", "Monat", key_display=">"),
     ]
