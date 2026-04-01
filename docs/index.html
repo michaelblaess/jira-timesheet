@@ -202,13 +202,18 @@
     <div class="install-grid">
       <div class="install-card">
         <div class="install-icon">💻</div>
-        <h3>Windows</h3>
-        <pre class="install-code">git clone https://github.com/michaelblaess/jira-timesheet.git
-cd jira-timesheet
-setup.bat
-run.bat</pre>
+        <h3>Windows (PowerShell)</h3>
+        <pre class="install-code">irm https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.ps1 | iex</pre>
+      </div>
+      <div class="install-card">
+        <div class="install-icon">🐧</div>
+        <h3>Linux / macOS</h3>
+        <pre class="install-code">curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.sh | bash</pre>
       </div>
     </div>
+    <p style="text-align: center; color: var(--text-tertiary); font-size: 0.8rem; margin-top: 16px;">
+      Voraussetzung: Python 3.10+ · Danach einfach <code style="color: var(--accent);">jira-timesheet</code> im Terminal eingeben.
+    </p>
   </section>
 
   <div class="divider"><div class="divider-line"></div></div>
