@@ -19,6 +19,21 @@ TimesheetTable {
     border: solid $accent;
 }
 
+TimesheetTable.hidden {
+    display: none;
+}
+
+CalendarView {
+    height: 1fr;
+    min-height: 10;
+    border: solid $accent;
+    display: none;
+}
+
+CalendarView.visible {
+    display: block;
+}
+
 SummaryPanel {
     height: auto;
     margin-top: 1;
