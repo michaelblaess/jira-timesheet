@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -25,6 +25,11 @@ try:
 except ImportError:
     register_themes = None  # type: ignore[assignment]
 
+_MONTH_NAMES = [
+    "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember",
+]
+
 
 class JiraTimesheetApp(App):
     """TUI fuer Jira Stundenzettel."""
@@ -42,6 +47,7 @@ class JiraTimesheetApp(App):
         Binding("s", "show_settings", "Settings"),
         Binding("i", "show_info", "Info"),
         Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
+        Binding("j", "show_year", "Jahr"),
         Binding("l", "toggle_log", "Log"),
         Binding("comma", "prev_month", "Monat", key_display="<"),
         Binding("full_stop", "next_month", "Monat", key_display=">"),
@@ -361,6 +367,85 @@ class JiraTimesheetApp(App):
         if self._settings.jira_host and entry.ticket:
             url = f"{self._settings.jira_host}/browse/{entry.ticket}"
             self._write_log(f"  [link={url}]{url}[/link]")
+
+    @work(exclusive=True)
+    async def action_show_year(self) -> None:
+        """Laedt Jahresdaten und zeigt die Jahresansicht."""
+        if not self._settings.jira_host or not self._settings.jira_token or not self._settings.email:
+            self.notify("Erst Settings konfigurieren [S]", severity="error")
+            return
+
+        year = date.today().year
+        self._write_log("")
+        self._write_log(f"[bold]Lade Jahresdaten {year}...[/bold]")
+
+        holiday_svc = HolidayService(self._settings.federal_state)
+        month_data: dict[int, dict] = {}
+
+        try:
+            client = JiraClient(
+                host=self._settings.jira_host,
+                token=self._settings.jira_token,
+                budget_field=self._settings.budget_field,
+            )
+
+            for month in range(1, 13):
+                first = date(year, month, 1)
+                if month == 12:
+                    last = date(year, 12, 31)
+                else:
+                    last = date(year, month + 1, 1) - timedelta(days=1)
+
+                if first > date.today():
+                    target_days = holiday_svc.count_workdays(first, last)
+                    target_h = target_days * self._settings.hours_per_day
+                    month_data[month] = {
+                        "actual": 0.0,
+                        "target": target_h,
+                        "working_days": 0,
+                        "target_days": target_days,
+                    }
+                    continue
+
+                self.sub_title = f"Lade {_MONTH_NAMES[month - 1]}..."
+
+                entries = await client.get_worklogs(
+                    email=self._settings.email,
+                    date_from=first,
+                    date_to=last,
+                )
+
+                actual = sum(e.hours for e in entries)
+                worked_dates = len({e.date for e in entries})
+                target_days = holiday_svc.count_workdays(first, last)
+                target_h = target_days * self._settings.hours_per_day
+
+                month_data[month] = {
+                    "actual": actual,
+                    "target": target_h,
+                    "working_days": worked_dates,
+                    "target_days": target_days,
+                }
+
+                self._write_log(f"  {_MONTH_NAMES[month - 1]}: {actual:.1f}h ({worked_dates} Tage)")
+
+            self.sub_title = ""
+
+            total = sum(d.get("actual", 0.0) for d in month_data.values())
+            self._write_log(f"[green]Jahresdaten geladen: {total:.1f}h[/green]")
+
+            from jira_timesheet.screens.year_screen import YearScreen
+            self.push_screen(YearScreen(
+                year=year,
+                month_data=month_data,
+                max_yearly_hours=self._settings.max_yearly_hours,
+                hourly_rate=self._settings.hourly_rate,
+            ))
+
+        except Exception as exc:
+            self.sub_title = ""
+            self._write_log(f"[red bold]Fehler: {exc}[/red bold]")
+            self.notify(f"Fehler: {exc}", severity="error")
 
     def action_toggle_view(self) -> None:
         """Wechselt zwischen Listen- und Kalenderansicht."""
