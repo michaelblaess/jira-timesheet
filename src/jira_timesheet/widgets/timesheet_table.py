@@ -103,7 +103,7 @@ class TimesheetTable(Vertical):
                         weekday,
                         date_str,
                         ticket_text,
-                        self._truncate(entry.summary, 40),
+                        self._truncate(entry.summary, 80),
                         hours_str,
                         day_total,
                         key=str(row_idx),
