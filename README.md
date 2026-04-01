@@ -2,6 +2,18 @@
 
 Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
 
+> **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstuetzt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die oeffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
+
+## Screenshots
+
+| Listenansicht (Atari ST) | Kalenderansicht (BeOS) |
+|---|---|
+| ![Listenansicht](docs/screenshots/01-main-atari.png) | ![Kalenderansicht](docs/screenshots/04-month-view-beos.png) |
+
+| Jahresansicht mit Forecast | Settings |
+|---|---|
+| ![Jahresansicht](docs/screenshots/05-year-view-atari.png) | ![Settings](docs/screenshots/06-settings-atari.png) |
+
 ## Features
 
 - **Jira Integration** — Worklogs per REST API abrufen (Bearer Token Auth)
@@ -13,6 +25,8 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 - **Feiertage** — Deutsche Feiertage pro Bundesland, Luecken-Erkennung
 - **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
+- **Anonymisierung** — Daten per Tastendruck anonymisieren fuer sichere Screenshots
+- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht laedt sofort
 - **Retro-Themes** — C64, Amiga, Atari ST, IBM Terminal und mehr (Ctrl+P)
 
 ## Installation
@@ -47,6 +61,7 @@ Dann `G` zum Generieren des Stundenzettels.
 | D | Ticket-Details anzeigen |
 | TAB | Listen-/Kalenderansicht wechseln |
 | J | Jahresansicht mit Forecast |
+| A | Daten anonymisieren |
 | < / > | Monat wechseln |
 | S | Settings |
 | I | Info |
@@ -69,6 +84,7 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Max. Jahresstunden | Obergrenze fuer Progressbar | 1720 |
 | Urlaubstage | Fuer Jahres-Forecast | 30 |
 | Stundensatz | Netto, nur TUI-Anzeige | 0 (aus) |
+| Jahr | Fuer Jahresansicht | aktuelles Jahr |
 | Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
 | Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
 
@@ -85,3 +101,7 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 ## Lizenz
 
 Apache License 2.0
+
+---
+
+> **Trademark Notice:** "Jira" is a registered trademark of [Atlassian Corporation](https://www.atlassian.com/). This project is not affiliated with, endorsed by, or sponsored by Atlassian.
