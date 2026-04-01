@@ -218,6 +218,7 @@ class JiraTimesheetApp(App):
                 logo_path=self._settings.logo_path,
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
+                show_ticket_links=self._settings.show_ticket_links_in_export,
             )
             export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
             path = exporter.export(self._timesheet, missing_days=missing, target_hours=export_target_h)

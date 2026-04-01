@@ -137,6 +137,12 @@ class SettingsScreen(ModalScreen[bool | None]):
                 id="check-target-export",
             )
 
+            yield Checkbox(
+                "Ticket-Links im Excel/PDF Export anzeigen",
+                value=self._settings.show_ticket_links_in_export,
+                id="check-ticket-links-export",
+            )
+
             with Horizontal(id="settings-footer"):
                 yield Button("Speichern", id="btn-save", variant="primary")
                 yield Button("Abbrechen", id="btn-cancel")
@@ -166,6 +172,7 @@ class SettingsScreen(ModalScreen[bool | None]):
         except ValueError:
             pass
         self._settings.show_target_hours_in_export = self.query_one("#check-target-export", Checkbox).value
+        self._settings.show_ticket_links_in_export = self.query_one("#check-ticket-links-export", Checkbox).value
         self.dismiss(True)
 
     def action_cancel(self) -> None:

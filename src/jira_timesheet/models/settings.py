@@ -26,6 +26,7 @@ class Settings:
     hours_per_day: float = 8.0
     max_yearly_hours: float = 1720.0
     show_target_hours_in_export: bool = False
+    show_ticket_links_in_export: bool = False
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -34,7 +35,7 @@ class Settings:
         "theme", "jira_host", "jira_token", "email", "logo_path",
         "last_date_from", "last_date_to", "log_visible", "budget_field",
         "federal_state", "hours_per_day", "max_yearly_hours",
-        "show_target_hours_in_export",
+        "show_target_hours_in_export", "show_ticket_links_in_export",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -69,6 +70,7 @@ class Settings:
                 hours_per_day=data.get("hours_per_day", 8.0),
                 max_yearly_hours=data.get("max_yearly_hours", 1720.0),
                 show_target_hours_in_export=data.get("show_target_hours_in_export", False),
+                show_ticket_links_in_export=data.get("show_ticket_links_in_export", False),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
