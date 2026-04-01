@@ -21,6 +21,11 @@ class WorklogEntry:
     components: str = ""
     labels: str = ""
     priority: str = ""
+    resolution: str = ""
+    assignee: str = ""
+    created: str = ""
+    updated: str = ""
+    total_logged: str = ""
 
 
 @dataclass
