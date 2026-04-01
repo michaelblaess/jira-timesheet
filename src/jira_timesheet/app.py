@@ -219,7 +219,8 @@ class JiraTimesheetApp(App):
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
             )
-            path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
+            export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
+            path = exporter.export(self._timesheet, missing_days=missing, target_hours=export_target_h)
             file_url = "file:///" + path.replace("\\", "/")
             self._write_log(f"[green]Excel gespeichert: [link={file_url}]{path}[/link][/green]")
             self.notify(f"Excel: {path}")
@@ -248,7 +249,8 @@ class JiraTimesheetApp(App):
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
             )
-            path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
+            export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
+            path = exporter.export(self._timesheet, missing_days=missing, target_hours=export_target_h)
             file_url = "file:///" + path.replace("\\", "/")
             self._write_log(f"[green]PDF gespeichert: [link={file_url}]{path}[/link][/green]")
             self.notify(f"PDF: {path}")
