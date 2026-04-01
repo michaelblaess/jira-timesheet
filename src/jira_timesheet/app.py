@@ -15,6 +15,7 @@ from jira_timesheet.models.timesheet import Timesheet
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.timesheet_service import TimesheetService
+from jira_timesheet.widgets.calendar_view import CalendarView
 from jira_timesheet.widgets.config_panel import ConfigPanel
 from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.timesheet_table import TimesheetTable
@@ -39,6 +40,7 @@ class JiraTimesheetApp(App):
         Binding("c", "copy_log", "Log kopieren"),
         Binding("s", "show_settings", "Settings"),
         Binding("i", "show_info", "Info"),
+        Binding("tab", "toggle_view", "Ansicht", key_display="TAB"),
         Binding("l", "toggle_log", "Log"),
         Binding("left", "prev_month", "◄ Monat", show=False),
         Binding("right", "next_month", "► Monat", show=False),
@@ -54,7 +56,9 @@ class JiraTimesheetApp(App):
         self.theme = self._settings.theme
 
         self._timesheet: Timesheet | None = None
+        self._missing_days: list[tuple] = []
         self._generating = False
+        self._calendar_active = False
 
     def compose(self) -> ComposeResult:
         """Erstellt das UI-Layout."""
@@ -64,6 +68,11 @@ class JiraTimesheetApp(App):
             hours_per_day=self._settings.hours_per_day,
             jira_host=self._settings.jira_host,
             id="timesheet-table",
+        )
+        yield CalendarView(
+            hours_per_day=self._settings.hours_per_day,
+            jira_host=self._settings.jira_host,
+            id="calendar-view",
         )
         yield SummaryPanel(id="summary-panel")
         yield RichLog(id="log-panel", highlight=True, markup=True)
@@ -111,7 +120,10 @@ class JiraTimesheetApp(App):
         table = self.query_one("#timesheet-table", TimesheetTable)
         summary = self.query_one("#summary-panel", SummaryPanel)
 
+        cal = self.query_one("#calendar-view", CalendarView)
+
         table.clear_table()
+        cal.clear_calendar()
         summary.clear()
 
         start_time = time.monotonic()
@@ -149,7 +161,10 @@ class JiraTimesheetApp(App):
             target_workdays = holiday_svc.count_workdays(config.date_from, config.date_to)
             target_hours = target_workdays * self._settings.hours_per_day
 
+            self._missing_days = missing_days
+
             table.load_timesheet(self._timesheet, missing_days=missing_days)
+            cal.load_timesheet(self._timesheet, missing_days=missing_days)
             summary.update_timesheet(self._timesheet, target_hours=target_hours)
 
             holidays_in_range = holiday_svc.get_holidays_in_range(config.date_from, config.date_to)
@@ -271,6 +286,22 @@ class JiraTimesheetApp(App):
         from jira_timesheet.screens.info_screen import InfoScreen
 
         self.push_screen(InfoScreen())
+
+    def action_toggle_view(self) -> None:
+        """Wechselt zwischen Listen- und Kalenderansicht."""
+        table = self.query_one("#timesheet-table", TimesheetTable)
+        cal = self.query_one("#calendar-view", CalendarView)
+
+        self._calendar_active = not self._calendar_active
+
+        if self._calendar_active:
+            table.add_class("hidden")
+            cal.add_class("visible")
+            self.sub_title = "Kalenderansicht"
+        else:
+            table.remove_class("hidden")
+            cal.remove_class("visible")
+            self.sub_title = ""
 
     def action_toggle_log(self) -> None:
         """Blendet den Log-Bereich ein/aus."""
