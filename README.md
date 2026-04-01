@@ -31,16 +31,33 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 
 ## Installation
 
+### One-Click Install
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.ps1 | iex
+```
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.sh | bash
+```
+
+Danach einfach `jira-timesheet` im Terminal eingeben.
+
+### Manuelle Installation
+
 ```bash
 git clone https://github.com/michaelblaess/jira-timesheet.git
 cd jira-timesheet
 setup.bat
+run.bat
 ```
 
 ## Benutzung
 
 ```bash
-run.bat
+jira-timesheet
 ```
 
 Beim ersten Start `S` fuer Settings druecken und konfigurieren:
