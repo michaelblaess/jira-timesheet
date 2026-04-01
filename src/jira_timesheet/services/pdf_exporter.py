@@ -169,15 +169,15 @@ class PdfExporter:
                 else:
                     pdf.set_text_color(200, 0, 0)
 
-                pdf.set_draw_color(220, 220, 220)
-                pdf.cell(self.COL_WIDTHS[0], row_height, str(d.isocalendar()[1]), border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[1], row_height, _WEEKDAYS[d.weekday()], border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[2], row_height, f"{d:%d.%m.}", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[3], row_height, "", border="LR", new_x="END")
-                reason_txt = self._truncate_to_width(pdf, reason, self.COL_WIDTHS[4] - 2)
-                pdf.cell(self.COL_WIDTHS[4], row_height, f" {reason_txt}", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[5], row_height, "", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[6], row_height, "0.00", border="LR", align="R", new_x="LMARGIN", new_y="NEXT")
+                self._write_row(pdf, row_height, [
+                    str(d.isocalendar()[1]),
+                    _WEEKDAYS[d.weekday()],
+                    f"{d:%d.%m.}",
+                    "",
+                    reason,
+                    "",
+                    "0.00",
+                ])
                 pdf.set_text_color(0, 0, 0)
                 continue
 
@@ -204,19 +204,15 @@ class PdfExporter:
                 date_str = f"{entry.date:%d.%m.}" if is_first else ""
                 day_total = f"{day.total_hours:.2f}" if is_first else ""
 
-                pdf.set_draw_color(220, 220, 220)
-                pdf.cell(self.COL_WIDTHS[0], row_height, kw, border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[1], row_height, weekday, border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[2], row_height, date_str, border="LR", new_x="END")
-                ticket_txt = self._truncate_to_width(pdf, entry.ticket, self.COL_WIDTHS[3] - 2)
-                desc_txt = self._truncate_to_width(pdf, entry.summary, self.COL_WIDTHS[4] - 2)
-                pdf.cell(self.COL_WIDTHS[3], row_height, f" {ticket_txt}", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, f" {desc_txt}", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[5], row_height, f"{entry.hours:.2f} ", border="LR", align="R", new_x="END")
-
-                pdf.set_font(*self._font("B" if day_total else "", 8))
-                pdf.cell(self.COL_WIDTHS[6], row_height, f"{day_total} " if day_total else "", border="LR", align="R", new_x="LMARGIN", new_y="NEXT")
-                pdf.set_font(*self._font("", 8))
+                self._write_row(pdf, row_height, [
+                    kw,
+                    weekday,
+                    date_str,
+                    entry.ticket,
+                    entry.summary,
+                    f"{entry.hours:.2f}",
+                    day_total,
+                ], bold_last=bool(day_total))
 
     def _add_table_header(self, pdf: FPDF) -> None:
         """Zeichnet die Header-Zeile der Tabelle."""
@@ -224,10 +220,15 @@ class PdfExporter:
         pdf.set_fill_color(200, 200, 200)
         pdf.set_draw_color(180, 180, 180)
 
+        left = pdf.l_margin
+        y = pdf.get_y()
+        x = left
         for i, header in enumerate(self.HEADERS):
+            pdf.set_xy(x, y)
             align = "R" if i >= 5 else "L"
-            pdf.cell(self.COL_WIDTHS[i], 6, f" {header}", border=1, fill=True, align=align, new_x="END")
-        pdf.ln()
+            pdf.cell(self.COL_WIDTHS[i], 6, f" {header}", border=1, fill=True, align=align)
+            x += self.COL_WIDTHS[i]
+        pdf.set_xy(left, y + 6)
 
     def _add_footer(self, pdf: FPDF) -> None:
         """Fuegt die Unterschriftszeile hinzu."""
@@ -242,11 +243,45 @@ class PdfExporter:
         pdf.cell(40, 6, "bestätigt am:", new_x="END")
         pdf.cell(0, 6, "Projektleiter (Blockschrift, Unterschrift)", new_x="LMARGIN", new_y="NEXT")
 
-    @staticmethod
-    def _truncate_to_width(pdf: FPDF, text: str, max_width_mm: float) -> str:
-        """Kuerzt Text bis er in die angegebene mm-Breite passt."""
-        if pdf.get_string_width(text) <= max_width_mm:
-            return text
-        while len(text) > 0 and pdf.get_string_width(text + "\u2026") > max_width_mm:
-            text = text[:-1]
-        return text + "\u2026" if text else ""
+    def _write_row(
+        self,
+        pdf: FPDF,
+        row_height: float,
+        values: list[str],
+        bold_last: bool = False,
+    ) -> None:
+        """Schreibt eine Zeile mit absoluten X-Positionen pro Spalte."""
+        left = pdf.l_margin
+        y = pdf.get_y()
+
+        pdf.set_draw_color(220, 220, 220)
+
+        x = left
+        for i, (width, val) in enumerate(zip(self.COL_WIDTHS, values)):
+            pdf.set_xy(x, y)
+
+            is_right = i >= 5
+            is_last_col = i == len(self.COL_WIDTHS) - 1
+
+            # Text kuerzen bis er in die Spalte passt
+            max_w = width - 3
+            while val and pdf.get_string_width(val) > max_w:
+                val = val[:-1]
+                if not val:
+                    break
+                val_display = val + "\u2026"
+            else:
+                val_display = val
+
+            if is_last_col and bold_last and val_display:
+                pdf.set_font(*self._font("B", 8))
+
+            align = "R" if is_right else "L"
+            pdf.cell(width, row_height, val_display, border="LR", align=align)
+
+            if is_last_col and bold_last:
+                pdf.set_font(*self._font("", 8))
+
+            x += width
+
+        pdf.set_xy(left, y + row_height)
