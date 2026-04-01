@@ -20,9 +20,9 @@ _WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 class PdfExporter:
     """Erzeugt eine PDF-Datei im gleichen Layout wie der Excel-Export."""
 
-    #              KW   Tag  Datum  Ticket  Beschreibung    Aufwand  Tages-h
-    COL_WIDTHS = [8,   8,   15,    22,     140,           20,      20]
-    HEADERS = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "Aufwand", "Tages-h"]
+    #              KW   Tag  Datum  Ticket  Beschreibung  Aufwand  Tages-h    = 277mm (A4L - 2x10mm)
+    COL_WIDTHS = [10,  10,  16,    24,     167,          25,      25]
+    HEADERS = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "Aufwand (h)", "Tages-h"]
 
     def __init__(
         self,
@@ -152,7 +152,7 @@ class PdfExporter:
 
         for d in all_dates:
             if d in gap_map and d not in day_map:
-                if pdf.get_y() + row_height > 270:
+                if pdf.get_y() + row_height > 190:
                     pdf.add_page()
                     self._add_table_header(pdf)
                     pdf.set_font(*self._font("", 8))
@@ -160,23 +160,23 @@ class PdfExporter:
                 reason = gap_map[d]
                 is_holiday = "\u2014" not in reason
 
-                x_start = pdf.get_x()
                 y_pos = pdf.get_y()
                 pdf.set_draw_color(180, 180, 180)
-                pdf.line(x_start, y_pos, x_start + sum(self.COL_WIDTHS), y_pos)
+                pdf.line(10, y_pos, 10 + sum(self.COL_WIDTHS), y_pos)
 
                 if is_holiday:
                     pdf.set_text_color(150, 150, 150)
                 else:
                     pdf.set_text_color(200, 0, 0)
 
-                pdf.cell(self.COL_WIDTHS[0], row_height, str(d.isocalendar()[1]), new_x="END")
-                pdf.cell(self.COL_WIDTHS[1], row_height, _WEEKDAYS[d.weekday()], new_x="END")
-                pdf.cell(self.COL_WIDTHS[2], row_height, f"{d:%d.%m.}", new_x="END")
-                pdf.cell(self.COL_WIDTHS[3], row_height, "", new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, reason, new_x="END")
-                pdf.cell(self.COL_WIDTHS[5], row_height, "", new_x="END")
-                pdf.cell(self.COL_WIDTHS[6], row_height, "0.00", align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.set_draw_color(220, 220, 220)
+                pdf.cell(self.COL_WIDTHS[0], row_height, str(d.isocalendar()[1]), border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[1], row_height, _WEEKDAYS[d.weekday()], border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[2], row_height, f"{d:%d.%m.}", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[3], row_height, "", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[4], row_height, f" {reason}", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[5], row_height, "", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[6], row_height, "0.00", border="LR", align="R", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_text_color(0, 0, 0)
                 continue
 
@@ -185,7 +185,7 @@ class PdfExporter:
 
             day = day_map[d]
             needed_height = row_height * len(day.entries) + 2
-            if pdf.get_y() + needed_height > 270:
+            if pdf.get_y() + needed_height > 190:
                 pdf.add_page()
                 self._add_table_header(pdf)
                 pdf.set_font(*self._font("", 8))
@@ -194,35 +194,36 @@ class PdfExporter:
                 is_first = i == 0
 
                 if is_first:
-                    x_start = pdf.get_x()
                     y_pos = pdf.get_y()
                     pdf.set_draw_color(0, 0, 0)
-                    pdf.line(x_start, y_pos, x_start + sum(self.COL_WIDTHS), y_pos)
+                    pdf.line(10, y_pos, 10 + sum(self.COL_WIDTHS), y_pos)
 
                 kw = str(entry.date.isocalendar()[1]) if is_first else ""
                 weekday = _WEEKDAYS[entry.date.weekday()] if is_first else ""
                 date_str = f"{entry.date:%d.%m.}" if is_first else ""
                 day_total = f"{day.total_hours:.2f}" if is_first else ""
 
-                pdf.cell(self.COL_WIDTHS[0], row_height, kw, new_x="END")
-                pdf.cell(self.COL_WIDTHS[1], row_height, weekday, new_x="END")
-                pdf.cell(self.COL_WIDTHS[2], row_height, date_str, new_x="END")
-                pdf.cell(self.COL_WIDTHS[3], row_height, entry.ticket, new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, self._truncate(entry.summary, 90), new_x="END")
-                pdf.cell(self.COL_WIDTHS[5], row_height, f"{entry.hours:.2f}", align="R", new_x="END")
+                pdf.set_draw_color(220, 220, 220)
+                pdf.cell(self.COL_WIDTHS[0], row_height, kw, border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[1], row_height, weekday, border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[2], row_height, date_str, border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[3], row_height, f" {entry.ticket}", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[4], row_height, f" {self._truncate(entry.summary, 100)}", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[5], row_height, f"{entry.hours:.2f} ", border="LR", align="R", new_x="END")
 
                 pdf.set_font(*self._font("B" if day_total else "", 8))
-                pdf.cell(self.COL_WIDTHS[6], row_height, day_total, align="R", new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(self.COL_WIDTHS[6], row_height, f"{day_total} " if day_total else "", border="LR", align="R", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font(*self._font("", 8))
 
     def _add_table_header(self, pdf: FPDF) -> None:
         """Zeichnet die Header-Zeile der Tabelle."""
         pdf.set_font(*self._font("B", 8))
         pdf.set_fill_color(200, 200, 200)
+        pdf.set_draw_color(180, 180, 180)
 
         for i, header in enumerate(self.HEADERS):
             align = "R" if i >= 5 else "L"
-            pdf.cell(self.COL_WIDTHS[i], 6, header, fill=True, align=align, new_x="END")
+            pdf.cell(self.COL_WIDTHS[i], 6, f" {header}", border=1, fill=True, align=align, new_x="END")
         pdf.ln()
 
     def _add_footer(self, pdf: FPDF) -> None:
@@ -231,7 +232,7 @@ class PdfExporter:
         y_pos = pdf.get_y()
 
         pdf.set_draw_color(0, 0, 0)
-        pdf.line(55, y_pos, 190, y_pos)
+        pdf.line(55, y_pos, 250, y_pos)
 
         pdf.set_font(*self._font("", 9))
         pdf.set_x(55)
