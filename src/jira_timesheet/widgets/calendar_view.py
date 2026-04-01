@@ -129,8 +129,40 @@ class DayTile(Widget):
         return text
 
 
+class WeekSummaryTile(Widget):
+    """Wochensumme als letzte Kachel in einer Zeile."""
+
+    DEFAULT_CSS = """
+    WeekSummaryTile {
+        width: 10;
+        height: 100%;
+        min-height: 6;
+        padding: 0 1;
+        border: solid $surface-lighten-2;
+        background: $surface;
+    }
+    """
+
+    def __init__(self, week_hours: float, hours_per_day: float = 8.0, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self._week_hours = week_hours
+        self._hours_per_day = hours_per_day
+
+    def render(self) -> Text:
+        """Rendert die Wochensumme."""
+        text = Text()
+        target = self._hours_per_day * 5
+        if self._week_hours == 0:
+            text.append("0.00h", style="dim")
+        elif self._week_hours >= target:
+            text.append(f"{self._week_hours:.2f}h", style="bold green")
+        else:
+            text.append(f"{self._week_hours:.2f}h", style="bold yellow")
+        return text
+
+
 class WeekRow(Horizontal):
-    """Eine Wochenreihe mit 7 Tages-Kacheln."""
+    """Eine Wochenreihe mit 7 Tages-Kacheln + Wochensumme."""
 
     DEFAULT_CSS = """
     WeekRow {
@@ -157,6 +189,13 @@ class CalendarView(VerticalScroll):
         padding: 0 1;
         text-style: bold;
     }
+
+    CalendarView .cal-header-sum {
+        width: 10;
+        height: 1;
+        padding: 0 1;
+        text-style: bold;
+    }
     """
 
     def __init__(
@@ -174,6 +213,7 @@ class CalendarView(VerticalScroll):
         with Horizontal(id="cal-header"):
             for wd in _WEEKDAYS:
                 yield Static(wd, classes="cal-header-cell")
+            yield Static("\u03a3 h", classes="cal-header-sum")
 
     def load_timesheet(
         self,
@@ -190,15 +230,22 @@ class CalendarView(VerticalScroll):
 
         weeks = self._build_weeks(timesheet.date_from, timesheet.date_to)
 
+        target_month = timesheet.date_from.month
+
         for week in weeks:
             row = WeekRow()
             self.mount(row)
 
+            week_hours = 0.0
+
             for d in week:
-                is_outside = d.month != timesheet.date_from.month
+                is_outside = d.month != target_month
                 day_data = day_map.get(d)
                 holiday_name = holiday_map.get(d, "")
                 is_gap = d in gap_map and "\u2014" in gap_map.get(d, "")
+
+                if not is_outside and day_data:
+                    week_hours += day_data.total_hours
 
                 tile = DayTile(
                     day_date=d,
@@ -210,6 +257,11 @@ class CalendarView(VerticalScroll):
                     jira_host=self._jira_host,
                 )
                 row.mount(tile)
+
+            row.mount(WeekSummaryTile(
+                week_hours=week_hours,
+                hours_per_day=self._hours_per_day,
+            ))
 
     def clear_calendar(self) -> None:
         """Leert den Kalender."""
