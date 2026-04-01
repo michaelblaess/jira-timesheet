@@ -174,7 +174,8 @@ class PdfExporter:
                 pdf.cell(self.COL_WIDTHS[1], row_height, _WEEKDAYS[d.weekday()], border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[2], row_height, f"{d:%d.%m.}", border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[3], row_height, "", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, f" {reason}", border="LR", new_x="END")
+                reason_txt = self._truncate_to_width(pdf, reason, self.COL_WIDTHS[4] - 2)
+                pdf.cell(self.COL_WIDTHS[4], row_height, f" {reason_txt}", border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[5], row_height, "", border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[6], row_height, "0.00", border="LR", align="R", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_text_color(0, 0, 0)
@@ -207,8 +208,10 @@ class PdfExporter:
                 pdf.cell(self.COL_WIDTHS[0], row_height, kw, border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[1], row_height, weekday, border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[2], row_height, date_str, border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[3], row_height, f" {entry.ticket}", border="LR", new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, f" {self._truncate(entry.summary, 100)}", border="LR", new_x="END")
+                ticket_txt = self._truncate_to_width(pdf, entry.ticket, self.COL_WIDTHS[3] - 2)
+                desc_txt = self._truncate_to_width(pdf, entry.summary, self.COL_WIDTHS[4] - 2)
+                pdf.cell(self.COL_WIDTHS[3], row_height, f" {ticket_txt}", border="LR", new_x="END")
+                pdf.cell(self.COL_WIDTHS[4], row_height, f" {desc_txt}", border="LR", new_x="END")
                 pdf.cell(self.COL_WIDTHS[5], row_height, f"{entry.hours:.2f} ", border="LR", align="R", new_x="END")
 
                 pdf.set_font(*self._font("B" if day_total else "", 8))
@@ -240,8 +243,10 @@ class PdfExporter:
         pdf.cell(0, 6, "Projektleiter (Blockschrift, Unterschrift)", new_x="LMARGIN", new_y="NEXT")
 
     @staticmethod
-    def _truncate(text: str, max_len: int) -> str:
-        """Kuerzt Text mit Ellipsis."""
-        if len(text) <= max_len:
+    def _truncate_to_width(pdf: FPDF, text: str, max_width_mm: float) -> str:
+        """Kuerzt Text bis er in die angegebene mm-Breite passt."""
+        if pdf.get_string_width(text) <= max_width_mm:
             return text
-        return text[: max_len - 1] + "\u2026"
+        while len(text) > 0 and pdf.get_string_width(text + "\u2026") > max_width_mm:
+            text = text[:-1]
+        return text + "\u2026" if text else ""
