@@ -48,7 +48,7 @@ class JiraClient:
             f'issueFunction in workLogged('
             f'"after {search_from:%Y/%m/%d} by {email}")'
         )
-        fields = f"worklog,summary,{self._budget_field}"
+        fields = f"worklog,summary,status,issuetype,components,labels,priority,{self._budget_field}"
 
         self._log(f"JQL: {jql}")
         self._log(f"Verbinde mit {self._host}...")
@@ -121,6 +121,21 @@ class JiraClient:
         else:
             budget = "nicht zugeordnet"
 
+        status_obj = fields.get("status", {})
+        issue_status = status_obj.get("name", "") if isinstance(status_obj, dict) else ""
+
+        type_obj = fields.get("issuetype", {})
+        issue_type = type_obj.get("name", "") if isinstance(type_obj, dict) else ""
+
+        priority_obj = fields.get("priority", {})
+        issue_priority = priority_obj.get("name", "") if isinstance(priority_obj, dict) else ""
+
+        comp_list = fields.get("components", [])
+        issue_components = ", ".join(c.get("name", "") for c in comp_list if isinstance(c, dict))
+
+        label_list = fields.get("labels", [])
+        issue_labels = ", ".join(label_list) if isinstance(label_list, list) else ""
+
         worklog_node = fields.get("worklog", {})
         max_results = worklog_node.get("maxResults", 0)
         total = worklog_node.get("total", 0)
@@ -158,6 +173,12 @@ class JiraClient:
                 author=author_display,
                 budget=budget,
                 hours=hours,
+                status=issue_status,
+                issuetype=issue_type,
+                epic="",
+                components=issue_components,
+                labels=issue_labels,
+                priority=issue_priority,
             ))
 
         return entries

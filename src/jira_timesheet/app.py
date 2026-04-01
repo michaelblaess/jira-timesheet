@@ -292,6 +292,37 @@ class JiraTimesheetApp(App):
 
         self.push_screen(InfoScreen())
 
+    def on_timesheet_table_entry_selected(self, event: TimesheetTable.EntrySelected) -> None:
+        """Zeigt Details eines Worklog-Eintrags im Log."""
+        entry = event.entry
+        if entry is None:
+            return
+
+        self._write_log("")
+        self._write_log(f"[bold]{entry.ticket}[/bold] — {entry.summary}")
+        self._write_log(f"  Datum: {entry.date:%d.%m.%Y}  |  Stunden: {entry.hours:.2f}h  |  Bearbeiter: {entry.author}")
+
+        details: list[str] = []
+        if entry.status:
+            details.append(f"Status: {entry.status}")
+        if entry.issuetype:
+            details.append(f"Typ: {entry.issuetype}")
+        if entry.priority:
+            details.append(f"Prioritaet: {entry.priority}")
+        if entry.budget:
+            details.append(f"Budget: {entry.budget}")
+        if entry.components:
+            details.append(f"Komponenten: {entry.components}")
+        if entry.labels:
+            details.append(f"Labels: {entry.labels}")
+
+        if details:
+            self._write_log(f"  {' | '.join(details)}")
+
+        if self._settings.jira_host and entry.ticket:
+            url = f"{self._settings.jira_host}/browse/{entry.ticket}"
+            self._write_log(f"  [link={url}]{url}[/link]")
+
     def action_toggle_view(self) -> None:
         """Wechselt zwischen Listen- und Kalenderansicht."""
         table = self.query_one("#timesheet-table", TimesheetTable)
