@@ -62,31 +62,50 @@ class MonthTile(Widget):
             self.add_class("current")
 
     def render(self) -> Text:
-        """Rendert die Monatskachel."""
+        """Rendert die Monatskachel mit Mini-Progressbar."""
         text = Text()
         name = _MONTH_NAMES[self._month - 1]
 
-        text.append(f"{name}\n", style="bold")
-
-        if self._actual > 0:
-            if self._target > 0 and self._actual >= self._target:
-                h_style = "bold green"
+        if self._actual > 0 and self._target > 0:
+            pct = min(self._actual / self._target * 100, 100)
+            if pct >= 95:
+                bar_style = "green"
+                pct_style = "bold green"
+            elif pct >= 70:
+                bar_style = "yellow"
+                pct_style = "bold yellow"
             else:
-                h_style = "bold yellow"
+                bar_style = "red"
+                pct_style = "bold red"
 
-            text.append(f"{self._actual:.1f}h", style=h_style)
-            if self._target > 0:
-                text.append(f" / {self._target:.0f}h", style="dim")
+            text.append(f"{name}", style="bold")
+            text.append(f"  {pct:.0f}%\n", style=pct_style)
+
+            # Mini-Progressbar
+            bar_len = 18
+            filled = int(pct / 100 * bar_len)
+            text.append("\u2588" * filled, style=bar_style)
+            text.append("\u2591" * (bar_len - filled), style="dim")
             text.append("\n")
-            text.append(f"{self._working_days} / {self._target_days} Tage\n", style="dim")
 
-            if self._target > 0:
-                pct = self._actual / self._target * 100
-                text.append(f"{pct:.0f}%", style=h_style)
+            text.append(f"{self._actual:.1f}h", style=pct_style)
+            text.append(f" / {self._target:.0f}h\n", style="dim")
+
+            text.append(f"\u25b8 {self._working_days} / {self._target_days} Tage", style="dim")
+
+        elif self._actual > 0:
+            text.append(f"{name}\n", style="bold")
+            text.append(f"{self._actual:.1f}h\n", style="bold yellow")
+            text.append(f"\u25b8 {self._working_days} Tage", style="dim")
+
+        elif self._target > 0:
+            text.append(f"{name}\n", style="dim")
+            text.append("\u2591" * 18 + "\n", style="dim")
+            text.append(f"Soll: {self._target:.0f}h\n", style="dim")
+            text.append(f"\u25b8 {self._target_days} Tage", style="dim")
+
         else:
-            if self._target > 0:
-                text.append(f"Soll: {self._target:.0f}h\n", style="dim")
-                text.append(f"{self._target_days} Tage\n", style="dim")
+            text.append(f"{name}\n", style="dim")
             text.append("\u2014", style="dim")
 
         return text
