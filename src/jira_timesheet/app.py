@@ -37,6 +37,7 @@ class JiraTimesheetApp(App):
         Binding("g", "generate", "Generieren"),
         Binding("e", "export_excel", "Excel"),
         Binding("p", "export_pdf", "PDF"),
+        Binding("d", "show_details", "Details"),
         Binding("c", "copy_log", "Log kopieren"),
         Binding("s", "show_settings", "Settings"),
         Binding("i", "show_info", "Info"),
@@ -165,7 +166,11 @@ class JiraTimesheetApp(App):
 
             table.load_timesheet(self._timesheet, missing_days=missing_days)
             cal.load_timesheet(self._timesheet, missing_days=missing_days)
-            summary.update_timesheet(self._timesheet, target_hours=target_hours)
+            summary.update_timesheet(
+                self._timesheet,
+                target_hours=target_hours,
+                hourly_rate=self._settings.hourly_rate,
+            )
 
             holidays_in_range = holiday_svc.get_holidays_in_range(config.date_from, config.date_to)
             if holidays_in_range:
@@ -293,8 +298,24 @@ class JiraTimesheetApp(App):
         self.push_screen(InfoScreen())
 
     def on_timesheet_table_entry_selected(self, event: TimesheetTable.EntrySelected) -> None:
+        """Enter auf einer Zeile — zeigt Details."""
+        self._show_entry_details(event.entry)
+
+    def action_show_details(self) -> None:
+        """Zeigt Details der aktuell markierten Zeile."""
+        try:
+            table_widget = self.query_one("#timesheet-table", TimesheetTable)
+            dt = table_widget.query_one("#timesheet-data", DataTable)
+            row_key = dt.cursor_row
+            if row_key is not None:
+                key = str(list(dt.rows.keys())[row_key])
+                entry = table_widget._row_entries.get(key)
+                self._show_entry_details(entry)
+        except Exception:
+            pass
+
+    def _show_entry_details(self, entry: object) -> None:
         """Zeigt Details eines Worklog-Eintrags im Log."""
-        entry = event.entry
         if entry is None:
             return
 

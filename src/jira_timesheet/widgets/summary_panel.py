@@ -9,7 +9,7 @@ from jira_timesheet.models.timesheet import Timesheet
 
 
 class SummaryPanel(Widget):
-    """Kompakte Zusammenfassung: Soll/Ist/Differenz, Arbeitstage, Durchschnitt."""
+    """Kompakte Zusammenfassung: Soll/Ist/Differenz, Durchschnitt, Verdienst."""
 
     DEFAULT_CSS = """
     SummaryPanel {
@@ -25,17 +25,25 @@ class SummaryPanel(Widget):
         super().__init__(**kwargs)
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
+        self._hourly_rate: float = 0.0
 
-    def update_timesheet(self, timesheet: Timesheet, target_hours: float = 0.0) -> None:
+    def update_timesheet(
+        self,
+        timesheet: Timesheet,
+        target_hours: float = 0.0,
+        hourly_rate: float = 0.0,
+    ) -> None:
         """Aktualisiert die Zusammenfassung."""
         self._timesheet = timesheet
         self._target_hours = target_hours
+        self._hourly_rate = hourly_rate
         self.refresh()
 
     def clear(self) -> None:
         """Setzt die Anzeige zurueck."""
         self._timesheet = None
         self._target_hours = 0.0
+        self._hourly_rate = 0.0
         self.refresh()
 
     def render(self) -> RenderResult:
@@ -66,5 +74,13 @@ class SummaryPanel(Widget):
         text.append("  |  ", style="dim")
         text.append("\u00d8 ", style="dim")
         text.append(f"{ts.average_hours:.2f}h/Tag", style="bold")
+
+        if self._hourly_rate > 0:
+            netto = ts.total_hours * self._hourly_rate
+            brutto = netto * 1.19
+            text.append("  |  ", style="dim")
+            text.append(f"Netto: {netto:,.2f}\u20ac", style="bold")
+            text.append("  ", style="dim")
+            text.append(f"Brutto: {brutto:,.2f}\u20ac", style="bold")
 
         return text
