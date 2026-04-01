@@ -42,8 +42,8 @@ class JiraTimesheetApp(App):
         Binding("i", "show_info", "Info"),
         Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
         Binding("l", "toggle_log", "Log"),
-        Binding("left", "prev_month", "◄ Monat", show=False),
-        Binding("right", "next_month", "► Monat", show=False),
+        Binding("left", "prev_month", "◄ Monat", key_display="◄"),
+        Binding("right", "next_month", "► Monat", key_display="►"),
     ]
 
     def __init__(self, **kwargs: object) -> None:
