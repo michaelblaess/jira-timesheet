@@ -15,6 +15,12 @@ class WorklogEntry:
     author: str
     budget: str
     hours: float
+    status: str = ""
+    issuetype: str = ""
+    epic: str = ""
+    components: str = ""
+    labels: str = ""
+    priority: str = ""
 
 
 @dataclass
