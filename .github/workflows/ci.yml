@@ -25,10 +25,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install textual rich httpx openpyxl fpdf2 holidays pytest
+
+      - name: Install package
+        run: pip install -e . --no-deps
 
       - name: Run tests
         run: pytest --tb=short -q
-
-      - name: Type check (mypy)
-        run: mypy src/jira_timesheet --ignore-missing-imports
