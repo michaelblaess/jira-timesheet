@@ -143,6 +143,13 @@ class SettingsScreen(ModalScreen[bool | None]):
                 id="check-ticket-links-export",
             )
 
+            yield Label("Stundensatz (netto, nur TUI-Anzeige):")
+            yield Input(
+                value=str(self._settings.hourly_rate) if self._settings.hourly_rate > 0 else "",
+                placeholder="0 = nicht anzeigen",
+                id="input-hourly-rate",
+            )
+
             with Horizontal(id="settings-footer"):
                 yield Button("Speichern", id="btn-save", variant="primary")
                 yield Button("Abbrechen", id="btn-cancel")
@@ -173,6 +180,11 @@ class SettingsScreen(ModalScreen[bool | None]):
             pass
         self._settings.show_target_hours_in_export = self.query_one("#check-target-export", Checkbox).value
         self._settings.show_ticket_links_in_export = self.query_one("#check-ticket-links-export", Checkbox).value
+        try:
+            rate_str = self.query_one("#input-hourly-rate", Input).value.strip()
+            self._settings.hourly_rate = float(rate_str) if rate_str else 0.0
+        except ValueError:
+            pass
         self.dismiss(True)
 
     def action_cancel(self) -> None:
