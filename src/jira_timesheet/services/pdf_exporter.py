@@ -20,8 +20,9 @@ _WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 class PdfExporter:
     """Erzeugt eine PDF-Datei im gleichen Layout wie der Excel-Export."""
 
-    COL_WIDTHS = [8, 8, 14, 18, 65, 15, 18]
-    HEADERS = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "h", "Tages-h"]
+    #              KW   Tag  Datum  Ticket  Beschreibung    Aufwand  Tages-h
+    COL_WIDTHS = [8,   8,   15,    22,     140,           20,      20]
+    HEADERS = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "Aufwand", "Tages-h"]
 
     def __init__(
         self,
@@ -52,8 +53,10 @@ class PdfExporter:
         )
         filepath = os.path.join(output_dir, filename)
 
-        pdf = FPDF(orientation="P", unit="mm", format="A4")
-        pdf.set_auto_page_break(auto=True, margin=20)
+        pdf = FPDF(orientation="L", unit="mm", format="A4")
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_left_margin(10)
+        pdf.set_right_margin(10)
         self._register_fonts(pdf)
         pdf.add_page()
 
@@ -205,7 +208,7 @@ class PdfExporter:
                 pdf.cell(self.COL_WIDTHS[1], row_height, weekday, new_x="END")
                 pdf.cell(self.COL_WIDTHS[2], row_height, date_str, new_x="END")
                 pdf.cell(self.COL_WIDTHS[3], row_height, entry.ticket, new_x="END")
-                pdf.cell(self.COL_WIDTHS[4], row_height, self._truncate(entry.summary, 50), new_x="END")
+                pdf.cell(self.COL_WIDTHS[4], row_height, self._truncate(entry.summary, 90), new_x="END")
                 pdf.cell(self.COL_WIDTHS[5], row_height, f"{entry.hours:.2f}", align="R", new_x="END")
 
                 pdf.set_font(*self._font("B" if day_total else "", 8))
