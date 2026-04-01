@@ -5,10 +5,13 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Input, Label, Select, Static
 
 
 from jira_timesheet.models.settings import Settings
+from jira_timesheet.services.holiday_service import FEDERAL_STATES
+
+_STATE_OPTIONS = [(f"{name} ({code})", code) for code, name in sorted(FEDERAL_STATES.items(), key=lambda x: x[1])]
 
 
 class SettingsScreen(ModalScreen[bool | None]):
@@ -39,6 +42,10 @@ class SettingsScreen(ModalScreen[bool | None]):
     }
 
     SettingsScreen Input {
+        margin-bottom: 0;
+    }
+
+    SettingsScreen Select {
         margin-bottom: 0;
     }
 
@@ -104,10 +111,10 @@ class SettingsScreen(ModalScreen[bool | None]):
             )
 
             yield Label("Bundesland (Feiertage):")
-            yield Input(
+            yield Select(
+                options=_STATE_OPTIONS,
                 value=self._settings.federal_state,
-                placeholder="SN, TH, BY, NW, ...",
-                id="input-federal-state",
+                id="select-federal-state",
             )
 
             yield Label("Soll-Stunden pro Tag:")
@@ -142,7 +149,8 @@ class SettingsScreen(ModalScreen[bool | None]):
         self._settings.email = self.query_one("#input-email", Input).value.strip()
         self._settings.logo_path = self.query_one("#input-logo", Input).value.strip()
         self._settings.budget_field = self.query_one("#input-budget-field", Input).value.strip()
-        self._settings.federal_state = self.query_one("#input-federal-state", Input).value.strip().upper()
+        state_select = self.query_one("#select-federal-state", Select)
+        self._settings.federal_state = str(state_select.value) if state_select.value != Select.BLANK else self._settings.federal_state
         try:
             self._settings.hours_per_day = float(self.query_one("#input-hours-per-day", Input).value.strip())
         except ValueError:
