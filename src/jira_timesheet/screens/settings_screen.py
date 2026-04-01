@@ -150,6 +150,22 @@ class SettingsScreen(ModalScreen[bool | None]):
                 id="input-hourly-rate",
             )
 
+            from datetime import date as _date
+            default_year = self._settings.year if self._settings.year > 0 else _date.today().year
+            yield Label("Jahr (fuer Jahresansicht):")
+            yield Input(
+                value=str(default_year),
+                placeholder=str(_date.today().year),
+                id="input-year",
+            )
+
+            yield Label("Urlaubstage pro Jahr:")
+            yield Input(
+                value=str(self._settings.vacation_days),
+                placeholder="30",
+                id="input-vacation-days",
+            )
+
             with Horizontal(id="settings-footer"):
                 yield Button("Speichern", id="btn-save", variant="primary")
                 yield Button("Abbrechen", id="btn-cancel")
@@ -183,6 +199,14 @@ class SettingsScreen(ModalScreen[bool | None]):
         try:
             rate_str = self.query_one("#input-hourly-rate", Input).value.strip()
             self._settings.hourly_rate = float(rate_str) if rate_str else 0.0
+        except ValueError:
+            pass
+        try:
+            self._settings.year = int(self.query_one("#input-year", Input).value.strip())
+        except ValueError:
+            pass
+        try:
+            self._settings.vacation_days = int(self.query_one("#input-vacation-days", Input).value.strip())
         except ValueError:
             pass
         self.dismiss(True)

@@ -375,7 +375,7 @@ class JiraTimesheetApp(App):
             self.notify("Erst Settings konfigurieren [S]", severity="error")
             return
 
-        year = date.today().year
+        year = self._settings.year if self._settings.year > 0 else date.today().year
         self._write_log("")
         self._write_log(f"[bold]Lade Jahresdaten {year}...[/bold]")
 
@@ -440,6 +440,9 @@ class JiraTimesheetApp(App):
                 month_data=month_data,
                 max_yearly_hours=self._settings.max_yearly_hours,
                 hourly_rate=self._settings.hourly_rate,
+                vacation_days=self._settings.vacation_days,
+                hours_per_day=self._settings.hours_per_day,
+                federal_state=self._settings.federal_state,
             ))
 
         except Exception as exc:
