@@ -61,13 +61,10 @@ class InfoScreen(ModalScreen):
                 f"TUI-Anwendung zum Generieren von\n"
                 f"Stundenzetteln aus Jira Worklogs.\n"
                 f"\n"
-                f'  "If you can\'t fly then run,\n'
-                f'   if you can\'t run then walk,\n'
-                f'   if you can\'t walk then crawl,\n'
-                f'   but whatever you do you have to\n'
-                f'   keep moving forward."\n'
+                f'  "The time is always right\n'
+                f'   to do what is right."\n'
                 f"\n"
-                f"        — Martin Luther King Jr.",
+                f"        \u2014 Martin Luther King Jr.",
                 id="info-body",
             )
             yield Static("ESC = Schliessen", id="info-footer")

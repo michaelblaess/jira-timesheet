@@ -1,29 +1,40 @@
-"""Excel Export — 1:1 Nachbau des bestehenden Stundenzettel-Formats."""
+"""Excel Export — Stundenzettel mit KW, Wochentag und Luecken-Erkennung."""
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XlImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 
 from jira_timesheet.models.timesheet import Timesheet
+
+_WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
 class ExcelExporter:
     """Erzeugt eine Excel-Datei im Originalformat des Stundenzettels."""
 
-    def __init__(self, logo_path: str = "") -> None:
+    def __init__(
+        self,
+        logo_path: str = "",
+        jira_host: str = "",
+        hours_per_day: float = 8.0,
+    ) -> None:
         self._logo_path = logo_path
+        self._jira_host = jira_host.rstrip("/")
+        self._hours_per_day = hours_per_day
 
-    def export(self, timesheet: Timesheet, output_dir: str = "") -> str:
-        """Exportiert den Timesheet als .xlsx Datei.
-
-        Gibt den absoluten Pfad der erzeugten Datei zurueck.
-        """
+    def export(
+        self,
+        timesheet: Timesheet,
+        missing_days: list[tuple[date, str]] | None = None,
+        target_hours: float = 0.0,
+        output_dir: str = "",
+    ) -> str:
+        """Exportiert den Timesheet als .xlsx Datei."""
         if not output_dir:
             output_dir = str(Path.home() / "Desktop")
 
@@ -36,13 +47,12 @@ class ExcelExporter:
         wb = Workbook()
         ws = wb.active
         ws.title = "Stundenzettel"
-        ws.sheet_properties.pageSetUpPr = ws.sheet_properties.pageSetUpPr or None
 
         self._setup_columns(ws)
         self._add_logo(ws)
-        self._add_header(ws, timesheet)
+        self._add_header(ws, timesheet, target_hours)
         self._add_table_header(ws)
-        last_row = self._add_data(ws, timesheet)
+        last_row = self._add_data(ws, timesheet, missing_days or [])
         self._add_footer(ws, last_row)
         self._setup_print(ws)
 
@@ -50,10 +60,10 @@ class ExcelExporter:
         return str(Path(filepath).resolve())
 
     def _setup_columns(self, ws: object) -> None:
-        """Setzt die Spaltenbreiten wie im Original."""
+        """Setzt die Spaltenbreiten."""
         widths = {
-            "A": 10.4, "B": 10.4, "C": 67.5, "D": 14.3,
-            "E": 14.7, "F": 10.7, "G": 14.9,
+            "A": 5.0, "B": 5.0, "C": 10.4, "D": 12.0,
+            "E": 60.0, "F": 10.7, "G": 14.9,
         }
         for col, width in widths.items():
             ws.column_dimensions[col].width = width  # type: ignore[index]
@@ -82,86 +92,135 @@ class ExcelExporter:
 
         return ""
 
-    def _add_header(self, ws: object, ts: Timesheet) -> None:
+    def _add_header(self, ws: object, ts: Timesheet, target_hours: float) -> None:
         """Fuegt Titel, Entwickler, Zeitraum und Gesamtstunden hinzu."""
         font_title = Font(name="Arial", size=16, bold=True)
         font_label = Font(name="Arial", size=10, bold=True)
         font_normal = Font(name="Arial", size=10)
 
-        ws.merge_cells("C3:E3")  # type: ignore[attr-defined]
-        cell_title = ws["C3"]  # type: ignore[index]
+        ws.merge_cells("D3:F3")  # type: ignore[attr-defined]
+        cell_title = ws["D3"]  # type: ignore[index]
         cell_title.value = "Stundenzettel"
         cell_title.font = font_title
 
         ws["A5"].value = "Entwickler"  # type: ignore[index]
         ws["A5"].font = font_label  # type: ignore[index]
-        ws["C5"].value = ts.developer  # type: ignore[index]
-        ws["C5"].font = font_normal  # type: ignore[index]
+        ws["D5"].value = ts.developer  # type: ignore[index]
+        ws["D5"].font = font_normal  # type: ignore[index]
 
         ws["A6"].value = "Zeitraum"  # type: ignore[index]
         ws["A6"].font = font_label  # type: ignore[index]
-        ws["C6"].value = f"{ts.date_from:%d.%m.%Y} - {ts.date_to:%d.%m.%Y}"  # type: ignore[index]
-        ws["C6"].font = font_normal  # type: ignore[index]
+        ws["D6"].value = f"{ts.date_from:%d.%m.%Y} - {ts.date_to:%d.%m.%Y}"  # type: ignore[index]
+        ws["D6"].font = font_normal  # type: ignore[index]
 
         ws["F6"].value = "Gesamt (h)"  # type: ignore[index]
-        ws["F6"].font = Font(name="Arial", size=10, bold=True)  # type: ignore[index]
+        ws["F6"].font = font_label  # type: ignore[index]
         ws["G6"].value = ts.total_hours  # type: ignore[index]
-        ws["G6"].font = Font(name="Arial", size=10, bold=True)  # type: ignore[index]
+        ws["G6"].font = font_label  # type: ignore[index]
         ws["G6"].number_format = "0.00"  # type: ignore[index]
 
+        if target_hours > 0:
+            ws["F7"].value = "Soll (h)"  # type: ignore[index]
+            ws["F7"].font = font_normal  # type: ignore[index]
+            ws["G7"].value = target_hours  # type: ignore[index]
+            ws["G7"].font = font_normal  # type: ignore[index]
+            ws["G7"].number_format = "0.00"  # type: ignore[index]
+
     def _add_table_header(self, ws: object) -> None:
-        """Fuegt die Tabellenheader-Zeile hinzu (Zeile 8)."""
-        headers = ["Datum", "Ticket", "Beschreibung", "Bearbeiter", "Budget", "Aufwand (h)", "Tagessumme (h)"]
+        """Fuegt die Tabellenheader-Zeile hinzu (Zeile 9)."""
+        headers = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "Aufwand (h)", "Tagessumme (h)"]
         header_fill = PatternFill(start_color="C8C8C8", end_color="C8C8C8", fill_type="solid")
         header_font = Font(name="Arial", size=10)
         header_align = Alignment(horizontal="left", vertical="center")
 
         for col_idx, header in enumerate(headers, 1):
-            cell = ws.cell(row=8, column=col_idx)  # type: ignore[attr-defined]
+            cell = ws.cell(row=9, column=col_idx)  # type: ignore[attr-defined]
             cell.value = header
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = header_align
 
-    def _add_data(self, ws: object, ts: Timesheet) -> int:
+    def _add_data(
+        self,
+        ws: object,
+        ts: Timesheet,
+        missing_days: list[tuple[date, str]],
+    ) -> int:
         """Fuegt die Datenzeilen hinzu. Gibt die letzte Zeilennummer zurueck."""
         font_normal = Font(name="Arial", size=10)
+        font_dim = Font(name="Arial", size=10, color="999999")
+        font_red = Font(name="Arial", size=10, color="CC0000")
         align_left = Alignment(horizontal="left", vertical="center")
         align_right = Alignment(horizontal="right", vertical="center")
         border_day_top = Border(top=Side(style="medium", color="000000"))
 
-        current_row = 9
+        day_map = {day.date: day for day in ts.days}
+        gap_map = {d: reason for d, reason in missing_days}
+        all_dates = sorted(set(day_map.keys()) | set(gap_map.keys()))
 
-        for day in ts.days:
+        current_row = 10
+
+        for d in all_dates:
+            if d in gap_map and d not in day_map:
+                ws.row_dimensions[current_row].height = 20.1  # type: ignore[index]
+                reason = gap_map[d]
+                is_holiday = "\u2014" not in reason
+                use_font = font_dim if is_holiday else font_red
+
+                ws.cell(row=current_row, column=1).value = d.isocalendar()[1]  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=1).font = use_font  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=2).value = _WEEKDAYS[d.weekday()]  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=2).font = use_font  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=3).value = d  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=3).number_format = "DD.MM.YYYY"  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=3).font = use_font  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=5).value = reason  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=5).font = use_font  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=7).value = 0  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=7).number_format = "0.00"  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=7).font = use_font  # type: ignore[attr-defined]
+
+                for col in range(1, 8):
+                    ws.cell(row=current_row, column=col).alignment = align_left  # type: ignore[attr-defined]
+                    ws.cell(row=current_row, column=col).border = border_day_top  # type: ignore[attr-defined]
+
+                current_row += 1
+                continue
+
+            if d not in day_map:
+                continue
+
+            day = day_map[d]
             for i, entry in enumerate(day.entries):
                 is_first = i == 0
                 is_last = i == len(day.entries) - 1
 
                 ws.row_dimensions[current_row].height = 20.1  # type: ignore[index]
 
-                cell_a = ws.cell(row=current_row, column=1)  # type: ignore[attr-defined]
-                cell_a.value = entry.date
-                cell_a.number_format = "DD.MM.YYYY"
-                cell_a.font = font_normal
-                cell_a.alignment = align_left
+                ws.cell(row=current_row, column=1).value = entry.date.isocalendar()[1] if is_first else None  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=1).font = font_normal  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=1).alignment = align_left  # type: ignore[attr-defined]
 
-                cell_b = ws.cell(row=current_row, column=2)  # type: ignore[attr-defined]
-                cell_b.value = entry.ticket
-                cell_b.font = font_normal
-                cell_b.alignment = align_left
+                ws.cell(row=current_row, column=2).value = _WEEKDAYS[entry.date.weekday()] if is_first else None  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=2).font = font_normal  # type: ignore[attr-defined]
+                ws.cell(row=current_row, column=2).alignment = align_left  # type: ignore[attr-defined]
 
                 cell_c = ws.cell(row=current_row, column=3)  # type: ignore[attr-defined]
-                cell_c.value = entry.summary
+                cell_c.value = entry.date if is_first else None
+                cell_c.number_format = "DD.MM.YYYY"
                 cell_c.font = font_normal
                 cell_c.alignment = align_left
 
                 cell_d = ws.cell(row=current_row, column=4)  # type: ignore[attr-defined]
-                cell_d.value = entry.author
+                cell_d.value = entry.ticket
                 cell_d.font = font_normal
                 cell_d.alignment = align_left
+                if self._jira_host and entry.ticket:
+                    cell_d.hyperlink = f"{self._jira_host}/browse/{entry.ticket}"
+                    cell_d.font = Font(name="Arial", size=10, color="0563C1", underline="single")
 
                 cell_e = ws.cell(row=current_row, column=5)  # type: ignore[attr-defined]
-                cell_e.value = entry.budget
+                cell_e.value = entry.summary
                 cell_e.font = font_normal
                 cell_e.alignment = align_left
 
@@ -180,8 +239,7 @@ class ExcelExporter:
 
                 if is_first:
                     for col in range(1, 8):
-                        cell = ws.cell(row=current_row, column=col)  # type: ignore[attr-defined]
-                        cell.border = border_day_top
+                        ws.cell(row=current_row, column=col).border = border_day_top  # type: ignore[attr-defined]
 
                 current_row += 1
 
@@ -193,13 +251,13 @@ class ExcelExporter:
         font_normal = Font(name="Arial", size=10)
         border_top = Border(top=Side(style="thin", color="000000"))
 
-        ws.cell(row=footer_row, column=3).value = "bestaetigt am:"  # type: ignore[attr-defined]
-        ws.cell(row=footer_row, column=3).font = font_normal  # type: ignore[attr-defined]
-
-        ws.cell(row=footer_row, column=4).value = "Projektleiter (Blockschrift, Unterschrift)"  # type: ignore[attr-defined]
+        ws.cell(row=footer_row, column=4).value = "bestätigt am:"  # type: ignore[attr-defined]
         ws.cell(row=footer_row, column=4).font = font_normal  # type: ignore[attr-defined]
 
-        for col in range(3, 6):
+        ws.cell(row=footer_row, column=5).value = "Projektleiter (Blockschrift, Unterschrift)"  # type: ignore[attr-defined]
+        ws.cell(row=footer_row, column=5).font = font_normal  # type: ignore[attr-defined]
+
+        for col in range(4, 7):
             ws.cell(row=footer_row, column=col).border = border_top  # type: ignore[attr-defined]
 
     def _setup_print(self, ws: object) -> None:

@@ -103,6 +103,27 @@ class SettingsScreen(ModalScreen[bool | None]):
                 id="input-budget-field",
             )
 
+            yield Label("Bundesland (Feiertage):")
+            yield Input(
+                value=self._settings.federal_state,
+                placeholder="SN, TH, BY, NW, ...",
+                id="input-federal-state",
+            )
+
+            yield Label("Soll-Stunden pro Tag:")
+            yield Input(
+                value=str(self._settings.hours_per_day),
+                placeholder="8.0",
+                id="input-hours-per-day",
+            )
+
+            yield Label("Max. Jahresstunden:")
+            yield Input(
+                value=str(self._settings.max_yearly_hours),
+                placeholder="1720.0",
+                id="input-max-yearly",
+            )
+
             with Horizontal(id="settings-footer"):
                 yield Button("Speichern", id="btn-save", variant="primary")
                 yield Button("Abbrechen", id="btn-cancel")
@@ -121,6 +142,15 @@ class SettingsScreen(ModalScreen[bool | None]):
         self._settings.email = self.query_one("#input-email", Input).value.strip()
         self._settings.logo_path = self.query_one("#input-logo", Input).value.strip()
         self._settings.budget_field = self.query_one("#input-budget-field", Input).value.strip()
+        self._settings.federal_state = self.query_one("#input-federal-state", Input).value.strip().upper()
+        try:
+            self._settings.hours_per_day = float(self.query_one("#input-hours-per-day", Input).value.strip())
+        except ValueError:
+            pass
+        try:
+            self._settings.max_yearly_hours = float(self.query_one("#input-max-yearly", Input).value.strip())
+        except ValueError:
+            pass
         self.dismiss(True)
 
     def action_cancel(self) -> None:
