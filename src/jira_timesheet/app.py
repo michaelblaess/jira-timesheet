@@ -49,6 +49,7 @@ class JiraTimesheetApp(App):
         Binding("i", "show_info", "Info"),
         Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
         Binding("j", "show_year", "Jahr"),
+        Binding("a", "toggle_anon", "Anonymisieren"),
         Binding("l", "toggle_log", "Log anzeigen"),
         Binding("comma", "prev_month", "Monat", key_display="<"),
         Binding("full_stop", "next_month", "Monat", key_display=">"),
@@ -67,6 +68,7 @@ class JiraTimesheetApp(App):
         self._missing_days: list[tuple] = []
         self._generating = False
         self._calendar_active = False
+        self._anonymized = False
 
     def compose(self) -> ComposeResult:
         """Erstellt das UI-Layout."""
@@ -473,6 +475,31 @@ class JiraTimesheetApp(App):
             self.sub_title = ""
             self._write_log(f"[red bold]Fehler: {exc}[/red bold]")
             self.notify(f"Fehler: {exc}", severity="error")
+
+    def action_toggle_anon(self) -> None:
+        """Anonymisiert/de-anonymisiert die Daten fuer Screenshots."""
+        if self._timesheet is None:
+            self.notify("Erst Stundenzettel generieren [G]", severity="warning")
+            return
+
+        self._anonymized = not self._anonymized
+
+        if self._anonymized:
+            from jira_timesheet.services.anonymizer import anonymize_timesheet
+            anon_ts = anonymize_timesheet(self._timesheet)
+            table = self.query_one("#timesheet-table", TimesheetTable)
+            cal = self.query_one("#calendar-view", CalendarView)
+            table.load_timesheet(anon_ts, missing_days=self._missing_days)
+            cal.load_timesheet(anon_ts, missing_days=self._missing_days)
+            self.sub_title = "ANONYMISIERT"
+            self.notify("Daten anonymisiert (fuer Screenshots)")
+        else:
+            table = self.query_one("#timesheet-table", TimesheetTable)
+            cal = self.query_one("#calendar-view", CalendarView)
+            table.load_timesheet(self._timesheet, missing_days=self._missing_days)
+            cal.load_timesheet(self._timesheet, missing_days=self._missing_days)
+            self.sub_title = "Kalenderansicht" if self._calendar_active else ""
+            self.notify("Echte Daten wiederhergestellt")
 
     def action_toggle_view(self) -> None:
         """Wechselt zwischen Listen- und Kalenderansicht."""
