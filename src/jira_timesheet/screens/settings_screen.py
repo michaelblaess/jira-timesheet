@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Select, Static
+from textual.widgets import Button, Checkbox, Input, Label, Select, Static
 
 
 from jira_timesheet.models.settings import Settings
@@ -131,6 +131,12 @@ class SettingsScreen(ModalScreen[bool | None]):
                 id="input-max-yearly",
             )
 
+            yield Checkbox(
+                "Soll-Stunden im Excel/PDF Export anzeigen",
+                value=self._settings.show_target_hours_in_export,
+                id="check-target-export",
+            )
+
             with Horizontal(id="settings-footer"):
                 yield Button("Speichern", id="btn-save", variant="primary")
                 yield Button("Abbrechen", id="btn-cancel")
@@ -159,6 +165,7 @@ class SettingsScreen(ModalScreen[bool | None]):
             self._settings.max_yearly_hours = float(self.query_one("#input-max-yearly", Input).value.strip())
         except ValueError:
             pass
+        self._settings.show_target_hours_in_export = self.query_one("#check-target-export", Checkbox).value
         self.dismiss(True)
 
     def action_cancel(self) -> None:
