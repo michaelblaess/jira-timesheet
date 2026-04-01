@@ -80,7 +80,7 @@ class SummaryPanel(Widget):
             brutto = netto * 1.19
             text.append("  |  ", style="dim")
             text.append(f"Netto: {netto:,.2f}\u20ac", style="bold")
-            text.append("  ", style="dim")
+            text.append("  |  ", style="dim")
             text.append(f"Brutto: {brutto:,.2f}\u20ac", style="bold")
 
         return text
