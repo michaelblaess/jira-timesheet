@@ -101,11 +101,11 @@ class DayTile(Widget):
                 hour_style = "bold yellow"
 
             text.append(f"{day_num} {weekday} ", style="bold")
-            text.append(f"{total:.1f}h", style=hour_style)
+            text.append(f"{total:.2f}h", style=hour_style)
             text.append("\n")
 
             for entry in self._day_data.entries:
-                ticket_line = f"{entry.ticket} {entry.hours:.1f}h"
+                ticket_line = f"{entry.ticket} {entry.hours:.2f}h"
                 text.append(ticket_line[:20], style="dim")
                 text.append("\n")
 
