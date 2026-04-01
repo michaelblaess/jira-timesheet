@@ -6,6 +6,23 @@
   <title>Jira Timesheet — Stundenzettel aus Jira Worklogs</title>
   <link rel="stylesheet" href="css/precision.css">
   <style>
+    .gallery { padding: 0 32px 80px; max-width: var(--max-width); margin: 0 auto; }
+    .gallery-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .gallery-tab { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-tertiary); padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; cursor: pointer; transition: all var(--transition); }
+    .gallery-tab:hover { color: var(--text-secondary); background: var(--bg-secondary); }
+    .gallery-tab.active { color: var(--text-primary); background: var(--bg-secondary); border-color: var(--border); }
+    .gallery-frame { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-elevated); background: #0c0c0c; }
+    .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .gallery-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .gallery-dot.r { background: #ff5f57; }
+    .gallery-dot.y { background: #febc2e; }
+    .gallery-dot.g { background: #28c840; }
+    .gallery-bar-title { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 12px; color: #6b7280; font-weight: 500; }
+    .gallery-img-wrap { display: none; }
+    .gallery-img-wrap.active { display: block; }
+    .gallery-img-wrap img { width: 100%; height: auto; display: block; }
+    .gallery-caption { padding: 12px 18px; font-size: 0.8rem; color: var(--text-tertiary); background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); font-family: var(--font-mono); }
+    @media (max-width: 640px) { .gallery { padding: 0 16px 48px; } .gallery-tabs { overflow-x: auto; } }
     .cli-table-wrap { overflow-x: auto; margin-top: 32px; }
     .cli-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
     .cli-table th { text-align: left; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; padding: 12px 16px; border-bottom: 2px solid var(--border); }
@@ -44,6 +61,50 @@
         GitHub Repository
       </a>
       <a href="#install" class="btn btn-secondary">Installation</a>
+    </div>
+  </section>
+
+  <!-- ═══ SCREENSHOT GALLERY ═══ -->
+  <section class="gallery">
+    <div class="gallery-tabs">
+      <button class="gallery-tab active" onclick="showSlide(0)">Listenansicht</button>
+      <button class="gallery-tab" onclick="showSlide(1)">IBM Terminal</button>
+      <button class="gallery-tab" onclick="showSlide(2)">Kalender Atari</button>
+      <button class="gallery-tab" onclick="showSlide(3)">Kalender BeOS</button>
+      <button class="gallery-tab" onclick="showSlide(4)">Jahresansicht</button>
+      <button class="gallery-tab" onclick="showSlide(5)">Settings</button>
+    </div>
+    <div class="gallery-frame">
+      <div class="gallery-bar">
+        <div class="gallery-dot r"></div>
+        <div class="gallery-dot y"></div>
+        <div class="gallery-dot g"></div>
+        <div class="gallery-bar-title">jira-timesheet</div>
+      </div>
+      <div class="gallery-img-wrap active" data-slide="0">
+        <img src="screenshots/01-main-atari.png" alt="Listenansicht im Atari ST Theme">
+        <div class="gallery-caption">Listenansicht — KW, Wochentag, Ticket, Beschreibung, Stunden, Tagessumme (Atari ST Theme)</div>
+      </div>
+      <div class="gallery-img-wrap" data-slide="1">
+        <img src="screenshots/02-main-ibm.png" alt="Listenansicht im IBM Terminal Theme">
+        <div class="gallery-caption">Listenansicht — IBM Terminal Theme mit Soll/Ist-Vergleich und Netto/Brutto</div>
+      </div>
+      <div class="gallery-img-wrap" data-slide="2">
+        <img src="screenshots/03-month-view-atari.png" alt="Kalenderansicht im Atari ST Theme">
+        <div class="gallery-caption">Kalenderansicht — Monatskalender mit farbcodierten Tageskacheln und Wochensumme</div>
+      </div>
+      <div class="gallery-img-wrap" data-slide="3">
+        <img src="screenshots/04-month-view-beos.png" alt="Kalenderansicht im BeOS Theme">
+        <div class="gallery-caption">Kalenderansicht — BeOS Theme mit Luecken-Erkennung (rote Kacheln)</div>
+      </div>
+      <div class="gallery-img-wrap" data-slide="4">
+        <img src="screenshots/05-year-view-atari.png" alt="Jahresansicht mit Progressbars">
+        <div class="gallery-caption">Jahresansicht — 12 Monatskacheln mit Progressbar, Forecast und Netto/Brutto</div>
+      </div>
+      <div class="gallery-img-wrap" data-slide="5">
+        <img src="screenshots/06-settings-atari.png" alt="Settings Dialog">
+        <div class="gallery-caption">Settings — Jira-Host, Token, Bundesland, Stundensatz und Export-Optionen</div>
+      </div>
     </div>
   </section>
 
@@ -167,6 +228,16 @@ run.bat</pre>
     </div>
   </section>
 
+  <!-- ═══ DISCLAIMER ═══ -->
+  <section class="section">
+    <p style="text-align: center; color: var(--text-tertiary); font-size: 0.8rem; max-width: 640px; margin: 0 auto; line-height: 1.6;">
+      <strong>Disclaimer:</strong> Dieses Projekt ist nicht von Atlassian entwickelt, unterstuetzt oder autorisiert.
+      "Jira" und "Atlassian" sind eingetragene Markenzeichen von
+      <a href="https://www.atlassian.com/" style="color: var(--accent);">Atlassian Corporation</a>.
+      Dieses Tool nutzt die oeffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
+    </p>
+  </section>
+
   <!-- ═══ FOOTER ═══ -->
   <footer class="footer">
     <div class="footer-inner">
@@ -179,5 +250,11 @@ run.bat</pre>
   </footer>
 
   <script src="js/theme.js"></script>
+  <script>
+    function showSlide(idx) {
+      document.querySelectorAll('.gallery-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+      document.querySelectorAll('.gallery-img-wrap').forEach((w, i) => w.classList.toggle('active', i === idx));
+    }
+  </script>
 </body>
 </html>
