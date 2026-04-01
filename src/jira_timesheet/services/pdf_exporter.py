@@ -44,9 +44,11 @@ class PdfExporter:
         if not output_dir:
             output_dir = str(Path.home() / "Desktop")
 
+        from datetime import datetime
+        ts_stamp = datetime.now().strftime("%H%M%S")
         filename = (
             f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}"
-            f"_{timesheet.date_to:%Y-%m-%d}.pdf"
+            f"_{timesheet.date_to:%Y-%m-%d}_{ts_stamp}.pdf"
         )
         filepath = os.path.join(output_dir, filename)
 
