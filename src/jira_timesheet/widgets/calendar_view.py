@@ -149,7 +149,13 @@ class CalendarView(VerticalScroll):
     CalendarView #cal-header {
         height: 1;
         width: 100%;
+    }
+
+    CalendarView .cal-header-cell {
+        width: 1fr;
+        height: 1;
         padding: 0 1;
+        text-style: bold;
     }
     """
 
@@ -165,11 +171,9 @@ class CalendarView(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Erzeugt den Header mit Wochentagnamen."""
-        header_text = Text()
-        col_width = 14
-        for wd in _WEEKDAYS:
-            header_text.append(f" {wd:<{col_width - 1}}", style="bold")
-        yield Static(header_text, id="cal-header")
+        with Horizontal(id="cal-header"):
+            for wd in _WEEKDAYS:
+                yield Static(wd, classes="cal-header-cell")
 
     def load_timesheet(
         self,
