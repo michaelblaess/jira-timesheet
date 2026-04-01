@@ -40,7 +40,7 @@ class JiraTimesheetApp(App):
         Binding("c", "copy_log", "Log kopieren"),
         Binding("s", "show_settings", "Settings"),
         Binding("i", "show_info", "Info"),
-        Binding("tab", "toggle_view", "Ansicht", key_display="TAB"),
+        Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
         Binding("l", "toggle_log", "Log"),
         Binding("left", "prev_month", "◄ Monat", show=False),
         Binding("right", "next_month", "► Monat", show=False),
