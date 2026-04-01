@@ -12,6 +12,7 @@ from textual.widgets import Footer, Header, RichLog
 from jira_timesheet import __version__, __year__
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.models.timesheet import Timesheet
+from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.timesheet_service import TimesheetService
 from jira_timesheet.widgets.config_panel import ConfigPanel
@@ -59,7 +60,11 @@ class JiraTimesheetApp(App):
         """Erstellt das UI-Layout."""
         yield Header()
         yield ConfigPanel(self._settings, id="config-panel")
-        yield TimesheetTable(id="timesheet-table")
+        yield TimesheetTable(
+            hours_per_day=self._settings.hours_per_day,
+            jira_host=self._settings.jira_host,
+            id="timesheet-table",
+        )
         yield SummaryPanel(id="summary-panel")
         yield RichLog(id="log-panel", highlight=True, markup=True)
         yield Footer()
@@ -136,14 +141,32 @@ class JiraTimesheetApp(App):
                 date_to=config.date_to,
             )
 
-            table.load_timesheet(self._timesheet)
-            summary.update_timesheet(self._timesheet)
+            holiday_svc = HolidayService(self._settings.federal_state)
+            worked_dates = {e.date for e in entries}
+            missing_days = holiday_svc.get_missing_workdays(
+                config.date_from, config.date_to, worked_dates,
+            )
+            target_workdays = holiday_svc.count_workdays(config.date_from, config.date_to)
+            target_hours = target_workdays * self._settings.hours_per_day
+
+            table.load_timesheet(self._timesheet, missing_days=missing_days)
+            summary.update_timesheet(self._timesheet, target_hours=target_hours)
+
+            holidays_in_range = holiday_svc.get_holidays_in_range(config.date_from, config.date_to)
+            if holidays_in_range:
+                names = ", ".join(f"{d:%d.%m.} {n}" for d, n in holidays_in_range.items())
+                self._write_log(f"Feiertage ({self._settings.federal_state}): {names}")
+
+            gap_count = sum(1 for _, reason in missing_days if "\u2014" in reason)
+            if gap_count > 0:
+                self._write_log(f"[yellow]{gap_count} Arbeitstag(e) ohne Eintrag[/yellow]")
 
             elapsed = time.monotonic() - start_time
             self._write_log(
                 f"[green]Fertig in {elapsed:.1f}s — "
                 f"{self._timesheet.working_days} Tage, "
-                f"{self._timesheet.total_hours:.2f}h[/green]"
+                f"{self._timesheet.total_hours:.2f}h "
+                f"(Soll: {target_hours:.0f}h)[/green]"
             )
 
             self._settings.last_date_from = config.date_from.isoformat()
@@ -169,8 +192,19 @@ class JiraTimesheetApp(App):
         try:
             from jira_timesheet.services.excel_exporter import ExcelExporter
 
-            exporter = ExcelExporter(logo_path=self._settings.logo_path)
-            path = exporter.export(self._timesheet)
+            holiday_svc = HolidayService(self._settings.federal_state)
+            config = self.query_one("#config-panel", ConfigPanel)
+            worked_dates = {e.date for e in self._timesheet.all_entries}
+            missing = holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates)
+            target_wd = holiday_svc.count_workdays(config.date_from, config.date_to)
+            target_h = target_wd * self._settings.hours_per_day
+
+            exporter = ExcelExporter(
+                logo_path=self._settings.logo_path,
+                jira_host=self._settings.jira_host,
+                hours_per_day=self._settings.hours_per_day,
+            )
+            path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
             self._write_log(f"[green]Excel gespeichert: {path}[/green]")
             self.notify(f"Excel: {path}")
         except Exception as exc:
@@ -186,8 +220,19 @@ class JiraTimesheetApp(App):
         try:
             from jira_timesheet.services.pdf_exporter import PdfExporter
 
-            exporter = PdfExporter(logo_path=self._settings.logo_path)
-            path = exporter.export(self._timesheet)
+            holiday_svc = HolidayService(self._settings.federal_state)
+            config = self.query_one("#config-panel", ConfigPanel)
+            worked_dates = {e.date for e in self._timesheet.all_entries}
+            missing = holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates)
+            target_wd = holiday_svc.count_workdays(config.date_from, config.date_to)
+            target_h = target_wd * self._settings.hours_per_day
+
+            exporter = PdfExporter(
+                logo_path=self._settings.logo_path,
+                jira_host=self._settings.jira_host,
+                hours_per_day=self._settings.hours_per_day,
+            )
+            path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
             self._write_log(f"[green]PDF gespeichert: {path}[/green]")
             self.notify(f"PDF: {path}")
         except Exception as exc:

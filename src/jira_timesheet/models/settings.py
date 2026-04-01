@@ -22,6 +22,9 @@ class Settings:
     last_date_to: str = ""
     log_visible: bool = True
     budget_field: str = "customfield_36461"
+    federal_state: str = "SN"
+    hours_per_day: float = 8.0
+    max_yearly_hours: float = 1720.0
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -29,6 +32,7 @@ class Settings:
     _FIELDS = (
         "theme", "jira_host", "jira_token", "email", "logo_path",
         "last_date_from", "last_date_to", "log_visible", "budget_field",
+        "federal_state", "hours_per_day", "max_yearly_hours",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -59,6 +63,9 @@ class Settings:
                 last_date_to=data.get("last_date_to", ""),
                 log_visible=data.get("log_visible", True),
                 budget_field=data.get("budget_field", "customfield_36461"),
+                federal_state=data.get("federal_state", "SN"),
+                hours_per_day=data.get("hours_per_day", 8.0),
+                max_yearly_hours=data.get("max_yearly_hours", 1720.0),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
