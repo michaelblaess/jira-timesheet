@@ -46,7 +46,7 @@
 
 - Neues Feld `federal_state` in Settings (z.B. "SN" fuer Sachsen, "TH" fuer Thueringen)
 - Wird fuer Feiertagsberechnung benoetigt
-- Default: "SN" (Sachsen — enviaM-Gebiet)
+- Default: "SN" (Sachsen)
 
 ## Soll-Arbeitszeitstunden
 
@@ -58,7 +58,7 @@
 
 ## Jira-Ticket-Links
 
-- Tickets in der Tabelle als klickbare Links anzeigen (z.B. DMZ-14754 → oeffnet im Browser)
+- Tickets in der Tabelle als klickbare Links anzeigen (z.B. PROJ-1234 → oeffnet im Browser)
 - Link-URL aus Settings: `{jira_host}/browse/{ticket_key}`
 - Ticket-URL wird noch bekanntgegeben
 - Im Excel-Export: Ticket-Spalte als Hyperlink

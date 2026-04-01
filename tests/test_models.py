@@ -12,13 +12,13 @@ class TestWorklogEntry:
     def test_create_entry(self) -> None:
         entry = WorklogEntry(
             date=date(2026, 3, 2),
-            ticket="DMZ-14754",
+            ticket="PROJ-1234",
             summary="Culture is not supported",
             author="Blaess, Michael",
             budget="nicht zugeordnet",
             hours=2.5,
         )
-        assert entry.ticket == "DMZ-14754"
+        assert entry.ticket == "PROJ-1234"
         assert entry.hours == 2.5
 
 
