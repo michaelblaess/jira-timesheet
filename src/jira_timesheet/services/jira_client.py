@@ -48,7 +48,7 @@ class JiraClient:
             f'issueFunction in workLogged('
             f'"after {search_from:%Y/%m/%d} by {email}")'
         )
-        fields = f"worklog,summary,status,issuetype,components,labels,priority,{self._budget_field}"
+        fields = f"worklog,summary,status,issuetype,components,labels,priority,resolution,assignee,created,updated,timespent,{self._budget_field}"
 
         self._log(f"JQL: {jql}")
         self._log(f"Verbinde mit {self._host}...")
@@ -136,6 +136,19 @@ class JiraClient:
         label_list = fields.get("labels", [])
         issue_labels = ", ".join(label_list) if isinstance(label_list, list) else ""
 
+        resolution_obj = fields.get("resolution", {})
+        issue_resolution = resolution_obj.get("name", "") if isinstance(resolution_obj, dict) else ""
+
+        assignee_obj = fields.get("assignee", {})
+        issue_assignee = assignee_obj.get("displayName", "") if isinstance(assignee_obj, dict) else ""
+
+        issue_created = fields.get("created", "")[:16].replace("T", " ") if fields.get("created") else ""
+        issue_updated = fields.get("updated", "")[:16].replace("T", " ") if fields.get("updated") else ""
+
+        timespent_sec = fields.get("timespent", 0) or 0
+        total_logged_h = timespent_sec / 3600.0
+        issue_total_logged = f"{total_logged_h:.2f}h" if timespent_sec > 0 else ""
+
         worklog_node = fields.get("worklog", {})
         max_results = worklog_node.get("maxResults", 0)
         total = worklog_node.get("total", 0)
@@ -179,6 +192,11 @@ class JiraClient:
                 components=issue_components,
                 labels=issue_labels,
                 priority=issue_priority,
+                resolution=issue_resolution,
+                assignee=issue_assignee,
+                created=issue_created,
+                updated=issue_updated,
+                total_logged=issue_total_logged,
             ))
 
         return entries
