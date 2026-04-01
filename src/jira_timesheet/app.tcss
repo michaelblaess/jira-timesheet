@@ -40,9 +40,9 @@ SummaryPanel {
 }
 
 #log-panel {
-    height: 8;
-    min-height: 4;
-    max-height: 15;
+    height: 10;
+    min-height: 6;
+    max-height: 20;
     margin-top: 1;
     border: solid $accent;
     display: block;
