@@ -12,6 +12,7 @@ from textual.widgets import Footer, Header, RichLog
 from jira_timesheet import __version__, __year__
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.models.timesheet import Timesheet
+from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.timesheet_service import TimesheetService
@@ -145,11 +146,19 @@ class JiraTimesheetApp(App):
                 on_log=self._write_log,
             )
 
-            entries = await client.get_worklogs(
-                email=self._settings.email,
-                date_from=config.date_from,
-                date_to=config.date_to,
-            )
+            m_year = config.date_from.year
+            m_month = config.date_from.month
+
+            if CacheService.has_cache(m_year, m_month, self._settings.email):
+                entries = CacheService.load(m_year, m_month, self._settings.email)
+                self._write_log("[dim]Daten aus Cache geladen[/dim]")
+            else:
+                entries = await client.get_worklogs(
+                    email=self._settings.email,
+                    date_from=config.date_from,
+                    date_to=config.date_to,
+                )
+                CacheService.save(m_year, m_month, self._settings.email, entries)
 
             developer = entries[0].author if entries else self._settings.email
             self._timesheet = TimesheetService.build_timesheet(
@@ -389,6 +398,9 @@ class JiraTimesheetApp(App):
                 budget_field=self._settings.budget_field,
             )
 
+            cached_count = 0
+            fetched_count = 0
+
             for month in range(1, 13):
                 first = date(year, month, 1)
                 if month == 12:
@@ -396,9 +408,10 @@ class JiraTimesheetApp(App):
                 else:
                     last = date(year, month + 1, 1) - timedelta(days=1)
 
+                target_days = holiday_svc.count_workdays(first, last)
+                target_h = target_days * self._settings.hours_per_day
+
                 if first > date.today():
-                    target_days = holiday_svc.count_workdays(first, last)
-                    target_h = target_days * self._settings.hours_per_day
                     month_data[month] = {
                         "actual": 0.0,
                         "target": target_h,
@@ -407,18 +420,26 @@ class JiraTimesheetApp(App):
                     }
                     continue
 
-                self.sub_title = f"Lade {_MONTH_NAMES[month - 1]}..."
+                # Cache pruefen fuer abgeschlossene Monate
+                if CacheService.has_cache(year, month, self._settings.email):
+                    entries = CacheService.load(year, month, self._settings.email)
+                    cached_count += 1
+                    source = "[dim](Cache)[/dim]"
+                else:
+                    self.sub_title = f"Lade {_MONTH_NAMES[month - 1]}..."
+                    entries = await client.get_worklogs(
+                        email=self._settings.email,
+                        date_from=first,
+                        date_to=last,
+                    )
+                    fetched_count += 1
+                    source = ""
 
-                entries = await client.get_worklogs(
-                    email=self._settings.email,
-                    date_from=first,
-                    date_to=last,
-                )
+                    # Abgeschlossene Monate cachen
+                    CacheService.save(year, month, self._settings.email, entries)
 
                 actual = sum(e.hours for e in entries)
                 worked_dates = len({e.date for e in entries})
-                target_days = holiday_svc.count_workdays(first, last)
-                target_h = target_days * self._settings.hours_per_day
 
                 month_data[month] = {
                     "actual": actual,
@@ -427,12 +448,15 @@ class JiraTimesheetApp(App):
                     "target_days": target_days,
                 }
 
-                self._write_log(f"  {_MONTH_NAMES[month - 1]}: {actual:.1f}h ({worked_dates} Tage)")
+                self._write_log(f"  {_MONTH_NAMES[month - 1]}: {actual:.1f}h ({worked_dates} Tage) {source}")
 
             self.sub_title = ""
 
             total = sum(d.get("actual", 0.0) for d in month_data.values())
-            self._write_log(f"[green]Jahresdaten geladen: {total:.1f}h[/green]")
+            self._write_log(
+                f"[green]Jahresdaten geladen: {total:.1f}h "
+                f"({fetched_count} abgerufen, {cached_count} aus Cache)[/green]"
+            )
 
             from jira_timesheet.screens.year_screen import YearScreen
             self.push_screen(YearScreen(
