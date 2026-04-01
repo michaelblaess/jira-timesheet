@@ -185,6 +185,9 @@ class YearScreen(ModalScreen):
         month_data: dict[int, dict],
         max_yearly_hours: float = 1720.0,
         hourly_rate: float = 0.0,
+        vacation_days: int = 30,
+        hours_per_day: float = 8.0,
+        federal_state: str = "SN",
         **kwargs: object,
     ) -> None:
         super().__init__(**kwargs)
@@ -192,6 +195,9 @@ class YearScreen(ModalScreen):
         self._month_data = month_data
         self._max_yearly = max_yearly_hours
         self._hourly_rate = hourly_rate
+        self._vacation_days = vacation_days
+        self._hours_per_day = hours_per_day
+        self._federal_state = federal_state
 
     def compose(self) -> ComposeResult:
         """Baut die Jahresansicht auf."""
@@ -259,6 +265,51 @@ class YearScreen(ModalScreen):
             text.append(f"  Netto: {netto:,.2f}\u20ac", style="bold")
             text.append("  |  ", style="dim")
             text.append(f"Brutto: {brutto:,.2f}\u20ac", style="bold")
+
+        # Forecast
+        text.append("\n")
+        text.append(self._build_forecast(total_actual, total_days))
+
+        return text
+
+    def _build_forecast(self, total_actual: float, total_worked_days: int) -> Text:
+        """Berechnet den Jahres-Forecast."""
+        text = Text()
+
+        import holidays as _holidays
+        h = _holidays.Germany(subdiv=self._federal_state, years=self._year)
+
+        from datetime import timedelta
+        total_workdays_year = 0
+        current = date(self._year, 1, 1)
+        end = date(self._year, 12, 31)
+        one_day = timedelta(days=1)
+        while current <= end:
+            if current.weekday() < 5 and current not in h:
+                total_workdays_year += 1
+            current += one_day
+
+        available_days = total_workdays_year - self._vacation_days
+        forecast_hours = available_days * self._hours_per_day
+
+        text.append("  \u2500\u2500\u2500 Forecast \u2500\u2500\u2500\n", style="dim")
+        text.append(f"  Arbeitstage {self._year}: ", style="dim")
+        text.append(f"{total_workdays_year}", style="bold")
+        text.append(f"  \u2212 {self._vacation_days} Urlaub", style="dim")
+        text.append(f"  = ", style="dim")
+        text.append(f"{available_days} verfuegbar\n", style="bold")
+
+        text.append(f"  Forecast Stunden: ", style="dim")
+        text.append(f"{available_days} Tage \u00d7 {self._hours_per_day:.0f}h = ", style="dim")
+        text.append(f"{forecast_hours:.0f}h\n", style="bold")
+
+        if self._hourly_rate > 0:
+            forecast_netto = forecast_hours * self._hourly_rate
+            forecast_brutto = forecast_netto * 1.19
+            text.append(f"  Forecast Umsatz: ", style="dim")
+            text.append(f"Netto: {forecast_netto:,.2f}\u20ac", style="bold green")
+            text.append("  |  ", style="dim")
+            text.append(f"Brutto: {forecast_brutto:,.2f}\u20ac", style="bold green")
 
         return text
 
