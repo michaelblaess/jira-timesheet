@@ -220,7 +220,8 @@ class JiraTimesheetApp(App):
                 hours_per_day=self._settings.hours_per_day,
             )
             path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
-            self._write_log(f"[green]Excel gespeichert: {path}[/green]")
+            file_url = "file:///" + path.replace("\\", "/")
+            self._write_log(f"[green]Excel gespeichert: [link={file_url}]{path}[/link][/green]")
             self.notify(f"Excel: {path}")
         except Exception as exc:
             self._write_log(f"[red]Excel-Export Fehler: {exc}[/red]")
@@ -248,7 +249,8 @@ class JiraTimesheetApp(App):
                 hours_per_day=self._settings.hours_per_day,
             )
             path = exporter.export(self._timesheet, missing_days=missing, target_hours=target_h)
-            self._write_log(f"[green]PDF gespeichert: {path}[/green]")
+            file_url = "file:///" + path.replace("\\", "/")
+            self._write_log(f"[green]PDF gespeichert: [link={file_url}]{path}[/link][/green]")
             self.notify(f"PDF: {path}")
         except Exception as exc:
             self._write_log(f"[red]PDF-Export Fehler: {exc}[/red]")
