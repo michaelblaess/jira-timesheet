@@ -6,15 +6,23 @@ from datetime import date
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.message import Message
 from textual.widgets import DataTable
 
-from jira_timesheet.models.timesheet import Timesheet
+from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
 
 _WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
 class TimesheetTable(Vertical):
     """Zeigt den Stundenzettel als Tabelle mit Tagesgruppen an."""
+
+    class EntrySelected(Message):
+        """Wird gesendet wenn Enter auf einer Zeile gedrueckt wird."""
+
+        def __init__(self, entry: WorklogEntry | None) -> None:
+            super().__init__()
+            self.entry = entry
 
     DEFAULT_CSS = """
     TimesheetTable {
@@ -30,6 +38,7 @@ class TimesheetTable(Vertical):
         super().__init__(**kwargs)
         self._hours_per_day = hours_per_day
         self._jira_host = jira_host.rstrip("/")
+        self._row_entries: dict[str, WorklogEntry] = {}
 
     def compose(self) -> ComposeResult:
         """Erstellt die DataTable."""
@@ -51,6 +60,7 @@ class TimesheetTable(Vertical):
         """
         table = self.query_one("#timesheet-data", DataTable)
         table.clear()
+        self._row_entries.clear()
 
         all_day_items = self._merge_days_and_gaps(timesheet, missing_days or [])
         row_idx = 0
@@ -98,6 +108,8 @@ class TimesheetTable(Vertical):
                     else:
                         ticket_text = Text(entry.ticket)
 
+                    row_key = str(row_idx)
+                    self._row_entries[row_key] = entry
                     table.add_row(
                         kw,
                         weekday,
@@ -106,9 +118,15 @@ class TimesheetTable(Vertical):
                         self._truncate(entry.summary, 80),
                         hours_str,
                         day_total,
-                        key=str(row_idx),
+                        key=row_key,
                     )
                     row_idx += 1
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Enter auf einer Zeile — sendet EntrySelected Message."""
+        row_key = str(event.row_key.value) if event.row_key else ""
+        entry = self._row_entries.get(row_key)
+        self.post_message(self.EntrySelected(entry))
 
     def clear_table(self) -> None:
         """Leert die Tabelle."""
