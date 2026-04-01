@@ -83,7 +83,7 @@ class PdfExporter:
         logo = self._find_logo()
         if logo and os.path.isfile(logo):
             try:
-                pdf.image(logo, x=10, y=8, w=30)
+                pdf.image(logo, x=10, y=8, w=45)
             except Exception:
                 pass
 

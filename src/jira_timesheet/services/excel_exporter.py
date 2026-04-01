@@ -78,8 +78,10 @@ class ExcelExporter:
         if logo and os.path.isfile(logo):
             try:
                 img = XlImage(logo)
-                img.width = 120
-                img.height = 65
+                # Seitenverhaeltnis beibehalten, max 160px breit
+                ratio = img.width / img.height if img.height else 1
+                img.width = 160
+                img.height = int(160 / ratio)
                 ws.add_image(img, "A1")  # type: ignore[arg-type]
             except Exception:
                 pass
