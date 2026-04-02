@@ -50,6 +50,7 @@ class JiraTimesheetApp(App):
         Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
         Binding("j", "show_year", "Jahr"),
         Binding("a", "toggle_anon", "Anonymisieren"),
+        Binding("r", "reset_cache", "Reset Cache"),
         Binding("l", "toggle_log", "Log anzeigen"),
         Binding("comma", "prev_month", "Monat", key_display="<"),
         Binding("full_stop", "next_month", "Monat", key_display=">"),
@@ -500,6 +501,20 @@ class JiraTimesheetApp(App):
             cal.load_timesheet(self._timesheet, missing_days=self._missing_days)
             self.sub_title = "Kalenderansicht" if self._calendar_active else ""
             self.notify("Echte Daten wiederhergestellt")
+
+    def action_reset_cache(self) -> None:
+        """Loescht den Worklog-Cache."""
+        import shutil
+        from jira_timesheet.services.cache_service import CACHE_DIR
+
+        if CACHE_DIR.is_dir():
+            count = len(list(CACHE_DIR.glob("*.json")))
+            shutil.rmtree(CACHE_DIR)
+            self._write_log(f"[yellow]Cache geloescht ({count} Dateien)[/yellow]")
+            self.notify(f"Cache geloescht ({count} Dateien)")
+        else:
+            self._write_log("[dim]Cache war bereits leer[/dim]")
+            self.notify("Cache war bereits leer")
 
     def action_toggle_view(self) -> None:
         """Wechselt zwischen Listen- und Kalenderansicht."""
