@@ -500,14 +500,16 @@ class JiraTimesheetApp(App):
         self._settings.save()
 
     def action_prev_month(self) -> None:
-        """Wechselt zum vorherigen Monat."""
+        """Wechselt zum vorherigen Monat und laedt Daten."""
         config = self.query_one("#config-panel", ConfigPanel)
         config.prev_month()
+        self.action_generate()
 
     def action_next_month(self) -> None:
-        """Wechselt zum naechsten Monat."""
+        """Wechselt zum naechsten Monat und laedt Daten."""
         config = self.query_one("#config-panel", ConfigPanel)
         config.next_month()
+        self.action_generate()
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:  # type: ignore[override]
         """Blendet Export-Aktionen aus wenn kein Timesheet vorhanden."""
