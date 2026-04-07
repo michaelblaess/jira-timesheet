@@ -109,8 +109,10 @@ class DetailScreen(ModalScreen):
                 yield Static(f"  Gesamt-Protokoll.: {e.total_logged}", classes="detail-row")
 
             if self._jira_host and e.ticket:
+                from rich.text import Text
                 url = f"{self._jira_host}/browse/{e.ticket}"
-                yield Static(f"  [link={url}]{url}[/link]", id="detail-link", markup=True)
+                link_text = Text(f"  {url}", style=f"link {url}")
+                yield Static(link_text, id="detail-link")
 
             yield Static("ESC = Schliessen", id="detail-footer")
 
