@@ -326,11 +326,11 @@ class JiraTimesheetApp(App):
             dt = table_widget.query_one("#timesheet-data", DataTable)
             row_idx = dt.cursor_row
             if row_idx is not None and row_idx >= 0:
-                row_key = dt.ordered_rows[row_idx].key
-                entry = table_widget._row_entries.get(str(row_key.value))
+                row = dt.ordered_rows[row_idx]
+                entry = table_widget._row_entries.get(row.key.value)
                 self._show_entry_details(entry)
-        except Exception:
-            pass
+        except Exception as exc:
+            self._write_log(f"[red]Details-Fehler: {exc}[/red]")
 
     def _show_entry_details(self, entry: object) -> None:
         """Zeigt Details eines Worklog-Eintrags im Log."""
