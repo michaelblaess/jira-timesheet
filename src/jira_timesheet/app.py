@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import Footer, Header, RichLog
+from textual.widgets import DataTable, Footer, Header, RichLog
 
 from jira_timesheet import __version__, __year__
 from jira_timesheet.models.settings import Settings
