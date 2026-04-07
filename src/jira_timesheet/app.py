@@ -333,52 +333,12 @@ class JiraTimesheetApp(App):
             self._write_log(f"[red]Details-Fehler: {exc}[/red]")
 
     def _show_entry_details(self, entry: object) -> None:
-        """Zeigt Details eines Worklog-Eintrags im Log."""
+        """Zeigt Details eines Worklog-Eintrags als Modal."""
         if entry is None:
             return
 
-        self._write_log("")
-        self._write_log(f"[bold]{entry.ticket}[/bold] — {entry.summary}")
-        self._write_log(f"  Worklog: {entry.date:%d.%m.%Y}  |  {entry.hours:.2f}h  |  Autor: {entry.author}")
-
-        if entry.assignee:
-            self._write_log(f"  Bearbeiter: {entry.assignee}")
-
-        line1: list[str] = []
-        if entry.issuetype:
-            line1.append(f"Typ: {entry.issuetype}")
-        if entry.status:
-            line1.append(f"Status: {entry.status}")
-        if entry.resolution:
-            line1.append(f"Loesung: {entry.resolution}")
-        if entry.priority:
-            line1.append(f"Prioritaet: {entry.priority}")
-        if line1:
-            self._write_log(f"  {' | '.join(line1)}")
-
-        line2: list[str] = []
-        if entry.budget:
-            line2.append(f"Budget: {entry.budget}")
-        if entry.components:
-            line2.append(f"Komponenten: {entry.components}")
-        if entry.labels:
-            line2.append(f"Labels: {entry.labels}")
-        if line2:
-            self._write_log(f"  {' | '.join(line2)}")
-
-        line3: list[str] = []
-        if entry.created:
-            line3.append(f"Erstellt: {entry.created}")
-        if entry.updated:
-            line3.append(f"Aktualisiert: {entry.updated}")
-        if entry.total_logged:
-            line3.append(f"Gesamt-Protokolliert: {entry.total_logged}")
-        if line3:
-            self._write_log(f"  {' | '.join(line3)}")
-
-        if self._settings.jira_host and entry.ticket:
-            url = f"{self._settings.jira_host}/browse/{entry.ticket}"
-            self._write_log(f"  [link={url}]{url}[/link]")
+        from jira_timesheet.screens.detail_screen import DetailScreen
+        self.push_screen(DetailScreen(entry, jira_host=self._settings.jira_host))
 
     @work(exclusive=True)
     async def action_show_year(self) -> None:
