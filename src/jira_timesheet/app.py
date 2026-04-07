@@ -324,10 +324,10 @@ class JiraTimesheetApp(App):
         try:
             table_widget = self.query_one("#timesheet-table", TimesheetTable)
             dt = table_widget.query_one("#timesheet-data", DataTable)
-            row_key = dt.cursor_row
-            if row_key is not None:
-                key = str(list(dt.rows.keys())[row_key])
-                entry = table_widget._row_entries.get(key)
+            row_idx = dt.cursor_row
+            if row_idx is not None and row_idx >= 0:
+                row_key = dt.ordered_rows[row_idx].key
+                entry = table_widget._row_entries.get(str(row_key.value))
                 self._show_entry_details(entry)
         except Exception:
             pass
