@@ -18,7 +18,8 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 
 - **Jira Integration** — Worklogs per REST API abrufen (Bearer Token Auth)
 - **Listenansicht** — Tabellarisch mit KW, Wochentag, Tagesgruppen, Soll/Ist-Stunden
-- **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln (TAB)
+- **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
+- **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
 - **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
 - **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
@@ -76,7 +77,8 @@ Dann `G` zum Generieren des Stundenzettels.
 | E | Excel-Export |
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
-| TAB | Listen-/Kalenderansicht wechseln |
+| TAB | Tab wechseln (Liste / Kalender) |
+| R | Cache zuruecksetzen |
 | J | Jahresansicht mit Forecast |
 | A | Daten anonymisieren |
 | < / > | Monat wechseln |
