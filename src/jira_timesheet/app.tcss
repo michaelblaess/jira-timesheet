@@ -2,36 +2,23 @@ Screen {
     layout: vertical;
 }
 
-#main-container {
-    height: 1fr;
-    layout: vertical;
-    padding: 0 1;
-}
-
 ConfigPanel {
     height: auto;
     margin-bottom: 1;
 }
 
+#view-tabs {
+    height: 1fr;
+}
+
 TimesheetTable {
     height: 1fr;
     min-height: 10;
-    border: solid $accent;
-}
-
-TimesheetTable.hidden {
-    display: none;
 }
 
 CalendarView {
     height: 1fr;
     min-height: 10;
-    border: solid $accent;
-    display: none;
-}
-
-CalendarView.visible {
-    display: block;
 }
 
 SummaryPanel {
