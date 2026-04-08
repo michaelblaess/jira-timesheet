@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import DataTable, Footer, Header, RichLog
+from textual.widgets import DataTable, Footer, Header, RichLog, TabbedContent, TabPane
 
 from jira_timesheet import __version__, __year__
 from jira_timesheet.models.settings import Settings
@@ -47,7 +47,7 @@ class JiraTimesheetApp(App):
         Binding("c", "copy_log", "Log kopieren"),
         Binding("s", "show_settings", "Settings"),
         Binding("i", "show_info", "Info"),
-        Binding("tab", "toggle_view", "View wechseln", key_display="TAB", priority=True),
+        Binding("tab", "next_tab", "View wechseln", key_display="TAB", priority=True),
         Binding("j", "show_year", "Jahr"),
         Binding("a", "toggle_anon", "Anonymisieren"),
         Binding("r", "reset_cache", "Reset Cache"),
@@ -68,23 +68,25 @@ class JiraTimesheetApp(App):
         self._timesheet: Timesheet | None = None
         self._missing_days: list[tuple] = []
         self._generating = False
-        self._calendar_active = False
         self._anonymized = False
 
     def compose(self) -> ComposeResult:
         """Erstellt das UI-Layout."""
         yield Header()
         yield ConfigPanel(self._settings, id="config-panel")
-        yield TimesheetTable(
-            hours_per_day=self._settings.hours_per_day,
-            jira_host=self._settings.jira_host,
-            id="timesheet-table",
-        )
-        yield CalendarView(
-            hours_per_day=self._settings.hours_per_day,
-            jira_host=self._settings.jira_host,
-            id="calendar-view",
-        )
+        with TabbedContent("Liste", "Kalender", id="view-tabs"):
+            with TabPane("Liste", id="tab-list"):
+                yield TimesheetTable(
+                    hours_per_day=self._settings.hours_per_day,
+                    jira_host=self._settings.jira_host,
+                    id="timesheet-table",
+                )
+            with TabPane("Kalender", id="tab-calendar"):
+                yield CalendarView(
+                    hours_per_day=self._settings.hours_per_day,
+                    jira_host=self._settings.jira_host,
+                    id="calendar-view",
+                )
         yield SummaryPanel(id="summary-panel")
         yield RichLog(id="log-panel", highlight=True, markup=True)
         yield Footer()
@@ -476,21 +478,14 @@ class JiraTimesheetApp(App):
             self._write_log("[dim]Cache war bereits leer[/dim]")
             self.notify("Cache war bereits leer")
 
-    def action_toggle_view(self) -> None:
-        """Wechselt zwischen Listen- und Kalenderansicht."""
-        table = self.query_one("#timesheet-table", TimesheetTable)
-        cal = self.query_one("#calendar-view", CalendarView)
-
-        self._calendar_active = not self._calendar_active
-
-        if self._calendar_active:
-            table.add_class("hidden")
-            cal.add_class("visible")
-            self.sub_title = "Kalenderansicht"
+    def action_next_tab(self) -> None:
+        """Wechselt zum naechsten Tab."""
+        tabs = self.query_one("#view-tabs", TabbedContent)
+        active = tabs.active
+        if active == "tab-list":
+            tabs.active = "tab-calendar"
         else:
-            table.remove_class("hidden")
-            cal.remove_class("visible")
-            self.sub_title = ""
+            tabs.active = "tab-list"
 
     def action_toggle_log(self) -> None:
         """Blendet den Log-Bereich ein/aus."""
