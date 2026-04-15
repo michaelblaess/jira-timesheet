@@ -15,6 +15,9 @@ echo Installiere Dependencies...
 "%~dp0.venv\Scripts\python.exe" -m pip install --upgrade pip --quiet %PIP_TRUSTED%
 "%~dp0.venv\Scripts\pip.exe" install -e "%~dp0." --quiet %PIP_TRUSTED%
 
+echo Aktualisiere textual-themes (Git-Dependency)...
+"%~dp0.venv\Scripts\pip.exe" install --force-reinstall --no-deps --quiet %PIP_TRUSTED% "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git"
+
 echo.
 echo === Setup abgeschlossen ===
 echo Starte mit: run.bat
