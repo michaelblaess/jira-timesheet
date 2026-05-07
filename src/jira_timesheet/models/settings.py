@@ -9,6 +9,41 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+# textual-themes 0.5 hat 25 Themes umbenannt (trademark-safety pass).
+# Settings-Files aelterer Versionen koennen alte Slugs gespeichert haben —
+# die werden beim Laden transparent gemappt.
+_LEGACY_THEME_MAP: dict[str, str] = {
+    "c64": "brotkasten",
+    "amiga": "boing",
+    "atari-st": "gemstone",
+    "ibm-terminal": "classic-terminal",
+    "nextstep": "next",
+    "beos": "bebox",
+    "ubuntu": "bunty",
+    "macos": "cupertino",
+    "windows-xp": "luna",
+    "msdos": "commandr",
+    "solaris-cde": "motif",
+    "os2-warp": "warp",
+    "opensuse": "geeko",
+    "linux-mint": "minty",
+    "red-hat": "crimson",
+    "raspberry-pi": "razzy",
+    "freebsd": "beastie",
+    "tudor": "fifty-eight",
+    "goldfinger": "goldfinder",
+    "hulk": "hulkula",
+    "batman": "flughund",
+    "gameboy": "brick",
+    "pan-am": "clipper",
+    "miami-vice": "miami",
+    "martini-racing": "racing",
+    "superman": "metropolis",
+    "spiderman": "spiderized",
+    "gulf-racing": "textual-dark",  # entferntes Theme -> Textual Default
+}
+
+
 @dataclass
 class Settings:
     """Einstellungen gespeichert in ~/.jira-timesheet/settings.json."""
@@ -50,7 +85,9 @@ class Settings:
     def load() -> Settings:
         """Laedt die Einstellungen aus der JSON-Datei.
 
-        Gibt Default-Einstellungen zurueck bei Fehler.
+        Gibt Default-Einstellungen zurueck bei Fehler. Migriert dabei alte
+        Theme-Slugs aus textual-themes < 0.5 auf ihre aktuellen Namen
+        und persistiert die Migration.
         """
         if not Settings.SETTINGS_FILE.is_file():
             return Settings()
@@ -60,7 +97,7 @@ class Settings:
             data = json.loads(raw)
             if not isinstance(data, dict):
                 return Settings()
-            return Settings(
+            settings = Settings(
                 theme=data.get("theme", "textual-dark"),
                 jira_host=data.get("jira_host", ""),
                 jira_token=data.get("jira_token", ""),
@@ -82,6 +119,13 @@ class Settings:
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
             return Settings()
+
+        # Legacy-Theme-Slug migrieren
+        if settings.theme in _LEGACY_THEME_MAP:
+            settings.theme = _LEGACY_THEME_MAP[settings.theme]
+            settings.save()
+
+        return settings
 
     def save(self) -> None:
         """Speichert die Einstellungen in die JSON-Datei."""

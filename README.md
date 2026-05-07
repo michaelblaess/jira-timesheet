@@ -6,7 +6,7 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 
 ## Screenshots
 
-| Listenansicht (Atari ST) | Kalenderansicht (BeOS) |
+| Listenansicht (Gemstone) | Kalenderansicht (BeBox) |
 |---|---|
 | ![Listenansicht](docs/screenshots/01-main-atari.png) | ![Kalenderansicht](docs/screenshots/04-month-view-beos.png) |
 
@@ -28,7 +28,7 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
 - **Anonymisierung** — Daten per Tastendruck anonymisieren fuer sichere Screenshots
 - **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht laedt sofort
-- **Retro-Themes** — C64, Amiga, Atari ST, IBM Terminal und mehr (Ctrl+P)
+- **31 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Installation
 
