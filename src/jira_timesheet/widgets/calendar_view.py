@@ -95,10 +95,7 @@ class DayTile(Widget):
 
         if self._day_data and self._day_data.entries:
             total = self._day_data.total_hours
-            if total >= self._hours_per_day:
-                hour_style = "bold green"
-            else:
-                hour_style = "bold yellow"
+            hour_style = "bold green" if total >= self._hours_per_day else "bold yellow"
 
             text.append(f"{day_num} {weekday} ", style="bold")
             text.append(f"{total:.2f}h", style=hour_style)
@@ -225,7 +222,7 @@ class CalendarView(VerticalScroll):
             widget.remove()
 
         day_map = {day.date: day for day in timesheet.days}
-        gap_map = {d: reason for d, reason in (missing_days or [])}
+        gap_map = dict(missing_days or [])
         holiday_map = {d: reason for d, reason in (missing_days or []) if "\u2014" not in reason}
 
         weeks = self._build_weeks(timesheet.date_from, timesheet.date_to)
@@ -278,10 +275,7 @@ class CalendarView(VerticalScroll):
 
         start = first_day - timedelta(days=first_day.weekday())
 
-        if last_day.weekday() < 6:
-            end = last_day + timedelta(days=6 - last_day.weekday())
-        else:
-            end = last_day
+        end = last_day + timedelta(days=6 - last_day.weekday()) if last_day.weekday() < 6 else last_day
 
         weeks: list[list[date]] = []
         current = start
