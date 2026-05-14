@@ -142,7 +142,7 @@ class TimesheetTable(Vertical):
         """Merged Timesheet-Tage und Luecken in chronologischer Reihenfolge."""
         items: list = []
         day_map = {day.date: day for day in timesheet.days}
-        gap_map = {d: reason for d, reason in missing_days}
+        gap_map = dict(missing_days)
 
         all_dates = sorted(set(day_map.keys()) | set(gap_map.keys()))
 

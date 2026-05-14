@@ -238,7 +238,7 @@ class YearScreen(ModalScreen):
         text = Text()
 
         total_actual = sum(d.get("actual", 0.0) for d in self._month_data.values())
-        total_target = sum(d.get("target", 0.0) for d in self._month_data.values())
+        sum(d.get("target", 0.0) for d in self._month_data.values())
         total_days = sum(d.get("working_days", 0) for d in self._month_data.values())
 
         text.append(f"  {self._year} Gesamt: ", style="bold")

@@ -165,7 +165,7 @@ class ExcelExporter:
         border_day_top = Border(top=Side(style="medium", color="000000"))
 
         day_map = {day.date: day for day in ts.days}
-        gap_map = {d: reason for d, reason in missing_days}
+        gap_map = dict(missing_days)
         all_dates = sorted(set(day_map.keys()) | set(gap_map.keys()))
 
         current_row = 10
@@ -203,7 +203,6 @@ class ExcelExporter:
             day = day_map[d]
             for i, entry in enumerate(day.entries):
                 is_first = i == 0
-                is_last = i == len(day.entries) - 1
 
                 ws.row_dimensions[current_row].height = 20.1  # type: ignore[index]
 
