@@ -1,14 +1,13 @@
 """Eingabebereich fuer Jira-Konfiguration und Zeitraum."""
+
 from __future__ import annotations
 
 from datetime import date
 
-from rich.text import Text
-from textual.app import ComposeResult, RenderResult
+from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widget import Widget
-from textual.widgets import Input, Static
+from textual.widgets import Static
 
 from jira_timesheet.models.settings import Settings
 

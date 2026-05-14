@@ -1,15 +1,15 @@
 """Tests fuer Services."""
+
 from __future__ import annotations
 
 from datetime import date
 
 from jira_timesheet.models.timesheet import WorklogEntry
-from jira_timesheet.services.timesheet_service import TimesheetService
 from jira_timesheet.services.holiday_service import HolidayService
+from jira_timesheet.services.timesheet_service import TimesheetService
 
 
 class TestTimesheetService:
-
     def test_build_groups_by_date(self) -> None:
         entries = [
             WorklogEntry(date=date(2026, 3, 3), ticket="B-1", summary="Y", author="Dev", budget="", hours=3.0),
@@ -31,7 +31,6 @@ class TestTimesheetService:
 
 
 class TestHolidayService:
-
     def test_saxony_holidays(self) -> None:
         svc = HolidayService("SN")
         assert svc.is_holiday(date(2026, 1, 1))
@@ -39,9 +38,9 @@ class TestHolidayService:
 
     def test_workday(self) -> None:
         svc = HolidayService("SN")
-        assert svc.is_workday(date(2026, 3, 2))      # Montag
-        assert not svc.is_workday(date(2026, 3, 7))   # Samstag
-        assert not svc.is_workday(date(2026, 1, 1))   # Feiertag
+        assert svc.is_workday(date(2026, 3, 2))  # Montag
+        assert not svc.is_workday(date(2026, 3, 7))  # Samstag
+        assert not svc.is_workday(date(2026, 1, 1))  # Feiertag
 
     def test_count_workdays_march(self) -> None:
         svc = HolidayService("SN")
@@ -60,5 +59,5 @@ class TestHolidayService:
     def test_holidays_in_range(self) -> None:
         svc = HolidayService("SN")
         h = svc.get_holidays_in_range(date(2026, 4, 1), date(2026, 4, 30))
-        assert date(2026, 4, 3) in h   # Karfreitag
-        assert date(2026, 4, 6) in h   # Ostermontag
+        assert date(2026, 4, 3) in h  # Karfreitag
+        assert date(2026, 4, 6) in h  # Ostermontag

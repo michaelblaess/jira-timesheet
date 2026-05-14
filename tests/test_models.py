@@ -1,14 +1,14 @@
 """Tests fuer Domain Models."""
+
 from __future__ import annotations
 
 from datetime import date
 
-from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 from jira_timesheet.models.settings import Settings
+from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 
 
 class TestWorklogEntry:
-
     def test_create_entry(self) -> None:
         entry = WorklogEntry(
             date=date(2026, 3, 2),
@@ -23,7 +23,6 @@ class TestWorklogEntry:
 
 
 class TestTimesheetDay:
-
     def test_total_hours(self) -> None:
         day = TimesheetDay(
             date=date(2026, 3, 2),
@@ -40,7 +39,6 @@ class TestTimesheetDay:
 
 
 class TestTimesheet:
-
     def test_properties(self) -> None:
         ts = Timesheet(
             developer="Dev",
@@ -48,12 +46,22 @@ class TestTimesheet:
             date_from=date(2026, 3, 1),
             date_to=date(2026, 3, 31),
             days=[
-                TimesheetDay(date=date(2026, 3, 2), entries=[
-                    WorklogEntry(date=date(2026, 3, 2), ticket="A-1", summary="X", author="Dev", budget="", hours=8.0),
-                ]),
-                TimesheetDay(date=date(2026, 3, 3), entries=[
-                    WorklogEntry(date=date(2026, 3, 3), ticket="A-2", summary="Y", author="Dev", budget="", hours=6.0),
-                ]),
+                TimesheetDay(
+                    date=date(2026, 3, 2),
+                    entries=[
+                        WorklogEntry(
+                            date=date(2026, 3, 2), ticket="A-1", summary="X", author="Dev", budget="", hours=8.0
+                        ),
+                    ],
+                ),
+                TimesheetDay(
+                    date=date(2026, 3, 3),
+                    entries=[
+                        WorklogEntry(
+                            date=date(2026, 3, 3), ticket="A-2", summary="Y", author="Dev", budget="", hours=6.0
+                        ),
+                    ],
+                ),
             ],
         )
         assert ts.total_hours == 14.0
@@ -63,7 +71,6 @@ class TestTimesheet:
 
 
 class TestSettings:
-
     def test_defaults(self) -> None:
         s = Settings()
         assert s.theme == "textual-dark"

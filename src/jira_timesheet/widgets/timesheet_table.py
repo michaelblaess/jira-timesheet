@@ -1,4 +1,5 @@
 """DataTable Widget fuer Stundenzettel-Anzeige."""
+
 from __future__ import annotations
 
 from datetime import date

@@ -1,4 +1,5 @@
 """Textual App — Hauptanwendung fuer Jira Timesheet."""
+
 from __future__ import annotations
 
 import time
@@ -27,8 +28,18 @@ except ImportError:
     register_themes = None  # type: ignore[assignment]
 
 _MONTH_NAMES = [
-    "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
-    "Juli", "August", "September", "Oktober", "November", "Dezember",
+    "Januar",
+    "Februar",
+    "Maerz",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
 ]
 
 
@@ -177,7 +188,9 @@ class JiraTimesheetApp(App):
             holiday_svc = HolidayService(self._settings.federal_state)
             worked_dates = {e.date for e in entries}
             missing_days = holiday_svc.get_missing_workdays(
-                config.date_from, config.date_to, worked_dates,
+                config.date_from,
+                config.date_to,
+                worked_dates,
             )
             target_workdays = holiday_svc.count_workdays(config.date_from, config.date_to)
             target_hours = target_workdays * self._settings.hours_per_day
@@ -340,6 +353,7 @@ class JiraTimesheetApp(App):
             return
 
         from jira_timesheet.screens.detail_screen import DetailScreen
+
         self.push_screen(DetailScreen(entry, jira_host=self._settings.jira_host))
 
     @work(exclusive=True)
@@ -424,15 +438,18 @@ class JiraTimesheetApp(App):
             )
 
             from jira_timesheet.screens.year_screen import YearScreen
-            self.push_screen(YearScreen(
-                year=year,
-                month_data=month_data,
-                max_yearly_hours=self._settings.max_yearly_hours,
-                hourly_rate=self._settings.hourly_rate,
-                vacation_days=self._settings.vacation_days,
-                hours_per_day=self._settings.hours_per_day,
-                federal_state=self._settings.federal_state,
-            ))
+
+            self.push_screen(
+                YearScreen(
+                    year=year,
+                    month_data=month_data,
+                    max_yearly_hours=self._settings.max_yearly_hours,
+                    hourly_rate=self._settings.hourly_rate,
+                    vacation_days=self._settings.vacation_days,
+                    hours_per_day=self._settings.hours_per_day,
+                    federal_state=self._settings.federal_state,
+                )
+            )
 
         except Exception as exc:
             self.sub_title = ""
@@ -449,6 +466,7 @@ class JiraTimesheetApp(App):
 
         if self._anonymized:
             from jira_timesheet.services.anonymizer import anonymize_timesheet
+
             anon_ts = anonymize_timesheet(self._timesheet)
             table = self.query_one("#timesheet-table", TimesheetTable)
             cal = self.query_one("#calendar-view", CalendarView)
@@ -467,6 +485,7 @@ class JiraTimesheetApp(App):
     def action_reset_cache(self) -> None:
         """Loescht den Worklog-Cache."""
         import shutil
+
         from jira_timesheet.services.cache_service import CACHE_DIR
 
         if CACHE_DIR.is_dir():
