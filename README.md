@@ -6,7 +6,7 @@
 [![Pull Requests](https://img.shields.io/github/issues-pr/michaelblaess/jira-timesheet?style=for-the-badge&logo=github&logoColor=white&labelColor=1e2228&color=a78bfa)](https://github.com/michaelblaess/jira-timesheet/pulls)
 
 [![Last Commit](https://img.shields.io/github/last-commit/michaelblaess/jira-timesheet?style=for-the-badge&logo=git&logoColor=white&labelColor=1e2228&color=3b82f6)](https://github.com/michaelblaess/jira-timesheet/commits/main)
-[![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6?style=for-the-badge&labelColor=1e2228)](https://www.apache.org/licenses/LICENSE-2.0)
+[![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6?style=for-the-badge&labelColor=1e2228)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-3b82f6?style=for-the-badge&logo=python&logoColor=white&labelColor=1e2228)](https://www.python.org/)
 
 Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
