@@ -1,4 +1,5 @@
 """PDF Export — Stundenzettel als signierbares PDF mit Unicode-Unterstuetzung."""
+
 from __future__ import annotations
 
 import os
@@ -21,7 +22,7 @@ class PdfExporter:
     """Erzeugt eine PDF-Datei im gleichen Layout wie der Excel-Export."""
 
     #              KW   Tag  Datum  Ticket  Beschreibung  Aufwand  Tages-h    = 277mm (A4L - 2x10mm)
-    COL_WIDTHS = [10,  10,  16,    24,     167,          25,      25]
+    COL_WIDTHS = [10, 10, 16, 24, 167, 25, 25]
     HEADERS = ["KW", "Tag", "Datum", "Ticket", "Beschreibung", "Aufwand (h)", "Tages-h"]
 
     def __init__(
@@ -46,11 +47,9 @@ class PdfExporter:
             output_dir = str(Path.home() / "Desktop")
 
         from datetime import datetime
+
         now = datetime.now()
-        filename = (
-            f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}"
-            f"_{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.pdf"
-        )
+        filename = f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}_{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.pdf"
         filepath = os.path.join(output_dir, filename)
 
         pdf = FPDF(orientation="L", unit="mm", format="A4")
@@ -130,7 +129,9 @@ class PdfExporter:
             pdf.set_x(145)
             diff = ts.total_hours - target_hours
             diff_sign = "+" if diff >= 0 else ""
-            pdf.cell(0, 5, f"Soll: {target_hours:.0f}h  |  Differenz: {diff_sign}{diff:.2f}h", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(
+                0, 5, f"Soll: {target_hours:.0f}h  |  Differenz: {diff_sign}{diff:.2f}h", new_x="LMARGIN", new_y="NEXT"
+            )
 
         pdf.ln(4)
 
@@ -169,15 +170,19 @@ class PdfExporter:
                 else:
                     pdf.set_text_color(200, 0, 0)
 
-                self._write_row(pdf, row_height, [
-                    str(d.isocalendar()[1]),
-                    _WEEKDAYS[d.weekday()],
-                    f"{d:%d.%m.}",
-                    "",
-                    reason,
-                    "",
-                    "0.00",
-                ])
+                self._write_row(
+                    pdf,
+                    row_height,
+                    [
+                        str(d.isocalendar()[1]),
+                        _WEEKDAYS[d.weekday()],
+                        f"{d:%d.%m.}",
+                        "",
+                        reason,
+                        "",
+                        "0.00",
+                    ],
+                )
                 pdf.set_text_color(0, 0, 0)
                 continue
 
@@ -204,15 +209,20 @@ class PdfExporter:
                 date_str = f"{entry.date:%d.%m.}" if is_first else ""
                 day_total = f"{day.total_hours:.2f}" if is_first else ""
 
-                self._write_row(pdf, row_height, [
-                    kw,
-                    weekday,
-                    date_str,
-                    entry.ticket,
-                    entry.summary,
-                    f"{entry.hours:.2f}",
-                    day_total,
-                ], bold_last=bool(day_total))
+                self._write_row(
+                    pdf,
+                    row_height,
+                    [
+                        kw,
+                        weekday,
+                        date_str,
+                        entry.ticket,
+                        entry.summary,
+                        f"{entry.hours:.2f}",
+                        day_total,
+                    ],
+                    bold_last=bool(day_total),
+                )
 
     def _add_table_header(self, pdf: FPDF) -> None:
         """Zeichnet die Header-Zeile der Tabelle."""

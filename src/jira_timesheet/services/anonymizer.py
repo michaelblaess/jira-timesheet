@@ -1,10 +1,8 @@
 """Anonymisiert Timesheet-Daten fuer Screenshots und Demos."""
+
 from __future__ import annotations
 
-import hashlib
 import random
-from dataclasses import replace
-from datetime import date
 
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 
@@ -52,12 +50,23 @@ _FAKE_AUTHORS = [
 ]
 
 _FAKE_COMPONENTS = [
-    "Frontend", "Backend", "API", "Database", "Infrastructure",
-    "Security", "Testing", "DevOps", "UI/UX", "",
+    "Frontend",
+    "Backend",
+    "API",
+    "Database",
+    "Infrastructure",
+    "Security",
+    "Testing",
+    "DevOps",
+    "UI/UX",
+    "",
 ]
 
 _FAKE_BUDGETS = [
-    "Projekt Alpha", "Projekt Beta", "Wartung", "nicht zugeordnet",
+    "Projekt Alpha",
+    "Projekt Beta",
+    "Wartung",
+    "nicht zugeordnet",
 ]
 
 
@@ -86,25 +95,27 @@ def anonymize_timesheet(timesheet: Timesheet) -> Timesheet:
             anon_summary = _FAKE_SUMMARIES[summary_idx % len(_FAKE_SUMMARIES)]
             summary_idx += 1
 
-            anon_entries.append(WorklogEntry(
-                date=entry.date,
-                ticket=anon_ticket,
-                summary=anon_summary,
-                author=rng.choice(_FAKE_AUTHORS),
-                budget=rng.choice(_FAKE_BUDGETS),
-                hours=entry.hours,
-                status=entry.status,
-                issuetype=entry.issuetype,
-                epic="",
-                components=rng.choice(_FAKE_COMPONENTS),
-                labels="",
-                priority=entry.priority,
-                resolution=entry.resolution,
-                assignee=rng.choice(_FAKE_AUTHORS),
-                created=entry.created,
-                updated=entry.updated,
-                total_logged=entry.total_logged,
-            ))
+            anon_entries.append(
+                WorklogEntry(
+                    date=entry.date,
+                    ticket=anon_ticket,
+                    summary=anon_summary,
+                    author=rng.choice(_FAKE_AUTHORS),
+                    budget=rng.choice(_FAKE_BUDGETS),
+                    hours=entry.hours,
+                    status=entry.status,
+                    issuetype=entry.issuetype,
+                    epic="",
+                    components=rng.choice(_FAKE_COMPONENTS),
+                    labels="",
+                    priority=entry.priority,
+                    resolution=entry.resolution,
+                    assignee=rng.choice(_FAKE_AUTHORS),
+                    created=entry.created,
+                    updated=entry.updated,
+                    total_logged=entry.total_logged,
+                )
+            )
 
         anon_days.append(TimesheetDay(date=day.date, entries=anon_entries))
 

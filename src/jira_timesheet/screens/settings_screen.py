@@ -1,4 +1,5 @@
 """Settings Modal Screen."""
+
 from __future__ import annotations
 
 from textual.app import ComposeResult
@@ -6,7 +7,6 @@ from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, Select, Static
-
 
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.services.holiday_service import FEDERAL_STATES
@@ -151,6 +151,7 @@ class SettingsScreen(ModalScreen[bool | None]):
             )
 
             from datetime import date as _date
+
             default_year = self._settings.year if self._settings.year > 0 else _date.today().year
             yield Label("Jahr (fuer Jahresansicht):")
             yield Input(
@@ -185,7 +186,9 @@ class SettingsScreen(ModalScreen[bool | None]):
         self._settings.logo_path = self.query_one("#input-logo", Input).value.strip()
         self._settings.budget_field = self.query_one("#input-budget-field", Input).value.strip()
         state_select = self.query_one("#select-federal-state", Select)
-        self._settings.federal_state = str(state_select.value) if state_select.value != Select.BLANK else self._settings.federal_state
+        self._settings.federal_state = (
+            str(state_select.value) if state_select.value != Select.BLANK else self._settings.federal_state
+        )
         try:
             self._settings.hours_per_day = float(self.query_one("#input-hours-per-day", Input).value.strip())
         except ValueError:

@@ -1,4 +1,5 @@
 """Excel Export — Stundenzettel mit KW, Wochentag und Luecken-Erkennung."""
+
 from __future__ import annotations
 
 import os
@@ -41,11 +42,9 @@ class ExcelExporter:
             output_dir = str(Path.home() / "Desktop")
 
         from datetime import datetime
+
         now = datetime.now()
-        filename = (
-            f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}"
-            f"_{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.xlsx"
-        )
+        filename = f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}_{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.xlsx"
         filepath = os.path.join(output_dir, filename)
 
         wb = Workbook()
@@ -66,8 +65,13 @@ class ExcelExporter:
     def _setup_columns(self, ws: object) -> None:
         """Setzt die Spaltenbreiten."""
         widths = {
-            "A": 5.0, "B": 5.0, "C": 10.4, "D": 12.0,
-            "E": 60.0, "F": 10.7, "G": 14.9,
+            "A": 5.0,
+            "B": 5.0,
+            "C": 10.4,
+            "D": 12.0,
+            "E": 60.0,
+            "F": 10.7,
+            "G": 14.9,
         }
         for col, width in widths.items():
             ws.column_dimensions[col].width = width  # type: ignore[index]

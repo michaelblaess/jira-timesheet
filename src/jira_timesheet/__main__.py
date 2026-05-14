@@ -1,12 +1,11 @@
 """CLI Entry Point fuer jira-timesheet."""
+
 from __future__ import annotations
 
 import argparse
-import sys
 
 from jira_timesheet import __version__
 from jira_timesheet.app import JiraTimesheetApp
-
 
 BANNER = f"Jira Timesheet v{__version__} — TUI fuer Jira Stundenzettel"
 

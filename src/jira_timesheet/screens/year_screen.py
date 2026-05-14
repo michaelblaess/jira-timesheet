@@ -1,4 +1,5 @@
 """Jahresansicht als Modal-Screen mit 12 Monatskacheln."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -11,10 +12,19 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Static
 
-
 _MONTH_NAMES = [
-    "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
-    "Juli", "August", "September", "Oktober", "November", "Dezember",
+    "Januar",
+    "Februar",
+    "Maerz",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
 ]
 
 _QUARTER_NAMES = ["Q1", "Q2", "Q3", "Q4"]
@@ -277,9 +287,11 @@ class YearScreen(ModalScreen):
         text = Text()
 
         import holidays as _holidays
+
         h = _holidays.Germany(subdiv=self._federal_state, years=self._year)
 
         from datetime import timedelta
+
         total_workdays_year = 0
         current = date(self._year, 1, 1)
         end = date(self._year, 12, 31)
@@ -296,17 +308,17 @@ class YearScreen(ModalScreen):
         text.append(f"  Arbeitstage {self._year}: ", style="dim")
         text.append(f"{total_workdays_year}", style="bold")
         text.append(f"  \u2212 {self._vacation_days} Urlaub", style="dim")
-        text.append(f"  = ", style="dim")
+        text.append("  = ", style="dim")
         text.append(f"{available_days} verfuegbar\n", style="bold")
 
-        text.append(f"  Forecast Stunden: ", style="dim")
+        text.append("  Forecast Stunden: ", style="dim")
         text.append(f"{available_days} Tage \u00d7 {self._hours_per_day:.0f}h = ", style="dim")
         text.append(f"{forecast_hours:.0f}h\n", style="bold")
 
         if self._hourly_rate > 0:
             forecast_netto = forecast_hours * self._hourly_rate
             forecast_brutto = forecast_netto * 1.19
-            text.append(f"  Forecast Umsatz: ", style="dim")
+            text.append("  Forecast Umsatz: ", style="dim")
             text.append(f"Netto: {forecast_netto:,.2f}\u20ac", style="bold green")
             text.append("  |  ", style="dim")
             text.append(f"Brutto: {forecast_brutto:,.2f}\u20ac", style="bold green")

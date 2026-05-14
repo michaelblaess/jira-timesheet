@@ -1,4 +1,5 @@
 """Info / About Modal Screen."""
+
 from __future__ import annotations
 
 from textual.app import ComposeResult

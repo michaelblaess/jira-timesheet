@@ -1,7 +1,7 @@
 """Kalenderansicht — Monatskalender mit Tages-Kacheln."""
+
 from __future__ import annotations
 
-import calendar
 from datetime import date, timedelta
 
 from rich.text import Text
@@ -258,10 +258,12 @@ class CalendarView(VerticalScroll):
                 )
                 row.mount(tile)
 
-            row.mount(WeekSummaryTile(
-                week_hours=week_hours,
-                hours_per_day=self._hours_per_day,
-            ))
+            row.mount(
+                WeekSummaryTile(
+                    week_hours=week_hours,
+                    hours_per_day=self._hours_per_day,
+                )
+            )
 
     def clear_calendar(self) -> None:
         """Leert den Kalender."""

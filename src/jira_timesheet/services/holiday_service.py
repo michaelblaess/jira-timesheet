@@ -1,10 +1,10 @@
 """Feiertagsberechnung fuer deutsche Bundeslaender."""
+
 from __future__ import annotations
 
 from datetime import date
 
 import holidays
-
 
 # Bundesland-Kuerzel → Anzeigename
 FEDERAL_STATES: dict[str, str] = {

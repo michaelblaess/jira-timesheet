@@ -1,4 +1,5 @@
 """Jira REST API Client fuer Worklog-Abfragen."""
+
 from __future__ import annotations
 
 import logging
@@ -44,10 +45,7 @@ class JiraClient:
         - Filtert dann Ergebnisse nach exaktem Zeitraum + Assignee
         """
         search_from = date_from - timedelta(days=1)
-        jql = (
-            f'issueFunction in workLogged('
-            f'"after {search_from:%Y/%m/%d} by {email}")'
-        )
+        jql = f'issueFunction in workLogged("after {search_from:%Y/%m/%d} by {email}")'
         fields = f"worklog,summary,status,issuetype,components,labels,priority,resolution,assignee,created,updated,timespent,{self._budget_field}"
 
         self._log(f"JQL: {jql}")
@@ -65,7 +63,11 @@ class JiraClient:
 
             for issue in issues:
                 issue_entries = await self._extract_worklogs(
-                    client, issue, email, date_from, date_to,
+                    client,
+                    issue,
+                    email,
+                    date_from,
+                    date_to,
                 )
                 entries.extend(issue_entries)
 
@@ -90,14 +92,10 @@ class JiraClient:
         )
 
         if response.status_code == 401:
-            raise JiraClientError(
-                "Jira Login fehlgeschlagen. Bitte Token pruefen."
-            )
+            raise JiraClientError("Jira Login fehlgeschlagen. Bitte Token pruefen.")
 
         if response.status_code != 200:
-            raise JiraClientError(
-                f"Jira API Fehler: HTTP {response.status_code}"
-            )
+            raise JiraClientError(f"Jira API Fehler: HTTP {response.status_code}")
 
         data = response.json()
         return data.get("issues", [])
@@ -179,25 +177,27 @@ class JiraClient:
             seconds = wl.get("timeSpentSeconds", 0)
             hours = seconds / 3600.0
 
-            entries.append(WorklogEntry(
-                date=started,
-                ticket=issue_key,
-                summary=summary,
-                author=author_display,
-                budget=budget,
-                hours=hours,
-                status=issue_status,
-                issuetype=issue_type,
-                epic="",
-                components=issue_components,
-                labels=issue_labels,
-                priority=issue_priority,
-                resolution=issue_resolution,
-                assignee=issue_assignee,
-                created=issue_created,
-                updated=issue_updated,
-                total_logged=issue_total_logged,
-            ))
+            entries.append(
+                WorklogEntry(
+                    date=started,
+                    ticket=issue_key,
+                    summary=summary,
+                    author=author_display,
+                    budget=budget,
+                    hours=hours,
+                    status=issue_status,
+                    issuetype=issue_type,
+                    epic="",
+                    components=issue_components,
+                    labels=issue_labels,
+                    priority=issue_priority,
+                    resolution=issue_resolution,
+                    assignee=issue_assignee,
+                    created=issue_created,
+                    updated=issue_updated,
+                    total_logged=issue_total_logged,
+                )
+            )
 
         return entries
 
