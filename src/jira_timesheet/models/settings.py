@@ -1,4 +1,5 @@
 """Persistierte Benutzereinstellungen."""
+
 from __future__ import annotations
 
 import json
@@ -70,11 +71,23 @@ class Settings:
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
 
     _FIELDS = (
-        "theme", "jira_host", "jira_token", "email", "logo_path",
-        "last_date_from", "last_date_to", "log_visible", "budget_field",
-        "federal_state", "hours_per_day", "max_yearly_hours",
-        "show_target_hours_in_export", "show_ticket_links_in_export",
-        "hourly_rate", "year", "vacation_days",
+        "theme",
+        "jira_host",
+        "jira_token",
+        "email",
+        "logo_path",
+        "last_date_from",
+        "last_date_to",
+        "log_visible",
+        "budget_field",
+        "federal_state",
+        "hours_per_day",
+        "max_yearly_hours",
+        "show_target_hours_in_export",
+        "show_ticket_links_in_export",
+        "hourly_rate",
+        "year",
+        "vacation_days",
     )
 
     def to_dict(self) -> dict[str, object]:

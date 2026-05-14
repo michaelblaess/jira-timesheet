@@ -1,4 +1,5 @@
 """Ticket-Detail Modal Screen."""
+
 from __future__ import annotations
 
 from textual.app import ComposeResult
@@ -110,6 +111,7 @@ class DetailScreen(ModalScreen):
 
             if self._jira_host and e.ticket:
                 from rich.text import Text
+
                 url = f"{self._jira_host}/browse/{e.ticket}"
                 link_text = Text(f"  {url}", style=f"link {url}")
                 yield Static(link_text, id="detail-link")

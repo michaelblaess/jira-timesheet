@@ -1,4 +1,5 @@
 """Zusammenfassungs-Widget fuer den Stundenzettel."""
+
 from __future__ import annotations
 
 from rich.text import Text

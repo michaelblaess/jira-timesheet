@@ -1,4 +1,5 @@
 """Cache-Service fuer Worklog-Daten abgeschlossener Monate."""
+
 from __future__ import annotations
 
 import json
@@ -51,25 +52,27 @@ class CacheService:
 
             entries: list[WorklogEntry] = []
             for item in data:
-                entries.append(WorklogEntry(
-                    date=date.fromisoformat(item["date"]),
-                    ticket=item.get("ticket", ""),
-                    summary=item.get("summary", ""),
-                    author=item.get("author", ""),
-                    budget=item.get("budget", ""),
-                    hours=item.get("hours", 0.0),
-                    status=item.get("status", ""),
-                    issuetype=item.get("issuetype", ""),
-                    epic=item.get("epic", ""),
-                    components=item.get("components", ""),
-                    labels=item.get("labels", ""),
-                    priority=item.get("priority", ""),
-                    resolution=item.get("resolution", ""),
-                    assignee=item.get("assignee", ""),
-                    created=item.get("created", ""),
-                    updated=item.get("updated", ""),
-                    total_logged=item.get("total_logged", ""),
-                ))
+                entries.append(
+                    WorklogEntry(
+                        date=date.fromisoformat(item["date"]),
+                        ticket=item.get("ticket", ""),
+                        summary=item.get("summary", ""),
+                        author=item.get("author", ""),
+                        budget=item.get("budget", ""),
+                        hours=item.get("hours", 0.0),
+                        status=item.get("status", ""),
+                        issuetype=item.get("issuetype", ""),
+                        epic=item.get("epic", ""),
+                        components=item.get("components", ""),
+                        labels=item.get("labels", ""),
+                        priority=item.get("priority", ""),
+                        resolution=item.get("resolution", ""),
+                        assignee=item.get("assignee", ""),
+                        created=item.get("created", ""),
+                        updated=item.get("updated", ""),
+                        total_logged=item.get("total_logged", ""),
+                    )
+                )
             return entries
 
         except Exception as exc:
@@ -88,25 +91,27 @@ class CacheService:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             data = []
             for e in entries:
-                data.append({
-                    "date": e.date.isoformat(),
-                    "ticket": e.ticket,
-                    "summary": e.summary,
-                    "author": e.author,
-                    "budget": e.budget,
-                    "hours": e.hours,
-                    "status": e.status,
-                    "issuetype": e.issuetype,
-                    "epic": e.epic,
-                    "components": e.components,
-                    "labels": e.labels,
-                    "priority": e.priority,
-                    "resolution": e.resolution,
-                    "assignee": e.assignee,
-                    "created": e.created,
-                    "updated": e.updated,
-                    "total_logged": e.total_logged,
-                })
+                data.append(
+                    {
+                        "date": e.date.isoformat(),
+                        "ticket": e.ticket,
+                        "summary": e.summary,
+                        "author": e.author,
+                        "budget": e.budget,
+                        "hours": e.hours,
+                        "status": e.status,
+                        "issuetype": e.issuetype,
+                        "epic": e.epic,
+                        "components": e.components,
+                        "labels": e.labels,
+                        "priority": e.priority,
+                        "resolution": e.resolution,
+                        "assignee": e.assignee,
+                        "created": e.created,
+                        "updated": e.updated,
+                        "total_logged": e.total_logged,
+                    }
+                )
 
             cache_file.write_text(
                 json.dumps(data, indent=2, ensure_ascii=False),
