@@ -382,10 +382,7 @@ class JiraTimesheetApp(App):
 
             for month in range(1, 13):
                 first = date(year, month, 1)
-                if month == 12:
-                    last = date(year, 12, 31)
-                else:
-                    last = date(year, month + 1, 1) - timedelta(days=1)
+                last = date(year, 12, 31) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
 
                 target_days = holiday_svc.count_workdays(first, last)
                 target_h = target_days * self._settings.hours_per_day

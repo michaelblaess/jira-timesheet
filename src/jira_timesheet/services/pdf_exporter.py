@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from datetime import date
 from pathlib import Path
@@ -84,10 +85,8 @@ class PdfExporter:
         """Fuegt das Logo oben links ein."""
         logo = self._find_logo()
         if logo and os.path.isfile(logo):
-            try:
+            with contextlib.suppress(Exception):
                 pdf.image(logo, x=10, y=8, w=45)
-            except Exception:
-                pass
 
     def _find_logo(self) -> str:
         """Sucht das Logo: erst Settings-Pfad, dann assets/logo.png."""
@@ -145,7 +144,7 @@ class PdfExporter:
         self._add_table_header(pdf)
 
         day_map = {day.date: day for day in ts.days}
-        gap_map = {d: reason for d, reason in missing_days}
+        gap_map = dict(missing_days)
         all_dates = sorted(set(day_map.keys()) | set(gap_map.keys()))
 
         pdf.set_font(*self._font("", 8))
@@ -267,7 +266,7 @@ class PdfExporter:
         pdf.set_draw_color(220, 220, 220)
 
         x = left
-        for i, (width, val) in enumerate(zip(self.COL_WIDTHS, values)):
+        for i, (width, val) in enumerate(zip(self.COL_WIDTHS, values, strict=False)):
             pdf.set_xy(x, y)
 
             is_right = i >= 5

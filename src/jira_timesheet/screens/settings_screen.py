@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
@@ -189,14 +191,10 @@ class SettingsScreen(ModalScreen[bool | None]):
         self._settings.federal_state = (
             str(state_select.value) if state_select.value != Select.BLANK else self._settings.federal_state
         )
-        try:
+        with contextlib.suppress(ValueError):
             self._settings.hours_per_day = float(self.query_one("#input-hours-per-day", Input).value.strip())
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             self._settings.max_yearly_hours = float(self.query_one("#input-max-yearly", Input).value.strip())
-        except ValueError:
-            pass
         self._settings.show_target_hours_in_export = self.query_one("#check-target-export", Checkbox).value
         self._settings.show_ticket_links_in_export = self.query_one("#check-ticket-links-export", Checkbox).value
         try:
@@ -204,14 +202,10 @@ class SettingsScreen(ModalScreen[bool | None]):
             self._settings.hourly_rate = float(rate_str) if rate_str else 0.0
         except ValueError:
             pass
-        try:
+        with contextlib.suppress(ValueError):
             self._settings.year = int(self.query_one("#input-year", Input).value.strip())
-        except ValueError:
-            pass
-        try:
+        with contextlib.suppress(ValueError):
             self._settings.vacation_days = int(self.query_one("#input-vacation-days", Input).value.strip())
-        except ValueError:
-            pass
         self.dismiss(True)
 
     def action_cancel(self) -> None:

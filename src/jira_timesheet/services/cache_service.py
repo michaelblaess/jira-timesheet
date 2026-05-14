@@ -27,9 +27,7 @@ class CacheService:
         today = date.today()
         if year < today.year:
             return True
-        if year == today.year and month < today.month:
-            return True
-        return False
+        return bool(year == today.year and month < today.month)
 
     @staticmethod
     def has_cache(year: int, month: int, email: str) -> bool:
