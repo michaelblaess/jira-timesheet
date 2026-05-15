@@ -1,5 +1,12 @@
 # Jira Timesheet
 
+<p align="center">
+  <img src="docs/flags/gb.svg" height="13" alt=""> <b>English</b> ·
+  <img src="docs/flags/de.svg" height="13" alt=""> <a href="README.de.md">Deutsch</a>
+</p>
+
+---
+
 [![Stars](https://img.shields.io/github/stars/michaelblaess/jira-timesheet?logo=github&logoColor=white&color=fbbf24)](https://github.com/michaelblaess/jira-timesheet/stargazers)
 [![Forks](https://img.shields.io/github/forks/michaelblaess/jira-timesheet?logo=github&logoColor=white&color=34d399)](https://github.com/michaelblaess/jira-timesheet/network/members)
 [![Issues](https://img.shields.io/github/issues/michaelblaess/jira-timesheet?logo=github&logoColor=white&color=f87171)](https://github.com/michaelblaess/jira-timesheet/issues)
@@ -9,35 +16,35 @@
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
-Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
+Terminal-based application (TUI) for generating timesheets from Jira worklogs.
 
-> **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstuetzt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die oeffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
+> **Disclaimer:** This project is **not** developed, supported, or authorized by Atlassian. "Jira" and "Atlassian" are registered trademarks of [Atlassian Corporation](https://www.atlassian.com/). This tool uses the public Jira REST API and is not affiliated with Atlassian.
 
 ## Screenshots
 
-| Listenansicht (Gemstone) | Kalenderansicht (BeBox) |
+| List view (Gemstone) | Calendar view (BeBox) |
 |---|---|
-| ![Listenansicht](docs/screenshots/01-main-atari.png) | ![Kalenderansicht](docs/screenshots/04-month-view-beos.png) |
+| ![List view](docs/screenshots/01-main-atari.png) | ![Calendar view](docs/screenshots/04-month-view-beos.png) |
 
-| Jahresansicht mit Forecast | Settings |
+| Year view with forecast | Settings |
 |---|---|
-| ![Jahresansicht](docs/screenshots/05-year-view-atari.png) | ![Settings](docs/screenshots/06-settings-atari.png) |
+| ![Year view](docs/screenshots/05-year-view-atari.png) | ![Settings](docs/screenshots/06-settings-atari.png) |
 
 ## Features
 
-- **Jira Integration** — Worklogs per REST API abrufen (Bearer Token Auth)
-- **Listenansicht** — Tabellarisch mit KW, Wochentag, Tagesgruppen, Soll/Ist-Stunden
-- **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
-- **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
-- **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
-- **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
-- **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
-- **Feiertage** — Deutsche Feiertage pro Bundesland, Luecken-Erkennung
-- **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
-- **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
-- **Anonymisierung** — Daten per Tastendruck anonymisieren fuer sichere Screenshots
-- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht laedt sofort
-- **31 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
+- **Jira integration** — Fetch worklogs via REST API (Bearer token auth)
+- **List view** — Tabular with calendar week, weekday, day groups, target/actual hours
+- **Calendar view** — Monthly calendar with color-coded day tiles
+- **Tab navigation** — Switch between views with TAB or click
+- **Year view** — 12 monthly tiles with progress bar and forecast (J)
+- **Excel export** — Formatted timesheet with logo and signature line
+- **PDF export** — Adobe-signable, Unicode font (Arial)
+- **Public holidays** — German public holidays per federal state, gap detection
+- **Target/actual** — Working time comparison with difference display
+- **Ticket details** — Enter/D shows status, type, assignee, components in the log
+- **Anonymization** — Anonymize data with a keypress for safe screenshots
+- **Worklog cache** — Completed months cached, year view loads instantly
+- **31 retro themes** — via theme picker (Ctrl+P), see [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Installation
 
@@ -53,9 +60,9 @@ irm https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.
 curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.sh | bash
 ```
 
-Danach einfach `jira-timesheet` im Terminal eingeben.
+Afterwards just type `jira-timesheet` in the terminal.
 
-### Manuelle Installation
+### Manual Installation
 
 ```bash
 git clone https://github.com/michaelblaess/jira-timesheet.git
@@ -64,69 +71,69 @@ setup.bat
 run.bat
 ```
 
-## Benutzung
+## Usage
 
 ```bash
 jira-timesheet
 ```
 
-Beim ersten Start `S` fuer Settings druecken und konfigurieren:
-- Jira Host URL
-- Bearer Token
-- E-Mail (Jira Username)
-- Bundesland (Feiertage)
+On first start, press `S` for settings and configure:
+- Jira host URL
+- Bearer token
+- Email (Jira username)
+- Federal state (public holidays)
 
-Dann `G` zum Generieren des Stundenzettels.
+Then `G` to generate the timesheet.
 
-## Tastenkuerzel
+## Keyboard Shortcuts
 
-| Taste | Aktion |
+| Key | Action |
 |-------|--------|
-| G | Stundenzettel generieren |
-| E | Excel-Export |
-| P | PDF-Export |
-| D | Ticket-Details anzeigen |
-| TAB | Tab wechseln (Liste / Kalender) |
-| R | Cache zuruecksetzen |
-| J | Jahresansicht mit Forecast |
-| A | Daten anonymisieren |
-| < / > | Monat wechseln |
+| G | Generate timesheet |
+| E | Excel export |
+| P | PDF export |
+| D | Show ticket details |
+| TAB | Switch tab (list / calendar) |
+| R | Reset cache |
+| J | Year view with forecast |
+| A | Anonymize data |
+| < / > | Switch month |
 | S | Settings |
 | I | Info |
-| C | Log kopieren |
-| L | Log ein/ausblenden |
-| Ctrl+P | Theme wechseln |
-| Q | Beenden |
+| C | Copy log |
+| L | Show/hide log |
+| Ctrl+P | Switch theme |
+| Q | Quit |
 
-## Konfiguration
+## Configuration
 
-Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
+Settings are stored in `~/.jira-timesheet/settings.json`:
 
-| Einstellung | Beschreibung | Default |
+| Setting | Description | Default |
 |-------------|-------------|---------|
-| Jira Host | URL der Jira-Instanz | — |
-| Token | Bearer Token fuer Authentifizierung | — |
-| E-Mail | Jira Username | — |
-| Bundesland | Fuer Feiertagsberechnung | SN |
-| Soll-Stunden/Tag | Arbeitsstunden pro Tag | 8.0 |
-| Max. Jahresstunden | Obergrenze fuer Progressbar | 1720 |
-| Urlaubstage | Fuer Jahres-Forecast | 30 |
-| Stundensatz | Netto, nur TUI-Anzeige | 0 (aus) |
-| Jahr | Fuer Jahresansicht | aktuelles Jahr |
-| Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
-| Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
+| Jira host | URL of the Jira instance | — |
+| Token | Bearer token for authentication | — |
+| Email | Jira username | — |
+| Federal state | For public holiday calculation | SN |
+| Target hours/day | Working hours per day | 8.0 |
+| Max. yearly hours | Upper limit for progress bar | 1720 |
+| Vacation days | For yearly forecast | 30 |
+| Hourly rate | Net, TUI display only | 0 (off) |
+| Year | For year view | current year |
+| Target hours in export | Shows target row in Excel/PDF | false |
+| Ticket links in export | Hyperlinks in Excel/PDF | false |
 
 ## Tech Stack
 
 - [Python](https://python.org) >= 3.10
-- [Textual](https://textual.textualize.io) — TUI Framework
-- [Rich](https://rich.readthedocs.io) — Terminal Formatting
-- [httpx](https://www.python-httpx.org) — Async HTTP Client
-- [openpyxl](https://openpyxl.readthedocs.io) — Excel Export
-- [fpdf2](https://py-pdf.github.io/fpdf2) — PDF Export
-- [holidays](https://python-holidays.readthedocs.io) — Feiertagsberechnung
+- [Textual](https://textual.textualize.io) — TUI framework
+- [Rich](https://rich.readthedocs.io) — Terminal formatting
+- [httpx](https://www.python-httpx.org) — Async HTTP client
+- [openpyxl](https://openpyxl.readthedocs.io) — Excel export
+- [fpdf2](https://py-pdf.github.io/fpdf2) — PDF export
+- [holidays](https://python-holidays.readthedocs.io) — Public holiday calculation
 
-## Lizenz
+## License
 
 Apache License 2.0
 
