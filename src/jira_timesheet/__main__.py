@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from textual_widgets import reset_terminal_title, set_terminal_title
+
 from jira_timesheet import __version__
 from jira_timesheet.app import JiraTimesheetApp
 
@@ -33,8 +35,13 @@ def main() -> None:
 
     parser.parse_args()
 
-    app = JiraTimesheetApp()
-    app.run()
+    # Terminal-Tab-Titel setzen - Textual macht das nicht selbst.
+    set_terminal_title(f"◷ jira-timesheet v{__version__}")
+    try:
+        app = JiraTimesheetApp()
+        app.run()
+    finally:
+        reset_terminal_title()
 
 
 if __name__ == "__main__":
