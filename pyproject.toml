@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "jira-timesheet"
 version = "1.5.0"
 description = "TUI tool for generating timesheets from Jira worklogs"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "Michael Blaess"},
@@ -63,7 +63,7 @@ addopts = "-v --tb=short"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "ASYNC"]
