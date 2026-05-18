@@ -7,25 +7,12 @@ from datetime import date
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Center, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
-_MONTH_NAMES = [
-    "Januar",
-    "Februar",
-    "Maerz",
-    "April",
-    "Mai",
-    "Juni",
-    "Juli",
-    "August",
-    "September",
-    "Oktober",
-    "November",
-    "Dezember",
-]
+from jira_timesheet.i18n import t
 
 _QUARTER_NAMES = ["Q1", "Q2", "Q3", "Q4"]
 
@@ -74,7 +61,7 @@ class MonthTile(Widget):
     def render(self) -> Text:
         """Rendert die Monatskachel mit Mini-Progressbar."""
         text = Text()
-        name = _MONTH_NAMES[self._month - 1]
+        name = t(f"month.{self._month}")
 
         if self._actual > 0 and self._target > 0:
             pct = min(self._actual / self._target * 100, 100)
@@ -101,18 +88,19 @@ class MonthTile(Widget):
             text.append(f"{self._actual:.1f}h", style=pct_style)
             text.append(f" / {self._target:.0f}h\n", style="dim")
 
-            text.append(f"\u25b8 {self._working_days} / {self._target_days} Tage", style="dim")
+            days = t("year.month_days", days=self._working_days, target=self._target_days)
+            text.append(f"\u25b8 {days}", style="dim")
 
         elif self._actual > 0:
             text.append(f"{name}\n", style="bold")
             text.append(f"{self._actual:.1f}h\n", style="bold yellow")
-            text.append(f"\u25b8 {self._working_days} Tage", style="dim")
+            text.append(f"\u25b8 {t('year.month_days_single', days=self._working_days)}", style="dim")
 
         elif self._target > 0:
             text.append(f"{name}\n", style="dim")
             text.append("\u2591" * 18 + "\n", style="dim")
-            text.append(f"Soll: {self._target:.0f}h\n", style="dim")
-            text.append(f"\u25b8 {self._target_days} Tage", style="dim")
+            text.append(f"{t('year.month_target', hours=f'{self._target:.0f}')}\n", style="dim")
+            text.append(f"\u25b8 {t('year.month_days_single', days=self._target_days)}", style="dim")
 
         else:
             text.append(f"{name}\n", style="dim")
@@ -176,17 +164,16 @@ class YearScreen(ModalScreen):
     }
 
     YearScreen #year-footer {
-        height: 1;
+        height: auto;
         margin-top: 1;
-        color: $text-muted;
-        text-align: center;
+        align: center middle;
     }
     """
 
     BINDINGS = [
-        Binding("escape", "close", "Schliessen"),
-        Binding("q", "close", "Schliessen", show=False),
-        Binding("j", "close", "Schliessen", show=False),
+        Binding("escape", "close", "ESC"),
+        Binding("q,Q", "close", "Q", show=False),
+        Binding("j,J", "close", "J", show=False),
     ]
 
     def __init__(
@@ -212,7 +199,7 @@ class YearScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         """Baut die Jahresansicht auf."""
         with Vertical():
-            yield Static(f"Jahresansicht {self._year}", id="year-title")
+            yield Static(t("year.title", year=self._year), id="year-title")
 
             with Vertical(id="year-grid"):
                 for q in range(4):
@@ -231,7 +218,8 @@ class YearScreen(ModalScreen):
                             )
 
             yield Static(self._build_summary(), id="year-summary")
-            yield Static("ESC = Schliessen", id="year-footer")
+            with Center(id="year-footer"):
+                yield Button(t("common.close_button"), variant="primary", id="year-close")
 
     def _build_summary(self) -> Text:
         """Erzeugt die Jahres-Zusammenfassung."""
@@ -241,7 +229,7 @@ class YearScreen(ModalScreen):
         sum(d.get("target", 0.0) for d in self._month_data.values())
         total_days = sum(d.get("working_days", 0) for d in self._month_data.values())
 
-        text.append(f"  {self._year} Gesamt: ", style="bold")
+        text.append(t("year.total", year=self._year), style="bold")
         text.append(f"{total_actual:.1f}h", style="bold")
 
         if self._max_yearly > 0:
@@ -261,20 +249,20 @@ class YearScreen(ModalScreen):
 
             text.append("  |  ", style="dim")
             if remaining > 0:
-                text.append(f"Verbleibend: {remaining:.1f}h", style="bold green")
+                text.append(t("year.remaining", hours=f"{remaining:.1f}"), style="bold green")
             else:
-                text.append(f"Ueberschritten: {abs(remaining):.1f}h", style="bold red")
+                text.append(t("year.exceeded", hours=f"{abs(remaining):.1f}"), style="bold red")
 
         text.append("  |  ", style="dim")
-        text.append(f"{total_days} Arbeitstage", style="dim")
+        text.append(t("year.workdays", days=total_days), style="dim")
 
         if self._hourly_rate > 0:
             netto = total_actual * self._hourly_rate
             brutto = netto * 1.19
             text.append("\n")
-            text.append(f"  Netto: {netto:,.2f}\u20ac", style="bold")
+            text.append(f"  {t('year.net')}: {netto:,.2f}\u20ac", style="bold")
             text.append("  |  ", style="dim")
-            text.append(f"Brutto: {brutto:,.2f}\u20ac", style="bold")
+            text.append(f"{t('year.gross')}: {brutto:,.2f}\u20ac", style="bold")
 
         # Forecast
         text.append("\n")
@@ -304,26 +292,33 @@ class YearScreen(ModalScreen):
         available_days = total_workdays_year - self._vacation_days
         forecast_hours = available_days * self._hours_per_day
 
-        text.append("  \u2500\u2500\u2500 Forecast \u2500\u2500\u2500\n", style="dim")
-        text.append(f"  Arbeitstage {self._year}: ", style="dim")
+        text.append(f"{t('year.forecast_header')}\n", style="dim")
+        text.append(t("year.forecast_workdays", year=self._year), style="dim")
         text.append(f"{total_workdays_year}", style="bold")
-        text.append(f"  \u2212 {self._vacation_days} Urlaub", style="dim")
+        text.append(t("year.forecast_vacation", days=self._vacation_days), style="dim")
         text.append("  = ", style="dim")
-        text.append(f"{available_days} verfuegbar\n", style="bold")
+        text.append(f"{t('year.forecast_available', days=available_days)}\n", style="bold")
 
-        text.append("  Forecast Stunden: ", style="dim")
-        text.append(f"{available_days} Tage \u00d7 {self._hours_per_day:.0f}h = ", style="dim")
+        text.append(t("year.forecast_hours_label"), style="dim")
+        text.append(
+            t("year.forecast_hours_calc", days=available_days, per_day=f"{self._hours_per_day:.0f}"),
+            style="dim",
+        )
         text.append(f"{forecast_hours:.0f}h\n", style="bold")
 
         if self._hourly_rate > 0:
             forecast_netto = forecast_hours * self._hourly_rate
             forecast_brutto = forecast_netto * 1.19
-            text.append("  Forecast Umsatz: ", style="dim")
-            text.append(f"Netto: {forecast_netto:,.2f}\u20ac", style="bold green")
+            text.append(t("year.forecast_revenue_label"), style="dim")
+            text.append(f"{t('year.net')}: {forecast_netto:,.2f}\u20ac", style="bold green")
             text.append("  |  ", style="dim")
-            text.append(f"Brutto: {forecast_brutto:,.2f}\u20ac", style="bold green")
+            text.append(f"{t('year.gross')}: {forecast_brutto:,.2f}\u20ac", style="bold green")
 
         return text
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Schliesst die Jahresansicht beim Klick auf den Close-Button."""
+        self.dismiss()
 
     def action_close(self) -> None:
         """Schliesst die Jahresansicht."""

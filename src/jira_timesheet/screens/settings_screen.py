@@ -1,213 +1,134 @@
-"""Settings Modal Screen."""
+"""Settings-Dialog auf Basis von BaseSettingsScreen (textual-widgets)."""
 
 from __future__ import annotations
 
 import contextlib
+from datetime import date
 
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
-from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Input, Label, Select, Static
+from textual.widgets import Checkbox, Input, Label, Select, TabPane
+from textual_widgets import BaseSettingsScreen
 
-from jira_timesheet.models.settings import Settings
+from jira_timesheet.i18n import t
 from jira_timesheet.services.holiday_service import FEDERAL_STATES
 
+# Bundesland-Auswahl, alphabetisch nach Anzeigename sortiert.
 _STATE_OPTIONS = [(f"{name} ({code})", code) for code, name in sorted(FEDERAL_STATES.items(), key=lambda x: x[1])]
 
 
-class SettingsScreen(ModalScreen[bool | None]):
-    """Modal-Dialog fuer Benutzereinstellungen."""
+class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
+    """App-Settings-Dialog mit Tabs fuer Jira, Export und Berechnung.
+
+    Erbt Look, Sprach-Tab und Save/Cancel-Leiste von BaseSettingsScreen.
+    Arbeitet mit einem Settings-Dict; die App konvertiert von/zu der
+    Settings-Dataclass.
+    """
 
     DEFAULT_CSS = """
-    SettingsScreen {
-        align: center middle;
+    SettingsScreen .settings-row Input,
+    SettingsScreen .settings-row Select {
+        width: 1fr;
     }
 
-    SettingsScreen > VerticalScroll {
-        width: 70;
-        height: auto;
-        max-height: 40;
-        background: $surface;
-        border: thick $accent;
-        padding: 1 2;
-    }
-
-    SettingsScreen #settings-title {
-        text-style: bold;
+    SettingsScreen Checkbox {
         margin-bottom: 1;
-    }
-
-    SettingsScreen Label {
-        margin-top: 1;
-        color: $text-muted;
-    }
-
-    SettingsScreen Input {
-        margin-bottom: 0;
-    }
-
-    SettingsScreen Select {
-        margin-bottom: 0;
-    }
-
-    SettingsScreen #settings-footer {
-        margin-top: 1;
-        height: 3;
-        align: center middle;
-    }
-
-    SettingsScreen #btn-save {
-        margin-right: 2;
     }
     """
 
-    BINDINGS = [
-        Binding("escape", "cancel", "Abbrechen"),
-        Binding("ctrl+s", "save", "Speichern"),
-    ]
-
-    def __init__(self, settings: Settings, **kwargs: object) -> None:
-        super().__init__(**kwargs)
-        self._settings = settings
-
-    def compose(self) -> ComposeResult:
-        """Erstellt das Settings-Formular."""
-        with VerticalScroll():
-            yield Static("Einstellungen", id="settings-title")
-
-            yield Label("Jira Host URL:")
-            yield Input(
-                value=self._settings.jira_host,
-                placeholder="https://jira.example.com",
-                id="input-host",
+    def app_tabs(self) -> ComposeResult:
+        """Erstellt die app-spezifischen Tabs."""
+        with TabPane(t("settings.tab_jira"), id="settings-tab-jira"), VerticalScroll():
+            yield from self._text_row("settings.host", "set-host", "jira_host", "https://jira.example.com")
+            yield from self._text_row("settings.token", "set-token", "jira_token", "Token", password=True)
+            yield from self._text_row("settings.email", "set-email", "email", "user@example.com")
+            yield from self._text_row(
+                "settings.budget_field", "set-budget-field", "budget_field", "customfield_36461"
             )
 
-            yield Label("Jira Bearer Token:")
-            yield Input(
-                value=self._settings.jira_token,
-                placeholder="Token hier einfuegen",
-                password=True,
-                id="input-token",
-            )
-
-            yield Label("E-Mail (Jira Username):")
-            yield Input(
-                value=self._settings.email,
-                placeholder="user@example.com",
-                id="input-email",
-            )
-
-            yield Label("Logo-Pfad (fuer Excel/PDF Export):")
-            yield Input(
-                value=self._settings.logo_path,
-                placeholder="Leer = Default-Logo aus assets/",
-                id="input-logo",
-            )
-
-            yield Label("Budget Custom Field ID:")
-            yield Input(
-                value=self._settings.budget_field,
-                placeholder="customfield_36461",
-                id="input-budget-field",
-            )
-
-            yield Label("Bundesland (Feiertage):")
-            yield Select(
-                options=_STATE_OPTIONS,
-                value=self._settings.federal_state,
-                id="select-federal-state",
-            )
-
-            yield Label("Soll-Stunden pro Tag:")
-            yield Input(
-                value=str(self._settings.hours_per_day),
-                placeholder="8.0",
-                id="input-hours-per-day",
-            )
-
-            yield Label("Max. Jahresstunden:")
-            yield Input(
-                value=str(self._settings.max_yearly_hours),
-                placeholder="1720.0",
-                id="input-max-yearly",
-            )
-
+        with TabPane(t("settings.tab_export"), id="settings-tab-export"), VerticalScroll():
+            yield from self._text_row("settings.logo", "set-logo", "logo_path", "")
             yield Checkbox(
-                "Soll-Stunden im Excel/PDF Export anzeigen",
-                value=self._settings.show_target_hours_in_export,
-                id="check-target-export",
+                t("settings.target_export"),
+                value=bool(self._settings.get("show_target_hours_in_export", False)),
+                id="set-target-export",
             )
-
             yield Checkbox(
-                "Ticket-Links im Excel/PDF Export anzeigen",
-                value=self._settings.show_ticket_links_in_export,
-                id="check-ticket-links-export",
+                t("settings.ticket_links_export"),
+                value=bool(self._settings.get("show_ticket_links_in_export", False)),
+                id="set-ticket-links-export",
             )
 
-            yield Label("Stundensatz (netto, nur TUI-Anzeige):")
-            yield Input(
-                value=str(self._settings.hourly_rate) if self._settings.hourly_rate > 0 else "",
-                placeholder="0 = nicht anzeigen",
-                id="input-hourly-rate",
-            )
+        with TabPane(t("settings.tab_calc"), id="settings-tab-calc"), VerticalScroll():
+            with Horizontal(classes="settings-row"):
+                yield Label(t("settings.federal_state"))
+                yield Select(
+                    options=_STATE_OPTIONS,
+                    value=str(self._settings.get("federal_state", "SN")),
+                    allow_blank=False,
+                    id="set-federal-state",
+                )
+            yield from self._text_row("settings.hours_per_day", "set-hours-per-day", "hours_per_day", "8.0")
+            yield from self._text_row("settings.max_yearly", "set-max-yearly", "max_yearly_hours", "1720.0")
+            yield from self._text_row("settings.hourly_rate", "set-hourly-rate", "hourly_rate", "0")
+            year_value = self._settings.get("year", 0)
+            year_str = str(year_value) if isinstance(year_value, int) and year_value > 0 else ""
+            with Horizontal(classes="settings-row"):
+                yield Label(t("settings.year"))
+                yield Input(value=year_str, placeholder=str(date.today().year), id="set-year")
+            yield from self._text_row("settings.vacation_days", "set-vacation-days", "vacation_days", "30")
 
-            from datetime import date as _date
+    def _text_row(
+        self,
+        label_key: str,
+        widget_id: str,
+        settings_key: str,
+        placeholder: str,
+        password: bool = False,
+    ) -> ComposeResult:
+        """Baut eine Label/Input-Zeile fuer ein Settings-Feld."""
+        raw = self._settings.get(settings_key, "")
+        value = "" if raw is None else str(raw)
+        with Horizontal(classes="settings-row"):
+            yield Label(t(label_key))
+            yield Input(value=value, placeholder=placeholder, password=password, id=widget_id)
 
-            default_year = self._settings.year if self._settings.year > 0 else _date.today().year
-            yield Label("Jahr (fuer Jahresansicht):")
-            yield Input(
-                value=str(default_year),
-                placeholder=str(_date.today().year),
-                id="input-year",
-            )
+    def collect_app_settings(self, settings: dict[str, object]) -> None:
+        """Liest die Widget-Werte ins Ergebnis-Dict."""
+        settings["jira_host"] = self.query_one("#set-host", Input).value.strip()
+        settings["jira_token"] = self.query_one("#set-token", Input).value.strip()
+        settings["email"] = self.query_one("#set-email", Input).value.strip()
+        settings["budget_field"] = self.query_one("#set-budget-field", Input).value.strip()
+        settings["logo_path"] = self.query_one("#set-logo", Input).value.strip()
 
-            yield Label("Urlaubstage pro Jahr:")
-            yield Input(
-                value=str(self._settings.vacation_days),
-                placeholder="30",
-                id="input-vacation-days",
-            )
+        settings["show_target_hours_in_export"] = self.query_one("#set-target-export", Checkbox).value
+        settings["show_ticket_links_in_export"] = self.query_one("#set-ticket-links-export", Checkbox).value
 
-            with Horizontal(id="settings-footer"):
-                yield Button("Speichern", id="btn-save", variant="primary")
-                yield Button("Abbrechen", id="btn-cancel")
+        state_value = self.query_one("#set-federal-state", Select).value
+        if isinstance(state_value, str):
+            settings["federal_state"] = state_value
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Reagiert auf Button-Klicks."""
-        if event.button.id == "btn-save":
-            self.action_save()
-        elif event.button.id == "btn-cancel":
-            self.action_cancel()
-
-    def action_save(self) -> None:
-        """Speichert die Settings und schliesst den Dialog."""
-        self._settings.jira_host = self.query_one("#input-host", Input).value.strip()
-        self._settings.jira_token = self.query_one("#input-token", Input).value.strip()
-        self._settings.email = self.query_one("#input-email", Input).value.strip()
-        self._settings.logo_path = self.query_one("#input-logo", Input).value.strip()
-        self._settings.budget_field = self.query_one("#input-budget-field", Input).value.strip()
-        state_select = self.query_one("#select-federal-state", Select)
-        self._settings.federal_state = (
-            str(state_select.value) if state_select.value != Select.BLANK else self._settings.federal_state
-        )
         with contextlib.suppress(ValueError):
-            self._settings.hours_per_day = float(self.query_one("#input-hours-per-day", Input).value.strip())
+            settings["hours_per_day"] = float(self.query_one("#set-hours-per-day", Input).value.strip())
         with contextlib.suppress(ValueError):
-            self._settings.max_yearly_hours = float(self.query_one("#input-max-yearly", Input).value.strip())
-        self._settings.show_target_hours_in_export = self.query_one("#check-target-export", Checkbox).value
-        self._settings.show_ticket_links_in_export = self.query_one("#check-ticket-links-export", Checkbox).value
+            settings["max_yearly_hours"] = float(self.query_one("#set-max-yearly", Input).value.strip())
+
+        rate_str = self.query_one("#set-hourly-rate", Input).value.strip()
+        settings["hourly_rate"] = float(rate_str) if self._is_float(rate_str) else 0.0
+
+        year_str = self.query_one("#set-year", Input).value.strip()
+        settings["year"] = int(year_str) if year_str.isdigit() else 0
+
+        with contextlib.suppress(ValueError):
+            settings["vacation_days"] = int(self.query_one("#set-vacation-days", Input).value.strip())
+
+    @staticmethod
+    def _is_float(value: str) -> bool:
+        """Prueft, ob ein String als float parsbar ist."""
+        if not value:
+            return False
         try:
-            rate_str = self.query_one("#input-hourly-rate", Input).value.strip()
-            self._settings.hourly_rate = float(rate_str) if rate_str else 0.0
+            float(value)
         except ValueError:
-            pass
-        with contextlib.suppress(ValueError):
-            self._settings.year = int(self.query_one("#input-year", Input).value.strip())
-        with contextlib.suppress(ValueError):
-            self._settings.vacation_days = int(self.query_one("#input-vacation-days", Input).value.strip())
-        self.dismiss(True)
-
-    def action_cancel(self) -> None:
-        """Schliesst den Dialog ohne Speichern."""
-        self.dismiss(None)
+            return False
+        return True
