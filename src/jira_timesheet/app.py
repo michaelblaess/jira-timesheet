@@ -60,7 +60,9 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
         self._bindings.bind("e,E", "export_excel", t("binding.excel"), key_display="e")
         self._bindings.bind("p,P", "export_pdf", t("binding.pdf"), key_display="p")
         self._bindings.bind("d,D", "show_details", t("binding.details"), key_display="d")
-        self._bindings.bind("c,C", "copy_log", t("binding.copy_log"), key_display="c")
+        # copy_log: Shortcut bleibt, aber nicht im Footer (Log-Kontextmenue
+        # bietet "Log kopieren" ohnehin an).
+        self._bindings.bind("c,C", "copy_log", t("binding.copy_log"), key_display="c", show=False)
         self._bindings.bind("s,S", "show_settings", t("binding.settings"), key_display="s")
         self._bindings.bind("i,I", "show_about", t("binding.info"), key_display="i")
         self._bindings.bind("tab", "next_tab", t("binding.switch_view"), key_display="TAB", priority=True)
