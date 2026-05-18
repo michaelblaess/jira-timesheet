@@ -1,5 +1,5 @@
 """Jira Timesheet - TUI tool for generating timesheets from Jira worklogs."""
 
-__version__ = "1.7.0"
+__version__ = "1.7.1"
 __author__ = "Michael Blaess"
 __year__ = "2026"
