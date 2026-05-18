@@ -219,7 +219,11 @@ class YearScreen(ModalScreen):
 
             yield Static(self._build_summary(), id="year-summary")
             with Center(id="year-footer"):
-                yield Button(t("common.close_button"), variant="primary", id="year-close")
+                # can_focus aus: sonst zieht der Button beim Oeffnen den Fokus
+                # und zeigt einen unschoenen Focus-Rahmen. ESC/Klick reichen.
+                close_button = Button(t("common.close_button"), variant="primary", id="year-close")
+                close_button.can_focus = False
+                yield close_button
 
     def _build_summary(self) -> Text:
         """Erzeugt die Jahres-Zusammenfassung."""
