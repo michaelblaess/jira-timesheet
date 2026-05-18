@@ -8,7 +8,8 @@ ConfigPanel {
 }
 
 #view-tabs {
-    height: 1fr;
+    height: 4fr;
+    min-height: 10;
 }
 
 TimesheetTable {
@@ -26,15 +27,13 @@ SummaryPanel {
     margin-top: 1;
 }
 
+/* LogPanel-Hoehe auf 1fr stellen, damit der Splitter sie veraendern kann
+   (LogPanel-DEFAULT_CSS setzt sonst feste height: 10). */
 #log-panel {
-    height: 10;
-    min-height: 6;
-    max-height: 20;
-    margin-top: 1;
-    border: solid $accent;
-    display: block;
+    height: 1fr;
+    min-height: 5;
 }
 
-#log-panel.hidden {
+#log-splitter.-log-hidden {
     display: none;
 }

@@ -10,9 +10,8 @@ from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import DataTable
 
+from jira_timesheet.i18n import t
 from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
-
-_WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
 class TimesheetTable(Vertical):
@@ -48,7 +47,15 @@ class TimesheetTable(Vertical):
     def on_mount(self) -> None:
         """Initialisiert die Tabellenspalten."""
         table = self.query_one("#timesheet-data", DataTable)
-        table.add_columns("KW", "Tag", "Datum", "Ticket", "Beschreibung", "h", "Tages-h")
+        table.add_columns(
+            t("table.col.week"),
+            t("table.col.day"),
+            t("table.col.date"),
+            t("table.col.ticket"),
+            t("table.col.description"),
+            t("table.col.hours"),
+            t("table.col.day_hours"),
+        )
 
     def load_timesheet(
         self,
@@ -70,10 +77,11 @@ class TimesheetTable(Vertical):
             if isinstance(item, tuple):
                 gap_date, gap_reason = item
                 kw = str(gap_date.isocalendar()[1])
-                weekday = _WEEKDAYS[gap_date.weekday()]
+                weekday = t(f"weekday.{gap_date.weekday()}")
                 date_str = f"{gap_date:%d.%m.}"
 
-                style = "dim" if "Feiertag" in gap_reason or "kein Eintrag" not in gap_reason else "red"
+                # Em-Dash-Marker: Luecke (rot) vs. Feiertag (dim) - sprachneutral.
+                style = "red" if "—" in gap_reason else "dim"
                 table.add_row(
                     Text(kw, style="dim"),
                     Text(weekday, style="dim"),
@@ -92,7 +100,7 @@ class TimesheetTable(Vertical):
                     is_last = i == len(day.entries) - 1
 
                     kw = str(entry.date.isocalendar()[1]) if is_first else ""
-                    weekday = _WEEKDAYS[entry.date.weekday()] if is_first else ""
+                    weekday = t(f"weekday.{entry.date.weekday()}") if is_first else ""
                     date_str = f"{entry.date:%d.%m.}" if is_first else ""
                     hours_str = f"{entry.hours:.2f}"
 

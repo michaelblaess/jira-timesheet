@@ -6,6 +6,8 @@ from datetime import date
 
 import holidays
 
+from jira_timesheet.i18n import t
+
 # Bundesland-Kuerzel → Anzeigename
 FEDERAL_STATES: dict[str, str] = {
     "BW": "Baden-Wuerttemberg",
@@ -81,6 +83,9 @@ class HolidayService:
         Gibt Liste von (Datum, Grund) zurueck:
         - Feiertag: ("Karfreitag")
         - Luecke: ("— kein Eintrag —")
+
+        Der Luecken-Grund enthaelt IMMER einen Em-Dash; Konsumenten erkennen
+        Luecken (vs. Feiertage) sprachneutral an diesem Marker.
         """
         h = holidays.Germany(subdiv=self._state, years={date_from.year, date_to.year})
         missing: list[tuple[date, str]] = []
@@ -93,7 +98,7 @@ class HolidayService:
                     if current not in worked_dates:
                         missing.append((current, h[current]))
                 elif current not in worked_dates:
-                    missing.append((current, "\u2014 kein Eintrag \u2014"))
+                    missing.append((current, t("gap.no_entry")))
             current += one_day
 
         return missing

@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 
 import httpx
 
+from jira_timesheet.i18n import t
 from jira_timesheet.models.timesheet import WorklogEntry
 
 logger = logging.getLogger(__name__)
@@ -48,8 +49,8 @@ class JiraClient:
         jql = f'issueFunction in workLogged("after {search_from:%Y/%m/%d} by {email}")'
         fields = f"worklog,summary,status,issuetype,components,labels,priority,resolution,assignee,created,updated,timespent,{self._budget_field}"
 
-        self._log(f"JQL: {jql}")
-        self._log(f"Verbinde mit {self._host}...")
+        self._log(t("jira.jql", jql=jql))
+        self._log(t("jira.connecting", host=self._host))
 
         entries: list[WorklogEntry] = []
 
@@ -59,7 +60,7 @@ class JiraClient:
             follow_redirects=True,
         ) as client:
             issues = await self._search_issues(client, jql, fields)
-            self._log(f"{len(issues)} Issues gefunden")
+            self._log(t("jira.issues_found", count=len(issues)))
 
             for issue in issues:
                 issue_entries = await self._extract_worklogs(
@@ -71,7 +72,7 @@ class JiraClient:
                 )
                 entries.extend(issue_entries)
 
-        self._log(f"{len(entries)} Worklogs im Zeitraum gefunden")
+        self._log(t("jira.worklogs_found", count=len(entries)))
         entries.sort(key=lambda e: (e.date, e.ticket))
         return entries
 
@@ -92,10 +93,10 @@ class JiraClient:
         )
 
         if response.status_code == 401:
-            raise JiraClientError("Jira Login fehlgeschlagen. Bitte Token pruefen.")
+            raise JiraClientError(t("jira.login_failed"))
 
         if response.status_code != 200:
-            raise JiraClientError(f"Jira API Fehler: HTTP {response.status_code}")
+            raise JiraClientError(t("jira.api_error", status=response.status_code))
 
         data = response.json()
         return data.get("issues", [])
@@ -115,9 +116,9 @@ class JiraClient:
 
         budget_data = fields.get(self._budget_field)
         if budget_data and isinstance(budget_data, dict):
-            budget = budget_data.get("value", "nicht zugeordnet")
+            budget = budget_data.get("value", t("jira.budget_unassigned"))
         else:
-            budget = "nicht zugeordnet"
+            budget = t("jira.budget_unassigned")
 
         status_obj = fields.get("status", {})
         issue_status = status_obj.get("name", "") if isinstance(status_obj, dict) else ""

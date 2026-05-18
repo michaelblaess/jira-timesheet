@@ -9,6 +9,7 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Static
 
+from jira_timesheet.i18n import t
 from jira_timesheet.models.settings import Settings
 
 
@@ -79,26 +80,26 @@ class ConfigPanel(Vertical):
 
     def compose(self) -> ComposeResult:
         """Erstellt das Layout."""
-        token_display = "●" * 20 if self._settings.jira_token else "[nicht gesetzt]"
-        host_display = self._settings.jira_host or "[nicht gesetzt]"
-        email_display = self._settings.email or "[nicht gesetzt]"
+        token_display = "●" * 20 if self._settings.jira_token else t("common.not_set")
+        host_display = self._settings.jira_host or t("common.not_set")
+        email_display = self._settings.email or t("common.not_set")
 
         with Horizontal(classes="config-row"):
-            yield Static("  Jira Host:   ", classes="config-label")
+            yield Static(t("config.host"), classes="config-label")
             yield Static(host_display, classes="config-value")
 
         with Horizontal(classes="config-row"):
-            yield Static("  Token:       ", classes="config-label")
+            yield Static(t("config.token"), classes="config-label")
             yield Static(token_display, classes="config-value", id="token-display")
 
         with Horizontal(classes="config-row"):
-            yield Static("  Entwickler:  ", classes="config-label")
+            yield Static(t("config.developer"), classes="config-label")
             yield Static(email_display, classes="config-value")
 
         with Horizontal(classes="config-row"):
-            yield Static("  Zeitraum:    ", classes="config-label")
+            yield Static(t("config.period"), classes="config-label")
             yield Static(self._format_date_range(), id="date-range")
-            yield Static("   [◄] Prev  [►] Next", classes="nav-hint")
+            yield Static(t("config.nav_hint"), classes="nav-hint")
 
     def prev_month(self) -> None:
         """Wechselt zum vorherigen Monat."""
@@ -128,7 +129,7 @@ class ConfigPanel(Vertical):
         """Aktualisiert die Anzeige nach Settings-Aenderung."""
         try:
             token_widget = self.query_one("#token-display", Static)
-            token_display = "●" * 20 if self._settings.jira_token else "[nicht gesetzt]"
+            token_display = "●" * 20 if self._settings.jira_token else t("common.not_set")
             token_widget.update(token_display)
         except Exception:
             pass

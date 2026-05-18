@@ -10,9 +10,8 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.widget import Widget
 from textual.widgets import Static
 
+from jira_timesheet.i18n import t
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay
-
-_WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 
 
 class DayTile(Widget):
@@ -87,7 +86,7 @@ class DayTile(Widget):
         text = Text()
 
         day_num = str(self._date.day)
-        weekday = _WEEKDAYS[self._date.weekday()]
+        weekday = t(f"weekday.{self._date.weekday()}")
 
         if self._is_outside:
             text.append(f"{day_num} {weekday}", style="dim")
@@ -118,7 +117,7 @@ class DayTile(Widget):
             text.append(f"{day_num} {weekday} ", style="bold")
             text.append("0.0h", style="bold red")
             text.append("\n")
-            text.append("kein Eintrag", style="red")
+            text.append(t("calendar.no_entry"), style="red")
 
         else:
             text.append(f"{day_num} {weekday}", style="dim")
@@ -208,9 +207,9 @@ class CalendarView(VerticalScroll):
     def compose(self) -> ComposeResult:
         """Erzeugt den Header mit Wochentagnamen."""
         with Horizontal(id="cal-header"):
-            for wd in _WEEKDAYS:
-                yield Static(wd, classes="cal-header-cell")
-            yield Static("\u03a3 h", classes="cal-header-sum")
+            for i in range(7):
+                yield Static(t(f"weekday.{i}"), classes="cal-header-cell")
+            yield Static(t("calendar.sum_header"), classes="cal-header-sum")
 
     def load_timesheet(
         self,
