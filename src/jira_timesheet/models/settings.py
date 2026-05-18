@@ -50,6 +50,7 @@ class Settings:
     """Einstellungen gespeichert in ~/.jira-timesheet/settings.json."""
 
     theme: str = "textual-dark"
+    language: str = "de"
     jira_host: str = ""
     jira_token: str = ""
     email: str = ""
@@ -72,6 +73,7 @@ class Settings:
 
     _FIELDS = (
         "theme",
+        "language",
         "jira_host",
         "jira_token",
         "email",
@@ -112,6 +114,7 @@ class Settings:
                 return Settings()
             settings = Settings(
                 theme=data.get("theme", "textual-dark"),
+                language=data.get("language", "de"),
                 jira_host=data.get("jira_host", ""),
                 jira_token=data.get("jira_token", ""),
                 email=data.get("email", ""),
