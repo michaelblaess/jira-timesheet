@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.app import RenderResult
 from textual.widget import Widget
 
+from jira_timesheet.i18n import t
 from jira_timesheet.models.timesheet import Timesheet
 
 
@@ -50,21 +51,21 @@ class SummaryPanel(Widget):
     def render(self) -> RenderResult:
         """Rendert die Zusammenfassung."""
         if self._timesheet is None:
-            return Text("  Druecke [G] um den Stundenzettel zu generieren", style="dim")
+            return Text(t("summary.generate_hint"), style="dim")
 
         ts = self._timesheet
         text = Text()
 
-        text.append("  Arbeitstage: ", style="dim")
+        text.append(f"  {t('summary.workdays')}", style="dim")
         text.append(str(ts.working_days), style="bold")
         text.append("  |  ", style="dim")
-        text.append("Ist: ", style="dim")
+        text.append(t("summary.actual"), style="dim")
         text.append(f"{ts.total_hours:.2f}h", style="bold")
 
         if self._target_hours > 0:
             diff = ts.total_hours - self._target_hours
             text.append("  |  ", style="dim")
-            text.append("Soll: ", style="dim")
+            text.append(t("summary.target"), style="dim")
             text.append(f"{self._target_hours:.2f}h", style="bold")
             text.append("  |  ", style="dim")
 
@@ -74,14 +75,14 @@ class SummaryPanel(Widget):
 
         text.append("  |  ", style="dim")
         text.append("\u00d8 ", style="dim")
-        text.append(f"{ts.average_hours:.2f}h/Tag", style="bold")
+        text.append(f"{ts.average_hours:.2f}{t('summary.avg_suffix')}", style="bold")
 
         if self._hourly_rate > 0:
             netto = ts.total_hours * self._hourly_rate
             brutto = netto * 1.19
             text.append("  |  ", style="dim")
-            text.append(f"Netto: {netto:,.2f}\u20ac", style="bold")
+            text.append(f"{t('summary.net')}: {netto:,.2f}\u20ac", style="bold")
             text.append("  |  ", style="dim")
-            text.append(f"Brutto: {brutto:,.2f}\u20ac", style="bold")
+            text.append(f"{t('summary.gross')}: {brutto:,.2f}\u20ac", style="bold")
 
         return text
