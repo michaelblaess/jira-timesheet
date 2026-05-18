@@ -14,7 +14,7 @@
 
 [![Last Commit](https://img.shields.io/github/last-commit/michaelblaess/jira-timesheet?logo=git&logoColor=white&color=3b82f6)](https://github.com/michaelblaess/jira-timesheet/commits/main)
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.12+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
 Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
 
@@ -44,6 +44,7 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
 - **Anonymisierung** — Daten per Tastendruck anonymisieren fuer sichere Screenshots
 - **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht laedt sofort
+- **Zweisprachige Oberflaeche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
 - **31 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Installation
@@ -75,6 +76,12 @@ run.bat
 
 ```bash
 jira-timesheet
+```
+
+Die Oberflaechensprache (Deutsch/Englisch) folgt dem `--lang`-Flag — die Wahl wird gespeichert und ist auch im Settings-Dialog umschaltbar:
+
+```bash
+jira-timesheet --lang en
 ```
 
 Beim ersten Start `S` fuer Settings druecken und konfigurieren:
@@ -122,10 +129,11 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Jahr | Fuer Jahresansicht | aktuelles Jahr |
 | Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
 | Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
+| Sprache | Oberflaechensprache (de / en) | de |
 
 ## Tech Stack
 
-- [Python](https://python.org) >= 3.10
+- [Python](https://python.org) >= 3.12
 - [Textual](https://textual.textualize.io) — TUI Framework
 - [Rich](https://rich.readthedocs.io) — Terminal Formatting
 - [httpx](https://www.python-httpx.org) — Async HTTP Client
