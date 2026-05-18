@@ -14,7 +14,7 @@
 
 [![Last Commit](https://img.shields.io/github/last-commit/michaelblaess/jira-timesheet?logo=git&logoColor=white&color=3b82f6)](https://github.com/michaelblaess/jira-timesheet/commits/main)
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.12+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
 Terminal-based application (TUI) for generating timesheets from Jira worklogs.
 
@@ -44,6 +44,7 @@ Terminal-based application (TUI) for generating timesheets from Jira worklogs.
 - **Ticket details** — Enter/D shows status, type, assignee, components in the log
 - **Anonymization** — Anonymize data with a keypress for safe screenshots
 - **Worklog cache** — Completed months cached, year view loads instantly
+- **Bilingual UI** — German/English, switchable via `--lang` or the settings dialog
 - **31 retro themes** — via theme picker (Ctrl+P), see [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Installation
@@ -75,6 +76,12 @@ run.bat
 
 ```bash
 jira-timesheet
+```
+
+The interface language (German/English) follows the `--lang` flag — the choice is saved and can also be changed in the settings dialog:
+
+```bash
+jira-timesheet --lang en
 ```
 
 On first start, press `S` for settings and configure:
@@ -122,10 +129,11 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Year | For year view | current year |
 | Target hours in export | Shows target row in Excel/PDF | false |
 | Ticket links in export | Hyperlinks in Excel/PDF | false |
+| Language | UI language (de / en) | de |
 
 ## Tech Stack
 
-- [Python](https://python.org) >= 3.10
+- [Python](https://python.org) >= 3.12
 - [Textual](https://textual.textualize.io) — TUI framework
 - [Rich](https://rich.readthedocs.io) — Terminal formatting
 - [httpx](https://www.python-httpx.org) — Async HTTP client
