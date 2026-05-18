@@ -24,7 +24,7 @@ $env:UV_PYTHON_DOWNLOADS = "never"
 Write-Host "=== jira-timesheet - dev environment ===" -ForegroundColor Cyan
 
 Write-Host "[1/2] venv + dependencies (uv sync)..."
-uv sync --extra dev --python 3.12
+uv sync --extra dev --python 3.13
 if ($LASTEXITCODE -ne 0) { throw "uv sync fehlgeschlagen" }
 
 Write-Host "[2/2] Nuitka build tool..."
