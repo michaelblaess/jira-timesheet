@@ -45,13 +45,11 @@
   "config.period": "Zeitraum",
   "config.title": "Konfiguration",
 
-  "summary.title": "Zusammenfassung",
-  "summary.generate_hint": "Drücke [G] um den Stundenzettel zu generieren",
+  "summary.generate_hint": "  Drücke [G] um den Stundenzettel zu generieren",
   "summary.workdays": "Arbeitstage",
   "summary.actual": "Ist",
   "summary.target": "Soll",
-  "summary.diff": "Differenz",
-  "summary.average": "Ø h/Tag",
+  "summary.avg_suffix": "h/Tag",
   "summary.net": "Netto",
   "summary.gross": "Brutto",
 
