@@ -45,13 +45,11 @@
   "config.period": "Period",
   "config.title": "Configuration",
 
-  "summary.title": "Summary",
-  "summary.generate_hint": "Press [G] to generate the timesheet",
+  "summary.generate_hint": "  Press [G] to generate the timesheet",
   "summary.workdays": "Workdays",
   "summary.actual": "Actual",
   "summary.target": "Target",
-  "summary.diff": "Diff",
-  "summary.average": "Ø h/day",
+  "summary.avg_suffix": "h/day",
   "summary.net": "Net",
   "summary.gross": "Gross",
 

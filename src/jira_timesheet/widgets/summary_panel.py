@@ -1,34 +1,42 @@
-"""Zusammenfassungs-Header: Soll/Ist/Differenz, Durchschnitt, Verdienst."""
+"""Zusammenfassungs-Widget fuer den Stundenzettel."""
 
 from __future__ import annotations
 
-from textual_widgets import InfoHeader, InfoItem
+from rich.text import Text
+from textual.widgets import Static
 
 from jira_timesheet.i18n import t
 from jira_timesheet.models.timesheet import Timesheet
 
-_EMPTY = "—"
-_KEYS = ("workdays", "actual", "target", "diff", "average", "net", "gross")
 
+class SummaryPanel(Static):
+    """Einzeilige Kennzahlen: Soll/Ist/Differenz, Durchschnitt, Verdienst.
 
-class SummaryPanel(InfoHeader):  # type: ignore[misc]
-    """Einzeilige Kennzahlen: Arbeitstage, Ist, Soll, Diff, Ø, Netto, Brutto."""
+    Static statt InfoHeader — eine fixe Inline-Stats-Zeile mit Pipe-Trennern
+    laesst sich mit dem InfoHeader-Spaltenraster nicht kompakt rendern (die
+    feste ``label_width`` spreizt Label und Wert auseinander). Static gibt
+    die volle Kontrolle ueber Spacing und Doppelpunkte.
+    """
+
+    DEFAULT_CSS = """
+    SummaryPanel {
+        height: auto;
+        min-height: 1;
+        padding: 0 1;
+        background: $surface;
+        border: solid $accent;
+    }
+    """
 
     def __init__(self, **kwargs: object) -> None:
+        super().__init__("", **kwargs)
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
         self._hourly_rate: float = 0.0
 
-        items = [
-            InfoItem(key="workdays", label=t("summary.workdays"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="actual", label=t("summary.actual"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="target", label=t("summary.target"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="diff", label=t("summary.diff"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="average", label=t("summary.average"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="net", label=t("summary.net"), value=_EMPTY, value_style="dim"),
-            InfoItem(key="gross", label=t("summary.gross"), value=_EMPTY, value_style="dim"),
-        ]
-        super().__init__(items, columns=7, label_width=12, separator=" | ", **kwargs)
+    def on_mount(self) -> None:
+        """Setzt den initialen Hinweistext."""
+        self._redraw()
 
     def update_timesheet(
         self,
@@ -40,34 +48,65 @@ class SummaryPanel(InfoHeader):  # type: ignore[misc]
         self._timesheet = timesheet
         self._target_hours = target_hours
         self._hourly_rate = hourly_rate
-
-        self.set_value("workdays", str(timesheet.working_days), value_style="bold")
-        self.set_value("actual", f"{timesheet.total_hours:.2f}h", value_style="bold")
-        self.set_value("average", f"{timesheet.average_hours:.2f}", value_style="bold")
-
-        if target_hours > 0:
-            diff = timesheet.total_hours - target_hours
-            diff_style = "bold red" if diff < 0 else "bold green"
-            sign = "+" if diff >= 0 else ""
-            self.set_value("target", f"{target_hours:.2f}h", value_style="bold")
-            self.set_value("diff", f"{sign}{diff:.2f}h", value_style=diff_style)
-        else:
-            self.set_value("target", _EMPTY, value_style="dim")
-            self.set_value("diff", _EMPTY, value_style="dim")
-
-        if hourly_rate > 0:
-            netto = timesheet.total_hours * hourly_rate
-            brutto = netto * 1.19
-            self.set_value("net", f"{netto:,.2f}€", value_style="bold")
-            self.set_value("gross", f"{brutto:,.2f}€", value_style="bold")
-        else:
-            self.set_value("net", _EMPTY, value_style="dim")
-            self.set_value("gross", _EMPTY, value_style="dim")
+        self._redraw()
 
     def clear(self) -> None:
-        """Setzt alle Werte auf den Platzhalter zurück."""
+        """Setzt die Anzeige zurueck (zeigt den Generate-Hinweis)."""
         self._timesheet = None
         self._target_hours = 0.0
         self._hourly_rate = 0.0
-        for key in _KEYS:
-            self.set_value(key, _EMPTY, value_style="dim")
+        self._redraw()
+
+    def _redraw(self) -> None:
+        """Baut den aktuellen Inhalt und schreibt ihn ins Widget.
+
+        NICHT ``_render`` nennen — das ist eine interne Textual-Widget-API,
+        ein Override mit ``-> None`` crasht das Layout-System.
+        """
+        if self._timesheet is None:
+            self.update(Text(t("summary.generate_hint"), style="dim"))
+            return
+        self.update(self._build_stats_text())
+
+    def _build_stats_text(self) -> Text:
+        """Erzeugt die Stats-Zeile als Rich Text."""
+        assert self._timesheet is not None
+        ts = self._timesheet
+        text = Text()
+        sep = "  |  "
+
+        text.append("  ")
+        text.append(f"{t('summary.workdays')}: ", style="dim")
+        text.append(str(ts.working_days), style="bold")
+
+        text.append(sep, style="dim")
+        text.append(f"{t('summary.actual')}: ", style="dim")
+        text.append(f"{ts.total_hours:.2f}h", style="bold")
+
+        if self._target_hours > 0:
+            text.append(sep, style="dim")
+            text.append(f"{t('summary.target')}: ", style="dim")
+            text.append(f"{self._target_hours:.2f}h", style="bold")
+
+            text.append(sep, style="dim")
+            diff = ts.total_hours - self._target_hours
+            diff_style = "bold red" if diff < 0 else "bold green"
+            sign = "+" if diff >= 0 else ""
+            text.append(f"{sign}{diff:.2f}h", style=diff_style)
+
+        text.append(sep, style="dim")
+        text.append("Ø ", style="dim")
+        text.append(f"{ts.average_hours:.2f}{t('summary.avg_suffix')}", style="bold")
+
+        if self._hourly_rate > 0:
+            netto = ts.total_hours * self._hourly_rate
+            brutto = netto * 1.19
+            text.append(sep, style="dim")
+            text.append(f"{t('summary.net')}: ", style="dim")
+            text.append(f"{netto:,.2f}€", style="bold")
+
+            text.append(sep, style="dim")
+            text.append(f"{t('summary.gross')}: ", style="dim")
+            text.append(f"{brutto:,.2f}€", style="bold")
+
+        return text
