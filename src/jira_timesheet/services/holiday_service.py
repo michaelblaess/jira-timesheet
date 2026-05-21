@@ -10,7 +10,7 @@ from jira_timesheet.i18n import t
 
 # Bundesland-Kuerzel → Anzeigename
 FEDERAL_STATES: dict[str, str] = {
-    "BW": "Baden-Wuerttemberg",
+    "BW": "Baden-Württemberg",
     "BY": "Bayern",
     "BE": "Berlin",
     "BB": "Brandenburg",
@@ -25,7 +25,7 @@ FEDERAL_STATES: dict[str, str] = {
     "SN": "Sachsen",
     "ST": "Sachsen-Anhalt",
     "SH": "Schleswig-Holstein",
-    "TH": "Thueringen",
+    "TH": "Thüringen",
 }
 
 

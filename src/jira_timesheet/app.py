@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import time
 from datetime import date, timedelta
 
 from textual import work
 from textual.app import App, ComposeResult
 from textual.widgets import DataTable, Footer, Header, TabbedContent, TabPane
-from textual_widgets import AboutScreen, HorizontalSplitter, LogPanel, LogRouter
+from textual_widgets import (
+    AboutScreen,
+    ClickableLinksMixin,
+    CrashGuard,
+    HorizontalSplitter,
+    LogPanel,
+    LogRouter,
+)
 
 from jira_timesheet import __author__, __version__, __year__
 from jira_timesheet.i18n import current_language, t
@@ -25,15 +33,17 @@ from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.timesheet_table import TimesheetTable
 
 try:
+    from textual_themes import THEME_DISPLAY_NAMES
     from textual_themes import register_all as register_themes
 except ImportError:
     register_themes = None  # type: ignore[assignment]
+    THEME_DISPLAY_NAMES: dict[str, str] = {}  # type: ignore[no-redef]
 
 # Projekt-Repository (im About-Dialog verlinkt).
 _REPO_URL = "https://github.com/michaelblaess/jira-timesheet"
 
 
-class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
+class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type: ignore[misc]
     """TUI fuer Jira Stundenzettel."""
 
     CSS_PATH = "app.tcss"
@@ -47,6 +57,9 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
 
         self._settings = Settings.load()
         self.theme = self._settings.theme
+
+        # CrashGuard: lokalisierter Fehler-Dialog statt Total-Absturz.
+        self.crash_guard_lang = current_language()
 
         self._timesheet: Timesheet | None = None
         self._missing_days: list[tuple] = []
@@ -70,8 +83,43 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
         self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
         self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
-        self._bindings.bind("comma", "prev_month", t("binding.month"), key_display="<")
-        self._bindings.bind("full_stop", "next_month", t("binding.month"), key_display=">")
+        self._bindings.bind("t,T", "cycle_theme", t("binding.theme"), key_display="t")
+        # Monat-Navigation ist als Klick-Pfeile im ConfigPanel sichtbar -
+        # Tastatur-Shortcut bleibt funktional, im Footer aber ausgeblendet.
+        self._bindings.bind("comma", "prev_month", t("binding.month"), key_display="<", show=False)
+        self._bindings.bind("full_stop", "next_month", t("binding.month"), key_display=">", show=False)
+
+        # Footer-Tooltips - BindingsMap.bind() nimmt kein tooltip-Argument,
+        # also nachtraeglich per dataclasses.replace setzen.
+        self._apply_binding_tooltips()
+
+    def _apply_binding_tooltips(self) -> None:
+        """Ergaenzt jedes Footer-Binding um einen lokalisierten Tooltip.
+
+        ``BindingsMap.bind()`` akzeptiert kein ``tooltip``-Argument, also wird
+        nachtraeglich ueber ``key_to_bindings`` iteriert und die Felder via
+        ``dataclasses.replace`` ersetzt (``Binding`` ist frozen).
+        """
+        binding_tooltips = {
+            "quit": t("tooltip.quit"),
+            "generate": t("tooltip.generate"),
+            "export_excel": t("tooltip.excel"),
+            "export_pdf": t("tooltip.pdf"),
+            "show_details": t("tooltip.details"),
+            "show_settings": t("tooltip.settings"),
+            "show_about": t("tooltip.info"),
+            "next_tab": t("tooltip.switch_view"),
+            "show_year": t("tooltip.year"),
+            "toggle_anon": t("tooltip.anonymize"),
+            "reset_cache": t("tooltip.reset_cache"),
+            "toggle_log": t("tooltip.toggle_log"),
+            "cycle_theme": t("tooltip.theme"),
+        }
+        for key, bindings_list in self._bindings.key_to_bindings.items():
+            for i, binding in enumerate(bindings_list):
+                tooltip = binding_tooltips.get(binding.action)
+                if tooltip:
+                    self._bindings.key_to_bindings[key][i] = dataclasses.replace(binding, tooltip=tooltip)
 
     def compose(self) -> ComposeResult:
         """Erstellt das UI-Layout."""
@@ -114,6 +162,22 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
             return
         self._settings.theme = theme_name
         self._settings.save()
+
+    def action_cycle_theme(self) -> None:
+        """Wechselt zum naechsten registrierten Theme (alphabetisch sortiert)."""
+        names = sorted(self.available_themes.keys())
+        if not names:
+            return
+        try:
+            idx = names.index(self.theme)
+        except ValueError:
+            idx = -1
+        next_theme = names[(idx + 1) % len(names)]
+        self.theme = next_theme
+        # Toast mit Anzeigename (falls vorhanden) - sonst Slug. Persistenz
+        # uebernimmt watch_theme.
+        display = THEME_DISPLAY_NAMES.get(next_theme, next_theme)
+        self.notify(t("notify.theme", name=display))
 
     @work(exclusive=True)
     async def action_generate(self) -> None:
@@ -348,14 +412,21 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
 
     def action_show_details(self) -> None:
         """Zeigt Details der aktuell markierten Zeile."""
+        # Ohne geladenen Stundenzettel gibt es keine Zeile - gleicher
+        # Toast wie bei Excel/PDF-Export.
+        if self._timesheet is None:
+            self.notify(t("notify.generate_first"), severity="warning")
+            return
+
         try:
             table_widget = self.query_one("#timesheet-table", TimesheetTable)
             dt = table_widget.query_one("#timesheet-data", DataTable)
             row_idx = dt.cursor_row
-            if row_idx is not None and row_idx >= 0:
-                row = dt.ordered_rows[row_idx]
-                entry = table_widget._row_entries.get(row.key.value)
-                self._show_entry_details(entry)
+            if row_idx is None or row_idx < 0 or row_idx >= len(dt.ordered_rows):
+                return
+            row = dt.ordered_rows[row_idx]
+            entry = table_widget._row_entries.get(row.key.value)
+            self._show_entry_details(entry)
         except Exception as exc:
             self._write_log(t("log.details_error", error=exc))
 
@@ -544,15 +615,17 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
         self._settings.save()
 
     def action_prev_month(self) -> None:
-        """Wechselt zum vorherigen Monat und laedt Daten."""
-        config = self.query_one("#config-panel", ConfigPanel)
-        config.prev_month()
-        self.action_generate()
+        """Wechselt zum vorherigen Monat (Generate folgt via MonthChanged)."""
+        self.query_one("#config-panel", ConfigPanel).prev_month()
 
     def action_next_month(self) -> None:
-        """Wechselt zum naechsten Monat und laedt Daten."""
-        config = self.query_one("#config-panel", ConfigPanel)
-        config.next_month()
+        """Wechselt zum naechsten Monat (Generate folgt via MonthChanged)."""
+        self.query_one("#config-panel", ConfigPanel).next_month()
+
+    def on_config_panel_month_changed(self, event: ConfigPanel.MonthChanged) -> None:
+        """Reagiert auf Klick auf die Zeitraum-Pfeile im ConfigPanel."""
+        # Keyboard- UND Mausklick laufen ueber MonthChanged - so triggert
+        # beides den Worklog-Abruf an genau einer Stelle.
         self.action_generate()
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:  # type: ignore[override]
@@ -565,6 +638,6 @@ class JiraTimesheetApp(LogRouter, App):  # type: ignore[misc]
         return True
 
     def _write_log(self, message: str) -> None:
-        """Schreibt eine Zeile ins Log-Panel."""
+        """Schreibt eine Zeile ins Log-Panel; http(s)-URLs werden klickbar."""
         with contextlib.suppress(Exception):
-            self.query_one("#log-panel", LogPanel).write_log(message)
+            self.query_one("#log-panel", LogPanel).write_log(self.linkify_urls(message))
