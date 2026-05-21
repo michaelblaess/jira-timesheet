@@ -67,6 +67,7 @@ class Settings:
     hourly_rate: float = 0.0
     year: int = 0
     vacation_days: int = 30
+    config_collapsed: bool = False
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -90,6 +91,7 @@ class Settings:
         "hourly_rate",
         "year",
         "vacation_days",
+        "config_collapsed",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -131,6 +133,7 @@ class Settings:
                 hourly_rate=data.get("hourly_rate", 0.0),
                 year=data.get("year", 0),
                 vacation_days=data.get("vacation_days", 30),
+                config_collapsed=data.get("config_collapsed", False),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)

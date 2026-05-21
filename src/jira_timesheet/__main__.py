@@ -10,7 +10,7 @@ from jira_timesheet import __version__
 from jira_timesheet.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, load_locale
 from jira_timesheet.models.settings import Settings
 
-BANNER = f"Jira Timesheet v{__version__} — TUI fuer Jira Stundenzettel"
+BANNER = f"Jira Timesheet v{__version__} — TUI für Jira Stundenzettel"
 
 USAGE_EXAMPLES = """
 Beispiele:
@@ -36,7 +36,7 @@ def main() -> None:
         "--lang",
         default=saved_lang,
         choices=SUPPORTED_LANGUAGES,
-        help="Sprache der Oberflaeche (Default: gespeicherte Einstellung)",
+        help="Sprache der Oberfläche (Default: gespeicherte Einstellung)",
     )
     parser.add_argument(
         "--version",

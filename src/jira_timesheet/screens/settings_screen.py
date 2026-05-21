@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from datetime import date
+from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
@@ -11,6 +12,8 @@ from textual.widgets import Checkbox, Input, Label, Select, TabPane
 from textual_widgets import BaseSettingsScreen
 
 from jira_timesheet.i18n import t
+from jira_timesheet.models.settings import Settings
+from jira_timesheet.services.cache_service import CACHE_DIR
 from jira_timesheet.services.holiday_service import FEDERAL_STATES
 
 # Bundesland-Auswahl, alphabetisch nach Anzeigename sortiert.
@@ -42,9 +45,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             yield from self._text_row("settings.host", "set-host", "jira_host", "https://jira.example.com")
             yield from self._text_row("settings.token", "set-token", "jira_token", "Token", password=True)
             yield from self._text_row("settings.email", "set-email", "email", "user@example.com")
-            yield from self._text_row(
-                "settings.budget_field", "set-budget-field", "budget_field", "customfield_36461"
-            )
+            yield from self._text_row("settings.budget_field", "set-budget-field", "budget_field", "customfield_36461")
 
         with TabPane(t("settings.tab_export"), id="settings-tab-export"), VerticalScroll():
             yield from self._text_row("settings.logo", "set-logo", "logo_path", "")
@@ -92,6 +93,13 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         with Horizontal(classes="settings-row"):
             yield Label(t(label_key))
             yield Input(value=value, placeholder=placeholder, password=password, id=widget_id)
+
+    def storage_paths(self) -> list[tuple[str, Path]]:
+        """Speicherort-Tab: settings.json + Worklog-Cache."""
+        return [
+            (t("settings.storage.config"), Settings.SETTINGS_FILE),
+            (t("settings.storage.cache"), CACHE_DIR),
+        ]
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         """Liest die Widget-Werte ins Ergebnis-Dict."""

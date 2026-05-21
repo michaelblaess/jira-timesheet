@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 
 from rich.text import Text
@@ -11,11 +12,25 @@ from textual.message import Message
 from textual.widgets import DataTable
 
 from jira_timesheet.i18n import t
-from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
+from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
+
+# Sortier-Indikator-Pfeile (Skill-Konvention).
+_ARROW_ASC = " ▲"
+_ARROW_DESC = " ▼"
+
+
+# Ein Eintrag in der gemergten Liste ist entweder ein Tag oder eine Luecke
+# (Datum + Grund, z.B. Feiertag oder fehlender Worklog).
+_DayItem = TimesheetDay | tuple[date, str]
 
 
 class TimesheetTable(Vertical):
-    """Zeigt den Stundenzettel als Tabelle mit Tagesgruppen an."""
+    """Zeigt den Stundenzettel als Tabelle mit Tagesgruppen an.
+
+    Klick auf einen Spaltenkopf sortiert nach Tagesgruppen (Datum, KW oder
+    Tages-h). Ticket/Beschreibung/h pro Eintrag sind bewusst nicht sortierbar,
+    weil sie die Tagesgruppierung aufbrechen wuerden.
+    """
 
     class EntrySelected(Message):
         """Wird gesendet wenn Enter auf einer Zeile gedrueckt wird."""
@@ -39,6 +54,14 @@ class TimesheetTable(Vertical):
         self._hours_per_day = hours_per_day
         self._jira_host = jira_host.rstrip("/")
         self._row_entries: dict[str, WorklogEntry] = {}
+        # Sort-Status fuer Klick auf Spaltenkoepfe.
+        self._timesheet: Timesheet | None = None
+        self._missing_days: list[tuple[date, str]] = []
+        # Default-Sortierung: Datum aufsteigend (chronologisch).
+        self._sort_col: int = 2
+        self._sort_desc: bool = False
+        self._col_keys: list = []
+        self._base_column_labels: list[str] = []
 
     def compose(self) -> ComposeResult:
         """Erstellt die DataTable."""
@@ -47,7 +70,7 @@ class TimesheetTable(Vertical):
     def on_mount(self) -> None:
         """Initialisiert die Tabellenspalten."""
         table = self.query_one("#timesheet-data", DataTable)
-        table.add_columns(
+        self._base_column_labels = [
             t("table.col.week"),
             t("table.col.day"),
             t("table.col.date"),
@@ -55,7 +78,11 @@ class TimesheetTable(Vertical):
             t("table.col.description"),
             t("table.col.hours"),
             t("table.col.day_hours"),
-        )
+        ]
+        self._col_keys = table.add_columns(*self._base_column_labels)
+        self._update_sort_indicator()
+
+    # --- Public API -------------------------------------------------
 
     def load_timesheet(
         self,
@@ -66,70 +93,17 @@ class TimesheetTable(Vertical):
 
         missing_days: Liste von (Datum, Grund) fuer Luecken/Feiertage.
         """
+        self._timesheet = timesheet
+        self._missing_days = list(missing_days or [])
+        self._refresh()
+
+    def clear_table(self) -> None:
+        """Leert die Tabelle."""
+        self._timesheet = None
+        self._missing_days = []
+        self._row_entries.clear()
         table = self.query_one("#timesheet-data", DataTable)
         table.clear()
-        self._row_entries.clear()
-
-        all_day_items = self._merge_days_and_gaps(timesheet, missing_days or [])
-        row_idx = 0
-
-        for item in all_day_items:
-            if isinstance(item, tuple):
-                gap_date, gap_reason = item
-                kw = str(gap_date.isocalendar()[1])
-                weekday = t(f"weekday.{gap_date.weekday()}")
-                date_str = f"{gap_date:%d.%m.}"
-
-                # Em-Dash-Marker: Luecke (rot) vs. Feiertag (dim) - sprachneutral.
-                style = "red" if "—" in gap_reason else "dim"
-                table.add_row(
-                    Text(kw, style="dim"),
-                    Text(weekday, style="dim"),
-                    Text(date_str, style="dim"),
-                    Text("", style="dim"),
-                    Text(gap_reason, style=style),
-                    Text("", style="dim"),
-                    Text("0.00", style=style),
-                    key=str(row_idx),
-                )
-                row_idx += 1
-            else:
-                day = item
-                for i, entry in enumerate(day.entries):
-                    is_first = i == 0
-                    is_last = i == len(day.entries) - 1
-
-                    kw = str(entry.date.isocalendar()[1]) if is_first else ""
-                    weekday = t(f"weekday.{entry.date.weekday()}") if is_first else ""
-                    date_str = f"{entry.date:%d.%m.}" if is_first else ""
-                    hours_str = f"{entry.hours:.2f}"
-
-                    if is_last:
-                        total = day.total_hours
-                        under_target = total < self._hours_per_day
-                        total_style = "bold red" if under_target else "bold"
-                        day_total = Text(f"{total:.2f}", style=total_style)
-                    else:
-                        day_total = Text("")
-
-                    if self._jira_host and entry.ticket:
-                        ticket_text = Text(entry.ticket, style=f"link {self._jira_host}/browse/{entry.ticket}")
-                    else:
-                        ticket_text = Text(entry.ticket)
-
-                    row_key = str(row_idx)
-                    self._row_entries[row_key] = entry
-                    table.add_row(
-                        kw,
-                        weekday,
-                        date_str,
-                        ticket_text,
-                        self._truncate(entry.summary, 80),
-                        hours_str,
-                        day_total,
-                        key=row_key,
-                    )
-                    row_idx += 1
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Enter auf einer Zeile — sendet EntrySelected Message."""
@@ -137,18 +111,156 @@ class TimesheetTable(Vertical):
         entry = self._row_entries.get(row_key)
         self.post_message(self.EntrySelected(entry))
 
-    def clear_table(self) -> None:
-        """Leert die Tabelle."""
+    # --- Sortierung -------------------------------------------------
+
+    # Sort-Keys pro Spalten-Index. Nur Spalten mit Eintrag hier sind klickbar.
+    # Tag-/Ticket-/Beschreibung-/h-Spalten wuerden die Tagesgruppen sprengen.
+    _SORT_KEYS: dict[int, Callable[[_DayItem], object]] = {
+        0: lambda item: TimesheetTable._item_date(item).isocalendar()[:2],
+        2: lambda item: TimesheetTable._item_date(item),
+        6: lambda item: TimesheetTable._item_hours(item),
+    }
+
+    @staticmethod
+    def _item_date(item: _DayItem) -> date:
+        """Datum eines Eintrags (Tag oder Luecke)."""
+        return item[0] if isinstance(item, tuple) else item.date
+
+    @staticmethod
+    def _item_hours(item: _DayItem) -> float:
+        """Tagessumme; Luecken haben per Definition 0 Stunden."""
+        return 0.0 if isinstance(item, tuple) else item.total_hours
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Klick auf Spaltenkopf — toggelt Richtung bzw. wechselt Sortierspalte.
+
+        Erster Klick auf eine neue Spalte: aufsteigend. Zweiter Klick auf
+        dieselbe Spalte: absteigend. Klick auf eine nicht sortierbare Spalte
+        (Tag/Ticket/Beschreibung/h) wird ignoriert.
+        """
+        try:
+            col_index = self._col_keys.index(event.column_key)
+        except ValueError:
+            return
+        if col_index not in self._SORT_KEYS:
+            return
+        if col_index == self._sort_col:
+            self._sort_desc = not self._sort_desc
+        else:
+            self._sort_col = col_index
+            self._sort_desc = False
+        self._refresh()
+
+    # --- Interne Tabellen-Logik -------------------------------------
+
+    def _refresh(self) -> None:
+        """Baut die Tabelle aus dem gespeicherten Timesheet neu auf."""
         table = self.query_one("#timesheet-data", DataTable)
         table.clear()
+        self._row_entries.clear()
+        if self._timesheet is None:
+            self._update_sort_indicator()
+            return
+
+        items = self._sorted_day_items()
+        row_idx = 0
+        for item in items:
+            if isinstance(item, tuple):
+                row_idx = self._render_gap_row(table, item, row_idx)
+            else:
+                row_idx = self._render_day(table, item, row_idx)
+        self._update_sort_indicator()
+
+    def _sorted_day_items(self) -> list[_DayItem]:
+        """Merged Tage und Luecken und sortiert sie nach aktueller Spalte."""
+        assert self._timesheet is not None
+        merged: list[_DayItem] = self._merge_days_and_gaps(self._timesheet, self._missing_days)
+        key_fn = self._SORT_KEYS.get(self._sort_col)
+        if key_fn is not None:
+            merged.sort(key=key_fn, reverse=self._sort_desc)
+        return merged
+
+    def _render_gap_row(self, table: DataTable, gap: tuple[date, str], row_idx: int) -> int:
+        """Rendert eine Luecken-/Feiertags-Zeile. Gibt den naechsten row_idx zurueck."""
+        gap_date, gap_reason = gap
+        kw = str(gap_date.isocalendar()[1])
+        weekday = t(f"weekday.{gap_date.weekday()}")
+        date_str = f"{gap_date:%d.%m.}"
+        # Em-Dash-Marker: Luecke (rot) vs. Feiertag (dim) - sprachneutral.
+        style = "red" if "—" in gap_reason else "dim"
+        table.add_row(
+            Text(kw, style="dim"),
+            Text(weekday, style="dim"),
+            Text(date_str, style="dim"),
+            Text("", style="dim"),
+            Text(gap_reason, style=style),
+            Text("", style="dim"),
+            Text("0.00", style=style),
+            key=str(row_idx),
+        )
+        return row_idx + 1
+
+    def _render_day(self, table: DataTable, day: TimesheetDay, row_idx: int) -> int:
+        """Rendert alle Eintraege eines Tages. Gibt den naechsten row_idx zurueck."""
+        for i, entry in enumerate(day.entries):
+            is_first = i == 0
+            is_last = i == len(day.entries) - 1
+
+            kw = str(entry.date.isocalendar()[1]) if is_first else ""
+            weekday = t(f"weekday.{entry.date.weekday()}") if is_first else ""
+            date_str = f"{entry.date:%d.%m.}" if is_first else ""
+            hours_str = f"{entry.hours:.2f}"
+
+            if is_last:
+                total = day.total_hours
+                under_target = total < self._hours_per_day
+                total_style = "bold red" if under_target else "bold"
+                day_total = Text(f"{total:.2f}", style=total_style)
+            else:
+                day_total = Text("")
+
+            if self._jira_host and entry.ticket:
+                ticket_text = Text(entry.ticket, style=f"link {self._jira_host}/browse/{entry.ticket}")
+            else:
+                ticket_text = Text(entry.ticket)
+
+            row_key = str(row_idx)
+            self._row_entries[row_key] = entry
+            table.add_row(
+                kw,
+                weekday,
+                date_str,
+                ticket_text,
+                self._truncate(entry.summary, 80),
+                hours_str,
+                day_total,
+                key=row_key,
+            )
+            row_idx += 1
+        return row_idx
+
+    def _update_sort_indicator(self) -> None:
+        """Haengt ▲/▼ an den Spaltenkopf der aktiven Sort-Spalte."""
+        try:
+            table = self.query_one("#timesheet-data", DataTable)
+        except Exception:
+            return
+        arrow = _ARROW_DESC if self._sort_desc else _ARROW_ASC
+        for idx, key in enumerate(self._col_keys):
+            base = self._base_column_labels[idx]
+            label = f"{base}{arrow}" if idx == self._sort_col else base
+            column = table.columns.get(key)
+            if column is not None:
+                column.label = Text(label)
+        table.refresh()
 
     @staticmethod
     def _merge_days_and_gaps(
         timesheet: Timesheet,
         missing_days: list[tuple[date, str]],
-    ) -> list:
+    ) -> list[_DayItem]:
         """Merged Timesheet-Tage und Luecken in chronologischer Reihenfolge."""
-        items: list = []
+        items: list[_DayItem] = []
         day_map = {day.date: day for day in timesheet.days}
         gap_map = dict(missing_days)
 
@@ -167,4 +279,4 @@ class TimesheetTable(Vertical):
         """Kuerzt Text mit Ellipsis."""
         if len(text) <= max_len:
             return text
-        return text[: max_len - 1] + "\u2026"
+        return text[: max_len - 1] + "…"
