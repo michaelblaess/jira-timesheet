@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
-from jira_timesheet.i18n import t
+from jira_timesheet.i18n import format_number, t
 from jira_timesheet.models.timesheet import WorklogEntry
 
 # Spaltenbreite fuer die Label-Ausrichtung (Label inkl. Doppelpunkt).
 _LABEL_WIDTH = 20
 
 
-class DetailScreen(ModalScreen):
+class DetailScreen(ModalScreen[None]):
     """Modal-Dialog mit Ticket-Details."""
 
     DEFAULT_CSS = """
@@ -68,7 +70,7 @@ class DetailScreen(ModalScreen):
         Binding("d,D", "close", "D", show=False),
     ]
 
-    def __init__(self, entry: WorklogEntry, jira_host: str = "", **kwargs: object) -> None:
+    def __init__(self, entry: WorklogEntry, jira_host: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._entry = entry
         self._jira_host = jira_host.rstrip("/")
@@ -82,7 +84,7 @@ class DetailScreen(ModalScreen):
 
             with VerticalScroll(id="detail-body"):
                 yield self._row("detail.date", f"{e.date:%d.%m.%Y}")
-                yield self._row("detail.hours", f"{e.hours:.2f}h")
+                yield self._row("detail.hours", f"{format_number(e.hours)}h")
                 yield self._row("detail.author", e.author)
 
                 if e.assignee:
@@ -118,11 +120,11 @@ class DetailScreen(ModalScreen):
                     yield self._row("detail.total_logged", e.total_logged)
 
                 if self._jira_host and e.ticket:
-                    from rich.text import Text
-
+                    # @click-Action-Markup ueber den ClickableLinksMixin der App:
+                    # Hover-Highlight + Einfachklick (kein OSC-8/STRG-Klick).
                     url = f"{self._jira_host}/browse/{e.ticket}"
-                    link_text = Text(f"  {url}", style=f"link {url}")
-                    yield Static(link_text, id="detail-link")
+                    link = self.app.link_markup(url, url)  # type: ignore[attr-defined]
+                    yield Static(f"  {link}", id="detail-link")
 
             with Center(id="detail-footer"):
                 yield Button(t("common.close_button"), variant="primary", id="detail-close")

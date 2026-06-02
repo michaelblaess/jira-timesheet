@@ -56,6 +56,47 @@ def current_language() -> str:
     return _current_lang
 
 
+def format_number(value: float, decimals: int = 2, lang: str | None = None) -> str:
+    """Formatiert eine Zahl kultur-abhaengig.
+
+    Args:
+        value:
+            Der Wert.
+        decimals:
+            Anzahl der Nachkommastellen.
+        lang:
+            Sprachkuerzel; None nutzt die aktuell geladene Sprache.
+
+    Returns:
+        DE: Punkt als Tausender-, Komma als Dezimaltrenner (z.B. '1.234,50').
+        EN/Fallback: Komma als Tausender-, Punkt als Dezimaltrenner
+        (z.B. '1,234.50').
+    """
+    if lang is None:
+        lang = _current_lang
+    # US-Notation als Ausgangsbasis (Komma=Tausender, Punkt=Dezimal).
+    formatted = f"{value:,.{decimals}f}"
+    if lang == "de":
+        # Separatoren tauschen ueber einen Platzhalter, der nicht vorkommt.
+        formatted = formatted.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+    return formatted
+
+
+def format_eur(value: float, lang: str | None = None) -> str:
+    """Formatiert einen Euro-Betrag kultur-abhaengig.
+
+    Args:
+        value:
+            Der Betrag.
+        lang:
+            Sprachkuerzel; None nutzt die aktuell geladene Sprache.
+
+    Returns:
+        DE: '16.000,00 €'. EN/Fallback: '16,000.00 €'.
+    """
+    return f"{format_number(value, 2, lang)} €"
+
+
 def t(key: str, **kwargs: object) -> str:
     """Uebersetzt einen Schluessel.
 

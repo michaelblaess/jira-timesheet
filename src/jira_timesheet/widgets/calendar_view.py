@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -10,7 +11,7 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.widget import Widget
 from textual.widgets import Static
 
-from jira_timesheet.i18n import t
+from jira_timesheet.i18n import format_number, t
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay
 
 
@@ -56,7 +57,7 @@ class DayTile(Widget):
         is_outside: bool = False,
         hours_per_day: float = 8.0,
         jira_host: str = "",
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._date = day_date
@@ -83,7 +84,9 @@ class DayTile(Widget):
 
     def render(self) -> Text:
         """Rendert den Inhalt der Kachel."""
-        text = Text()
+        # overflow="fold": zu langer Text bricht innerhalb der Kachel um statt
+        # abgeschnitten zu werden (z.B. "Christi Himmelfahrt").
+        text = Text(overflow="fold")
 
         day_num = str(self._date.day)
         weekday = t(f"weekday.{self._date.weekday()}")
@@ -97,25 +100,25 @@ class DayTile(Widget):
             hour_style = "bold green" if total >= self._hours_per_day else "bold yellow"
 
             text.append(f"{day_num} {weekday} ", style="bold")
-            text.append(f"{total:.2f}h", style=hour_style)
+            text.append(f"{format_number(total)}h", style=hour_style)
             text.append("\n")
 
             for entry in self._day_data.entries:
-                ticket_line = f"{entry.ticket} {entry.hours:.2f}h"
+                ticket_line = f"{entry.ticket} {format_number(entry.hours)}h"
                 text.append(ticket_line[:20], style="dim")
                 text.append("\n")
 
         elif self._holiday_name:
             text.append(f"{day_num} {weekday}", style="dim")
             text.append("\n")
-            text.append(self._holiday_name[:18], style="dim italic")
+            text.append(self._holiday_name, style="dim italic")
 
         elif self._date.weekday() >= 5:
             text.append(f"{day_num} {weekday}", style="dim")
 
         elif self._is_gap:
             text.append(f"{day_num} {weekday} ", style="bold")
-            text.append("0.0h", style="bold red")
+            text.append(f"{format_number(0.0, 1)}h", style="bold red")
             text.append("\n")
             text.append(t("calendar.no_entry"), style="red")
 
@@ -139,7 +142,7 @@ class WeekSummaryTile(Widget):
     }
     """
 
-    def __init__(self, week_hours: float, hours_per_day: float = 8.0, **kwargs: object) -> None:
+    def __init__(self, week_hours: float, hours_per_day: float = 8.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._week_hours = week_hours
         self._hours_per_day = hours_per_day
@@ -149,11 +152,11 @@ class WeekSummaryTile(Widget):
         text = Text()
         target = self._hours_per_day * 5
         if self._week_hours == 0:
-            text.append("0.00h", style="dim")
+            text.append(f"{format_number(0.0)}h", style="dim")
         elif self._week_hours >= target:
-            text.append(f"{self._week_hours:.2f}h", style="bold green")
+            text.append(f"{format_number(self._week_hours)}h", style="bold green")
         else:
-            text.append(f"{self._week_hours:.2f}h", style="bold yellow")
+            text.append(f"{format_number(self._week_hours)}h", style="bold yellow")
         return text
 
 
@@ -198,7 +201,7 @@ class CalendarView(VerticalScroll):
         self,
         hours_per_day: float = 8.0,
         jira_host: str = "",
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._hours_per_day = hours_per_day

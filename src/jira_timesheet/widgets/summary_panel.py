@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from rich.text import Text
 from textual.widgets import Static
 
-from jira_timesheet.i18n import t
+from jira_timesheet.i18n import format_eur, format_number, t
 from jira_timesheet.models.timesheet import Timesheet
+
+# Maske fuer zensierte Geldbetraege im Anonymisierungs-Modus (Screenshots).
+_REDACTED = "••••• €"
 
 
 class SummaryPanel(Static):
@@ -28,11 +33,13 @@ class SummaryPanel(Static):
     }
     """
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__("", **kwargs)
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
         self._hourly_rate: float = 0.0
+        # Anonymisierungs-Modus: zensiert Geldbetraege fuer Screenshots.
+        self._anonymized: bool = False
 
     def on_mount(self) -> None:
         """Setzt den initialen Hinweistext."""
@@ -48,6 +55,13 @@ class SummaryPanel(Static):
         self._timesheet = timesheet
         self._target_hours = target_hours
         self._hourly_rate = hourly_rate
+        # Frisch geladene (echte) Daten -> Geldbetraege wieder anzeigen.
+        self._anonymized = False
+        self._redraw()
+
+    def set_anonymized(self, value: bool) -> None:
+        """Schaltet die Zensur der Geldbetraege ein/aus (Screenshot-Modus)."""
+        self._anonymized = value
         self._redraw()
 
     def clear(self) -> None:
@@ -81,32 +95,34 @@ class SummaryPanel(Static):
 
         text.append(sep, style="dim")
         text.append(f"{t('summary.actual')}: ", style="dim")
-        text.append(f"{ts.total_hours:.2f}h", style="bold")
+        text.append(f"{format_number(ts.total_hours)}h", style="bold")
 
         if self._target_hours > 0:
             text.append(sep, style="dim")
             text.append(f"{t('summary.target')}: ", style="dim")
-            text.append(f"{self._target_hours:.2f}h", style="bold")
+            text.append(f"{format_number(self._target_hours)}h", style="bold")
 
             text.append(sep, style="dim")
             diff = ts.total_hours - self._target_hours
             diff_style = "bold red" if diff < 0 else "bold green"
             sign = "+" if diff >= 0 else ""
-            text.append(f"{sign}{diff:.2f}h", style=diff_style)
+            text.append(f"{sign}{format_number(diff)}h", style=diff_style)
 
         text.append(sep, style="dim")
         text.append("Ø ", style="dim")
-        text.append(f"{ts.average_hours:.2f}{t('summary.avg_suffix')}", style="bold")
+        text.append(f"{format_number(ts.average_hours)}{t('summary.avg_suffix')}", style="bold")
 
         if self._hourly_rate > 0:
             netto = ts.total_hours * self._hourly_rate
             brutto = netto * 1.19
+            netto_str = _REDACTED if self._anonymized else format_eur(netto)
+            brutto_str = _REDACTED if self._anonymized else format_eur(brutto)
             text.append(sep, style="dim")
             text.append(f"{t('summary.net')}: ", style="dim")
-            text.append(f"{netto:,.2f}€", style="bold")
+            text.append(netto_str, style="bold")
 
             text.append(sep, style="dim")
             text.append(f"{t('summary.gross')}: ", style="dim")
-            text.append(f"{brutto:,.2f}€", style="bold")
+            text.append(brutto_str, style="bold")
 
         return text

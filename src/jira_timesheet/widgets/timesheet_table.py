@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -11,7 +12,7 @@ from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import DataTable
 
-from jira_timesheet.i18n import t
+from jira_timesheet.i18n import format_number, t
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 
 # Sortier-Indikator-Pfeile (Skill-Konvention).
@@ -49,7 +50,7 @@ class TimesheetTable(Vertical):
     }
     """
 
-    def __init__(self, hours_per_day: float = 8.0, jira_host: str = "", **kwargs: object) -> None:
+    def __init__(self, hours_per_day: float = 8.0, jira_host: str = "", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._hours_per_day = hours_per_day
         self._jira_host = jira_host.rstrip("/")
@@ -60,7 +61,7 @@ class TimesheetTable(Vertical):
         # Default-Sortierung: Datum aufsteigend (chronologisch).
         self._sort_col: int = 2
         self._sort_desc: bool = False
-        self._col_keys: list = []
+        self._col_keys: list[Any] = []
         self._base_column_labels: list[str] = []
 
     def compose(self) -> ComposeResult:
@@ -96,6 +97,32 @@ class TimesheetTable(Vertical):
         self._timesheet = timesheet
         self._missing_days = list(missing_days or [])
         self._refresh()
+        # Cursor auf den heutigen Tag setzen, sofern dieser gebuchte Stunden
+        # hat - bei vollen Monaten findet man "heute" sonst nur durch Scrollen.
+        # Nach dem Refresh deferren, sonst nutzt move_cursor stale Layout-
+        # Dimensionen und scrollt auf Position 0 (clear()+rebuild-Stolperstein).
+        self.call_after_refresh(self._focus_today)
+
+    def _focus_today(self) -> None:
+        """Setzt den Cursor auf die erste Zeile des heutigen Tages.
+
+        Nur wenn der heutige Tag im Stundenzettel gebuchte Stunden hat - sonst
+        bleibt die Default-Position (erste Zeile) erhalten.
+        """
+        if self._timesheet is None:
+            return
+        today = date.today()
+        if not any(day.date == today for day in self._timesheet.days):
+            return
+        try:
+            table = self.query_one("#timesheet-data", DataTable)
+            for idx, row in enumerate(table.ordered_rows):
+                entry = self._row_entries.get(str(row.key.value))
+                if entry is not None and entry.date == today:
+                    table.move_cursor(row=idx, animate=False)
+                    return
+        except Exception:
+            return
 
     def clear_table(self) -> None:
         """Leert die Tabelle."""
@@ -115,7 +142,7 @@ class TimesheetTable(Vertical):
 
     # Sort-Keys pro Spalten-Index. Nur Spalten mit Eintrag hier sind klickbar.
     # Tag-/Ticket-/Beschreibung-/h-Spalten wuerden die Tagesgruppen sprengen.
-    _SORT_KEYS: dict[int, Callable[[_DayItem], object]] = {
+    _SORT_KEYS: dict[int, Callable[[_DayItem], Any]] = {
         0: lambda item: TimesheetTable._item_date(item).isocalendar()[:2],
         2: lambda item: TimesheetTable._item_date(item),
         6: lambda item: TimesheetTable._item_hours(item),
@@ -180,7 +207,7 @@ class TimesheetTable(Vertical):
             merged.sort(key=key_fn, reverse=self._sort_desc)
         return merged
 
-    def _render_gap_row(self, table: DataTable, gap: tuple[date, str], row_idx: int) -> int:
+    def _render_gap_row(self, table: DataTable[Any], gap: tuple[date, str], row_idx: int) -> int:
         """Rendert eine Luecken-/Feiertags-Zeile. Gibt den naechsten row_idx zurueck."""
         gap_date, gap_reason = gap
         kw = str(gap_date.isocalendar()[1])
@@ -195,12 +222,12 @@ class TimesheetTable(Vertical):
             Text("", style="dim"),
             Text(gap_reason, style=style),
             Text("", style="dim"),
-            Text("0.00", style=style),
+            Text(format_number(0.0), style=style),
             key=str(row_idx),
         )
         return row_idx + 1
 
-    def _render_day(self, table: DataTable, day: TimesheetDay, row_idx: int) -> int:
+    def _render_day(self, table: DataTable[Any], day: TimesheetDay, row_idx: int) -> int:
         """Rendert alle Eintraege eines Tages. Gibt den naechsten row_idx zurueck."""
         for i, entry in enumerate(day.entries):
             is_first = i == 0
@@ -209,13 +236,13 @@ class TimesheetTable(Vertical):
             kw = str(entry.date.isocalendar()[1]) if is_first else ""
             weekday = t(f"weekday.{entry.date.weekday()}") if is_first else ""
             date_str = f"{entry.date:%d.%m.}" if is_first else ""
-            hours_str = f"{entry.hours:.2f}"
+            hours_str = format_number(entry.hours)
 
             if is_last:
                 total = day.total_hours
                 under_target = total < self._hours_per_day
                 total_style = "bold red" if under_target else "bold"
-                day_total = Text(f"{total:.2f}", style=total_style)
+                day_total = Text(format_number(total), style=total_style)
             else:
                 day_total = Text("")
 

@@ -37,3 +37,14 @@ SummaryPanel {
 #log-splitter.-log-hidden {
     display: none;
 }
+
+/* Aufmerksamkeits-Highlight fuer die "g Generieren"-Footer-Taste, solange
+   noch keine Daten geladen sind. Die Klasse wird per Timer an/aus geschaltet
+   (_tick_generate_hint), wodurch ein Blink-Effekt entsteht - terminal-robust,
+   ohne den unzuverlaessigen ANSI-blink-Stil. */
+Footer FooterKey.-attention .footer-key--key,
+Footer FooterKey.-attention .footer-key--description {
+    background: $accent;
+    color: auto;
+    text-style: bold;
+}
