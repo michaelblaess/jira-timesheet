@@ -6,6 +6,11 @@ import random
 
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 
+# Zentrale Fake-Werte fuer den Anonymisierungs-Modus (Screenshots). Werden auch
+# vom ConfigPanel-Header, der Log-Zensur und dem Detail-Dialog verwendet.
+FAKE_EMAIL = "user@example.com"
+FAKE_HOST = "https://jira.example.com"
+
 _FAKE_PROJECTS = ["PROJ", "TASK", "FEAT", "DEV", "OPS", "INFRA", "WEB", "APP"]
 
 _FAKE_SUMMARIES = [
@@ -121,7 +126,7 @@ def anonymize_timesheet(timesheet: Timesheet) -> Timesheet:
 
     return Timesheet(
         developer=rng.choice(_FAKE_AUTHORS),
-        email="user@example.com",
+        email=FAKE_EMAIL,
         date_from=timesheet.date_from,
         date_to=timesheet.date_to,
         days=anon_days,

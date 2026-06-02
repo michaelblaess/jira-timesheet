@@ -18,17 +18,77 @@
 
 Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
 
-> **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstuetzt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die oeffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
+> **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstützt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die öffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
 
 ## Screenshots
 
-| Listenansicht (Gemstone) | Kalenderansicht (BeBox) |
-|---|---|
-| ![Listenansicht](docs/screenshots/01-main-atari.png) | ![Kalenderansicht](docs/screenshots/04-month-view-beos.png) |
+Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davon zu sehen.
 
-| Jahresansicht mit Forecast | Settings |
-|---|---|
-| ![Jahresansicht](docs/screenshots/05-year-view-atari.png) | ![Settings](docs/screenshots/06-settings-atari.png) |
+### Listenansicht
+
+<p align="center">
+  <img src="docs/screenshots/01-main-beastie.png" width="32%" alt="Listenansicht (Beastie)">
+  <img src="docs/screenshots/01-main-bebox.png" width="32%" alt="Listenansicht (BeBox)">
+  <img src="docs/screenshots/01-main-classic-terminal.png" width="32%" alt="Listenansicht (Classic Terminal)">
+  <img src="docs/screenshots/01-main-corleone.png" width="32%" alt="Listenansicht (Corleone)">
+  <img src="docs/screenshots/01-main-gemstone.png" width="32%" alt="Listenansicht (Gemstone)">
+  <img src="docs/screenshots/01-main-metropolis.png" width="32%" alt="Listenansicht (Metropolis)">
+  <img src="docs/screenshots/01-main-miami.png" width="32%" alt="Listenansicht (Miami)">
+</p>
+
+### Kalenderansicht
+
+<p align="center">
+  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Kalenderansicht (Beastie)">
+  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Kalenderansicht (BeBox)">
+  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Kalenderansicht (Classic Terminal)">
+  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Kalenderansicht (Corleone)">
+  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Kalenderansicht (Gemstone)">
+  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Kalenderansicht (Metropolis)">
+  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Kalenderansicht (Miami)">
+</p>
+
+### Jahresansicht mit Forecast
+
+<p align="center">
+  <img src="docs/screenshots/03-year-view-beastie.png" width="32%" alt="Jahresansicht (Beastie)">
+  <img src="docs/screenshots/03-year-view-bebox.png" width="32%" alt="Jahresansicht (BeBox)">
+  <img src="docs/screenshots/03-year-view-classic-terminal.png" width="32%" alt="Jahresansicht (Classic Terminal)">
+  <img src="docs/screenshots/03-year-view-corleone.png" width="32%" alt="Jahresansicht (Corleone)">
+  <img src="docs/screenshots/03-year-view-gemstone.png" width="32%" alt="Jahresansicht (Gemstone)">
+  <img src="docs/screenshots/03-year-view-metropolis.png" width="32%" alt="Jahresansicht (Metropolis)">
+  <img src="docs/screenshots/03-year-view-miami.png" width="32%" alt="Jahresansicht (Miami)">
+</p>
+
+### Ticket-Details
+
+<p align="center">
+  <img src="docs/screenshots/04-details-beastie.png" width="32%" alt="Ticket-Details (Beastie)">
+  <img src="docs/screenshots/04-details-bebox.png" width="32%" alt="Ticket-Details (BeBox)">
+  <img src="docs/screenshots/04-details-classic-terminal.png" width="32%" alt="Ticket-Details (Classic Terminal)">
+  <img src="docs/screenshots/04-details-metropolis.png" width="32%" alt="Ticket-Details (Metropolis)">
+</p>
+
+### Einstellungen
+
+<p align="center">
+  <img src="docs/screenshots/05-settings-beastie.png" width="32%" alt="Einstellungen - Sprache (Beastie)">
+  <img src="docs/screenshots/05-settings-classic-terminal.png" width="32%" alt="Einstellungen - Sprache (Classic Terminal)">
+  <img src="docs/screenshots/05-settings-corleone.png" width="32%" alt="Einstellungen - Sprache (Corleone)">
+  <img src="docs/screenshots/05-settings-gemstone-1.png" width="32%" alt="Einstellungen - Sprache (Gemstone)">
+  <img src="docs/screenshots/05-settings-gemstone-2.png" width="32%" alt="Einstellungen - Berechnung (Gemstone)">
+  <img src="docs/screenshots/05-settings-metropolis.png" width="32%" alt="Einstellungen - Berechnung (Metropolis)">
+  <img src="docs/screenshots/05-settings-metropolis-02.png" width="32%" alt="Einstellungen - Export (Metropolis)">
+  <img src="docs/screenshots/05-settings-metropolis-03.png" width="32%" alt="Einstellungen - Jira (Metropolis)">
+</p>
+
+### Info
+
+<p align="center">
+  <img src="docs/screenshots/06-info-beastie.png" width="32%" alt="Info-Dialog (Beastie)">
+  <img src="docs/screenshots/06-info-bebox.png" width="32%" alt="Info-Dialog (BeBox)">
+  <img src="docs/screenshots/06-info-metropolis.png" width="32%" alt="Info-Dialog (Metropolis)">
+</p>
 
 ## Features
 
@@ -39,12 +99,12 @@ Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Wor
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
 - **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
 - **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
-- **Feiertage** — Deutsche Feiertage pro Bundesland, Luecken-Erkennung
+- **Feiertage** — Deutsche Feiertage pro Bundesland, Lücken-Erkennung
 - **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
-- **Anonymisierung** — Daten per Tastendruck anonymisieren fuer sichere Screenshots
-- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht laedt sofort
-- **Zweisprachige Oberflaeche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
+- **Anonymisierung** — Daten per Tastendruck anonymisieren für sichere Screenshots
+- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort
+- **Zweisprachige Oberfläche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
 - **31 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Installation
@@ -78,13 +138,13 @@ run.bat
 jira-timesheet
 ```
 
-Die Oberflaechensprache (Deutsch/Englisch) folgt dem `--lang`-Flag — die Wahl wird gespeichert und ist auch im Settings-Dialog umschaltbar:
+Die Oberflächensprache (Deutsch/Englisch) folgt dem `--lang`-Flag — die Wahl wird gespeichert und ist auch im Settings-Dialog umschaltbar:
 
 ```bash
 jira-timesheet --lang en
 ```
 
-Beim ersten Start `S` fuer Settings druecken und konfigurieren:
+Beim ersten Start `S` für Settings drücken und konfigurieren:
 - Jira Host URL
 - Bearer Token
 - E-Mail (Jira Username)
@@ -92,7 +152,7 @@ Beim ersten Start `S` fuer Settings druecken und konfigurieren:
 
 Dann `G` zum Generieren des Stundenzettels.
 
-## Tastenkuerzel
+## Tastenkürzel
 
 | Taste | Aktion |
 |-------|--------|
@@ -101,7 +161,7 @@ Dann `G` zum Generieren des Stundenzettels.
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
 | TAB | Tab wechseln (Liste / Kalender) |
-| R | Cache zuruecksetzen |
+| R | Cache zurücksetzen |
 | J | Jahresansicht mit Forecast |
 | A | Daten anonymisieren |
 | < / > | Monat wechseln |
@@ -119,17 +179,17 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Einstellung | Beschreibung | Default |
 |-------------|-------------|---------|
 | Jira Host | URL der Jira-Instanz | — |
-| Token | Bearer Token fuer Authentifizierung | — |
+| Token | Bearer Token für Authentifizierung | — |
 | E-Mail | Jira Username | — |
-| Bundesland | Fuer Feiertagsberechnung | SN |
+| Bundesland | Für Feiertagsberechnung | SN |
 | Soll-Stunden/Tag | Arbeitsstunden pro Tag | 8.0 |
-| Max. Jahresstunden | Obergrenze fuer Progressbar | 1720 |
-| Urlaubstage | Fuer Jahres-Forecast | 30 |
+| Max. Jahresstunden | Obergrenze für Progressbar | 1720 |
+| Urlaubstage | Für Jahres-Forecast | 30 |
 | Stundensatz | Netto, nur TUI-Anzeige | 0 (aus) |
-| Jahr | Fuer Jahresansicht | aktuelles Jahr |
+| Jahr | Für Jahresansicht | aktuelles Jahr |
 | Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
 | Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
-| Sprache | Oberflaechensprache (de / en) | de |
+| Sprache | Oberflächensprache (de / en) | de |
 
 ## Tech Stack
 

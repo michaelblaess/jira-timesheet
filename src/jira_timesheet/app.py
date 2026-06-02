@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import re
 import time
+from collections.abc import Callable
 from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
 
 from textual import work
 from textual.app import App, ComposeResult
+from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, TabbedContent, TabPane
 from textual_widgets import (
     AboutScreen,
@@ -20,9 +25,10 @@ from textual_widgets import (
 )
 
 from jira_timesheet import __author__, __version__, __year__
-from jira_timesheet.i18n import current_language, t
+from jira_timesheet.i18n import current_language, format_number, t
 from jira_timesheet.models.settings import Settings
-from jira_timesheet.models.timesheet import Timesheet
+from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
+from jira_timesheet.services.anonymizer import FAKE_EMAIL, FAKE_HOST
 from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
@@ -43,13 +49,13 @@ except ImportError:
 _REPO_URL = "https://github.com/michaelblaess/jira-timesheet"
 
 
-class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type: ignore[misc]
+class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
     """TUI fuer Jira Stundenzettel."""
 
     CSS_PATH = "app.tcss"
     TITLE = f"Jira Timesheet v{__version__} ({__year__})"
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
         if register_themes is not None:
@@ -62,9 +68,16 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
         self.crash_guard_lang = current_language()
 
         self._timesheet: Timesheet | None = None
-        self._missing_days: list[tuple] = []
+        self._missing_days: list[tuple[date, str]] = []
         self._generating = False
         self._anonymized = False
+        # Roh-Log-Zeilen (unzensiert) - ermoeglichen das Neu-Rendern des Logs
+        # beim Umschalten der Anonymisierung.
+        self._log_lines: list[str] = []
+        # Toggle-Zustand fuer den blinkenden Footer-Hinweis (siehe on_mount).
+        self._attention_on = False
+        # Zuletzt im Speichern-Dialog gewaehltes Verzeichnis (Default: Desktop).
+        self._last_export_dir = str(Path.home() / "Desktop")
 
         # Runtime-Bindings mit uebersetzten Labels - class-level BINDINGS
         # koennen kein t() nutzen. Buchstaben-Bindings case-insensitive.
@@ -154,6 +167,40 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
         if not self._settings.jira_host or not self._settings.jira_token:
             self._write_log(t("log.hint_settings"))
 
+        # Blinkender Footer-Hinweis lenkt den Blick auf die naechste sinnvolle
+        # Aktion: fehlen Settings -> "s" blinkt; sind sie gepflegt, aber noch
+        # keine Daten geladen -> "g" blinkt. Manuelles Toggle per Timer statt
+        # ANSI-blink, damit es auch auf Windows Terminal funktioniert.
+        self.set_interval(0.6, self._tick_attention)
+
+    def _settings_complete(self) -> bool:
+        """True, wenn alle fuer das Generieren noetigen Settings gesetzt sind."""
+        return bool(self._settings.jira_host) and bool(self._settings.jira_token) and bool(self._settings.email)
+
+    def _tick_attention(self) -> None:
+        """Schaltet die Highlight-Klasse auf der jeweils naechsten Aktion an/aus."""
+        if not self._settings_complete():
+            target = "show_settings"
+        elif self._timesheet is None and not self._generating:
+            target = "generate"
+        else:
+            target = ""
+
+        # Nur bei vorhandenem Ziel blinken, sonst Highlight fest aus.
+        self._attention_on = not self._attention_on if target else False
+        for action in ("show_settings", "generate"):
+            key = self._footer_key(action)
+            if key is not None:
+                key.set_class(action == target and self._attention_on, "-attention")
+
+    def _footer_key(self, action: str) -> Widget | None:
+        """Findet die Footer-Taste zu einer Aktion (oder None)."""
+        with contextlib.suppress(Exception):
+            for footer_key in self.query("FooterKey"):
+                if getattr(footer_key, "action", "") == action:
+                    return footer_key
+        return None
+
     def watch_theme(self, theme_name: str) -> None:
         """Speichert das Theme bei Aenderung persistent."""
         if not hasattr(self, "_settings"):
@@ -179,9 +226,23 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
         display = THEME_DISPLAY_NAMES.get(next_theme, next_theme)
         self.notify(t("notify.theme", name=display))
 
+    def action_generate(self) -> None:
+        """g-Taste: explizit neu generieren.
+
+        Erzwingt einen frischen Abruf aus Jira (Cache wird ueberschrieben),
+        damit nachtraeglich in Jira eingetragene Worklogs sofort erscheinen -
+        auch fuer einen bereits abgeschlossenen Monat.
+        """
+        self._generate(force_refresh=True)
+
     @work(exclusive=True)
-    async def action_generate(self) -> None:
-        """Generiert den Stundenzettel aus Jira."""
+    async def _generate(self, force_refresh: bool = False) -> None:
+        """Generiert den Stundenzettel aus Jira.
+
+        force_refresh=True umgeht den Cache und ruft immer frisch ab. Bei der
+        Monats-Navigation (Pfeile) ist es False - dort darf der Cache fuer
+        schnelles Blaettern genutzt werden.
+        """
         if self._generating:
             return
 
@@ -198,7 +259,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             return
 
         self._generating = True
+        # Frisch generierte (echte) Daten -> Anonymisierung zuruecksetzen, bevor
+        # die erste Log-Zeile geschrieben wird. Tabelle, Kalender, Summary und
+        # Log zeigen dann konsistent echte Werte; 'a' zensiert alles gemeinsam.
+        self._anonymized = False
         config = self.query_one("#config-panel", ConfigPanel)
+        config.set_anonymized(False)
         table = self.query_one("#timesheet-table", TimesheetTable)
         summary = self.query_one("#summary-panel", SummaryPanel)
 
@@ -229,7 +295,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             m_year = config.date_from.year
             m_month = config.date_from.month
 
-            if CacheService.has_cache(m_year, m_month, self._settings.email):
+            if not force_refresh and CacheService.has_cache(m_year, m_month, self._settings.email):
                 entries = CacheService.load(m_year, m_month, self._settings.email)
                 self._write_log(t("log.from_cache"))
             else:
@@ -283,10 +349,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             self._write_log(
                 t(
                     "log.done",
-                    seconds=f"{elapsed:.1f}",
+                    seconds=format_number(elapsed, 1),
                     days=self._timesheet.working_days,
-                    hours=f"{self._timesheet.total_hours:.2f}",
-                    target=f"{target_hours:.0f}",
+                    hours=format_number(self._timesheet.total_hours, 2),
+                    target=format_number(target_hours, 0),
                 )
             )
 
@@ -304,62 +370,120 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             self._generating = False
             self.refresh_bindings()
 
-    async def action_export_excel(self) -> None:
-        """Exportiert den Stundenzettel als Excel-Datei."""
+    def action_export_excel(self) -> None:
+        """Oeffnet den Speichern-Dialog und exportiert als Excel-Datei."""
+        from jira_timesheet.services.excel_exporter import ExcelExporter
+
         if self._timesheet is None:
             self.notify(t("notify.generate_first"), severity="warning")
             return
 
+        suggested = ExcelExporter.suggested_filename(self._timesheet)
+        self._open_save_dialog(
+            suggested,
+            (t("save_dialog.filter_excel"), lambda p: p.suffix.lower() == ".xlsx"),
+            self._do_export_excel,
+        )
+
+    def action_export_pdf(self) -> None:
+        """Oeffnet den Speichern-Dialog und exportiert als PDF-Datei."""
+        from jira_timesheet.services.pdf_exporter import PdfExporter
+
+        if self._timesheet is None:
+            self.notify(t("notify.generate_first"), severity="warning")
+            return
+
+        suggested = PdfExporter.suggested_filename(self._timesheet)
+        self._open_save_dialog(
+            suggested,
+            (t("save_dialog.filter_pdf"), lambda p: p.suffix.lower() == ".pdf"),
+            self._do_export_pdf,
+        )
+
+    def _open_save_dialog(
+        self,
+        suggested_name: str,
+        file_filter: tuple[str, Callable[[Path], bool]],
+        callback: Callable[[Path | None], None],
+    ) -> None:
+        """Zeigt den File-Save-Dialog (textual-fspicker) und ruft ``callback`` mit dem Pfad."""
+        from textual_fspicker import FileSave, Filters
+
+        self.push_screen(
+            FileSave(
+                location=self._last_export_dir,
+                title=t("save_dialog.title"),
+                save_button=t("save_dialog.save_button"),
+                cancel_button=t("save_dialog.cancel_button"),
+                default_file=suggested_name,
+                filters=Filters(
+                    file_filter,
+                    (t("save_dialog.filter_all"), lambda p: True),
+                ),
+            ),
+            callback=callback,
+        )
+
+    def _export_context(self) -> tuple[list[tuple[date, str]], float]:
+        """Berechnet fehlende Arbeitstage und Soll-Stunden fuer den Export."""
+        holiday_svc = HolidayService(self._settings.federal_state)
+        config = self.query_one("#config-panel", ConfigPanel)
+        assert self._timesheet is not None
+        worked_dates = {e.date for e in self._timesheet.all_entries}
+        missing = holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates)
+        target_wd = holiday_svc.count_workdays(config.date_from, config.date_to)
+        target_h = target_wd * self._settings.hours_per_day
+        export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
+        return missing, export_target_h
+
+    def _do_export_excel(self, target: Path | None) -> None:
+        """Callback des Speichern-Dialogs: schreibt die Excel-Datei."""
+        if target is None or self._timesheet is None:
+            return
         try:
             from jira_timesheet.services.excel_exporter import ExcelExporter
 
-            holiday_svc = HolidayService(self._settings.federal_state)
-            config = self.query_one("#config-panel", ConfigPanel)
-            worked_dates = {e.date for e in self._timesheet.all_entries}
-            missing = holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates)
-            target_wd = holiday_svc.count_workdays(config.date_from, config.date_to)
-            target_h = target_wd * self._settings.hours_per_day
-
+            missing, export_target_h = self._export_context()
             exporter = ExcelExporter(
                 logo_path=self._settings.logo_path,
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
                 show_ticket_links=self._settings.show_ticket_links_in_export,
             )
-            export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
-            path = exporter.export(self._timesheet, missing_days=missing, target_hours=export_target_h)
-            file_url = "file:///" + path.replace("\\", "/")
-            self._write_log(t("log.excel_saved", url=file_url, path=path))
+            path = exporter.export(
+                self._timesheet,
+                missing_days=missing,
+                target_hours=export_target_h,
+                output_path=str(target),
+            )
+            self._last_export_dir = str(target.parent)
+            self._write_log(t("log.excel_saved", link=self.link_markup(path, path)))
             self.notify(t("notify.excel_saved", path=path))
         except Exception as exc:
             self._write_log(t("log.excel_error", error=exc))
             self.notify(t("notify.export_error", error=exc), severity="error")
 
-    async def action_export_pdf(self) -> None:
-        """Exportiert den Stundenzettel als PDF-Datei."""
-        if self._timesheet is None:
-            self.notify(t("notify.generate_first"), severity="warning")
+    def _do_export_pdf(self, target: Path | None) -> None:
+        """Callback des Speichern-Dialogs: schreibt die PDF-Datei."""
+        if target is None or self._timesheet is None:
             return
-
         try:
             from jira_timesheet.services.pdf_exporter import PdfExporter
 
-            holiday_svc = HolidayService(self._settings.federal_state)
-            config = self.query_one("#config-panel", ConfigPanel)
-            worked_dates = {e.date for e in self._timesheet.all_entries}
-            missing = holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates)
-            target_wd = holiday_svc.count_workdays(config.date_from, config.date_to)
-            target_h = target_wd * self._settings.hours_per_day
-
+            missing, export_target_h = self._export_context()
             exporter = PdfExporter(
                 logo_path=self._settings.logo_path,
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
             )
-            export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
-            path = exporter.export(self._timesheet, missing_days=missing, target_hours=export_target_h)
-            file_url = "file:///" + path.replace("\\", "/")
-            self._write_log(t("log.pdf_saved", url=file_url, path=path))
+            path = exporter.export(
+                self._timesheet,
+                missing_days=missing,
+                target_hours=export_target_h,
+                output_path=str(target),
+            )
+            self._last_export_dir = str(target.parent)
+            self._write_log(t("log.pdf_saved", link=self.link_markup(path, path)))
             self.notify(t("notify.pdf_saved", path=path))
         except Exception as exc:
             self._write_log(t("log.pdf_error", error=exc))
@@ -412,6 +536,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
 
     def action_show_details(self) -> None:
         """Zeigt Details der aktuell markierten Zeile."""
+        # Im Kalender gibt es keine markierbare Ticket-Zeile - Aktion ist dort
+        # ueber check_action deaktiviert, hier zur Sicherheit nochmal abfangen.
+        if self._active_tab() == "tab-calendar":
+            return
         # Ohne geladenen Stundenzettel gibt es keine Zeile - gleicher
         # Toast wie bei Excel/PDF-Export.
         if self._timesheet is None:
@@ -425,19 +553,22 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             if row_idx is None or row_idx < 0 or row_idx >= len(dt.ordered_rows):
                 return
             row = dt.ordered_rows[row_idx]
-            entry = table_widget._row_entries.get(row.key.value)
+            entry = table_widget._row_entries.get(str(row.key.value))
             self._show_entry_details(entry)
         except Exception as exc:
             self._write_log(t("log.details_error", error=exc))
 
-    def _show_entry_details(self, entry: object) -> None:
+    def _show_entry_details(self, entry: WorklogEntry | None) -> None:
         """Zeigt Details eines Worklog-Eintrags als Modal."""
         if entry is None:
             return
 
         from jira_timesheet.screens.detail_screen import DetailScreen
 
-        self.push_screen(DetailScreen(entry, jira_host=self._settings.jira_host))
+        # Im Anonymisierungs-Modus den Host im Ticket-Link faken, sonst leakt
+        # die echte Server-Adresse in der angezeigten URL.
+        host = FAKE_HOST if self._anonymized else self._settings.jira_host
+        self.push_screen(DetailScreen(entry, jira_host=host))
 
     @work(exclusive=True)
     async def action_show_year(self) -> None:
@@ -451,7 +582,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
         self._write_log(t("log.year_loading", year=year))
 
         holiday_svc = HolidayService(self._settings.federal_state)
-        month_data: dict[int, dict] = {}
+        month_data: dict[int, dict[str, Any]] = {}
 
         try:
             client = JiraClient(
@@ -511,7 +642,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
                     t(
                         "log.year_month",
                         month=t(f"month.{month}"),
-                        hours=f"{actual:.1f}",
+                        hours=format_number(actual, 1),
                         days=worked_dates,
                         source=source,
                     )
@@ -523,7 +654,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
             self._write_log(
                 t(
                     "log.year_done",
-                    hours=f"{total:.1f}",
+                    hours=format_number(total, 1),
                     fetched=fetched_count,
                     cached=cached_count,
                 )
@@ -540,6 +671,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
                     vacation_days=self._settings.vacation_days,
                     hours_per_day=self._settings.hours_per_day,
                     federal_state=self._settings.federal_state,
+                    anonymized=self._anonymized,
                 )
             )
 
@@ -558,6 +690,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
 
         table = self.query_one("#timesheet-table", TimesheetTable)
         cal = self.query_one("#calendar-view", CalendarView)
+        summary = self.query_one("#summary-panel", SummaryPanel)
+        config = self.query_one("#config-panel", ConfigPanel)
+        # Geldbetraege (Netto/Brutto) im Summary zensieren bzw. wieder zeigen.
+        summary.set_anonymized(self._anonymized)
+        # Host + E-Mail im Config-Header zensieren bzw. wieder zeigen.
+        config.set_anonymized(self._anonymized)
+        # Log neu rendern, damit E-Mail/Host in bereits geschriebenen Zeilen
+        # zensiert bzw. wieder gezeigt werden.
+        self._rerender_log()
 
         if self._anonymized:
             from jira_timesheet.services.anonymizer import anonymize_timesheet
@@ -623,21 +764,76 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App):  # type
         self.query_one("#config-panel", ConfigPanel).next_month()
 
     def on_config_panel_month_changed(self, event: ConfigPanel.MonthChanged) -> None:
-        """Reagiert auf Klick auf die Zeitraum-Pfeile im ConfigPanel."""
-        # Keyboard- UND Mausklick laufen ueber MonthChanged - so triggert
-        # beides den Worklog-Abruf an genau einer Stelle.
-        self.action_generate()
+        """Reagiert auf die Zeitraum-Pfeile im ConfigPanel (Tastatur + Maus)."""
+        # Navigation darf den Cache nutzen (schnelles Blaettern) - nur die
+        # g-Taste (action_generate) erzwingt einen frischen Abruf.
+        self._generate(force_refresh=False)
 
-    def check_action(self, action: str, parameters: tuple) -> bool | None:  # type: ignore[override]
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Steuert die Sichtbarkeit kontextabhaengiger Bindings."""
         # ModalScreen-Isolation: bei offenem Dialog alle App-Bindings sperren.
         if len(self.screen_stack) > 1:
             return None
         if action in ("export_excel", "export_pdf") and self._timesheet is None:
             return None
-        return True
+        # "Details" gibt es nur in der Listenansicht - im Kalender kann keine
+        # Ticket-Zeile markiert werden, daher dort deaktivieren (dimmen).
+        return not (action == "show_details" and self._active_tab() == "tab-calendar")
+
+    def _active_tab(self) -> str:
+        """Liefert die id des aktiven View-Tabs (oder '' wenn nicht ermittelbar)."""
+        with contextlib.suppress(Exception):
+            return self.query_one("#view-tabs", TabbedContent).active
+        return ""
+
+    def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Footer neu bewerten - 'Details' ist nur in der Listenansicht aktiv."""
+        self.refresh_bindings()
 
     def _write_log(self, message: str) -> None:
-        """Schreibt eine Zeile ins Log-Panel; http(s)-URLs werden klickbar."""
+        """Schreibt eine Zeile ins Log-Panel; http(s)-URLs werden klickbar.
+
+        Die Rohzeile wird gepuffert, damit das Log beim Umschalten der
+        Anonymisierung neu (zensiert) gerendert werden kann.
+        """
+        self._log_lines.append(message)
         with contextlib.suppress(Exception):
-            self.query_one("#log-panel", LogPanel).write_log(self.linkify_urls(message))
+            self.query_one("#log-panel", LogPanel).write_log(self._render_log_line(message))
+
+    def _render_log_line(self, message: str) -> str:
+        """Bereitet eine Log-Zeile auf.
+
+        Im Anonymisierungs-Modus werden E-Mail- und Host-Adressen zensiert,
+        anschliessend werden http(s)-URLs klickbar gemacht.
+        """
+        text = self._mask_sensitive(message) if self._anonymized else message
+        # str(): linkify_urls ist untypisiert (Any) -> no-any-return vermeiden.
+        return str(self.linkify_urls(text))
+
+    def _mask_sensitive(self, message: str) -> str:
+        """Ersetzt die Jira-Host-Adresse und E-Mail-Adressen durch Fakes."""
+        masked = message
+        host = self._settings.jira_host
+        if host:
+            masked = masked.replace(host, FAKE_HOST)
+            # Host auch ohne Schema (z.B. nackte Domain) ersetzen.
+            host_domain = host.split("://", 1)[-1].rstrip("/")
+            fake_domain = FAKE_HOST.split("://", 1)[-1]
+            if host_domain:
+                masked = masked.replace(host_domain, fake_domain)
+        # Alle E-Mail-aehnlichen Tokens auf einen Fake mappen (deckt die
+        # konfigurierte Adresse UND evtl. weitere ab, z.B. in der JQL).
+        masked = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", FAKE_EMAIL, masked)
+        return masked
+
+    def _rerender_log(self) -> None:
+        """Rendert das komplette Log aus dem Puffer neu.
+
+        Wird beim Umschalten der Anonymisierung aufgerufen, damit auch bereits
+        geschriebene Zeilen (E-Mail/Host) zensiert bzw. wieder gezeigt werden.
+        """
+        with contextlib.suppress(Exception):
+            panel = self.query_one("#log-panel", LogPanel)
+            panel.clear_log()
+            for line in self._log_lines:
+                panel.write_log(self._render_log_line(line))

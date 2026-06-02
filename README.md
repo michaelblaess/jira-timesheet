@@ -22,13 +22,73 @@ Terminal-based application (TUI) for generating timesheets from Jira worklogs.
 
 ## Screenshots
 
-| List view (Gemstone) | Calendar view (BeBox) |
-|---|---|
-| ![List view](docs/screenshots/01-main-atari.png) | ![Calendar view](docs/screenshots/04-month-view-beos.png) |
+The interface ships with retro themes. Every view is shown below across a range of them.
 
-| Year view with forecast | Settings |
-|---|---|
-| ![Year view](docs/screenshots/05-year-view-atari.png) | ![Settings](docs/screenshots/06-settings-atari.png) |
+### List view
+
+<p align="center">
+  <img src="docs/screenshots/01-main-beastie.png" width="32%" alt="List view (Beastie)">
+  <img src="docs/screenshots/01-main-bebox.png" width="32%" alt="List view (BeBox)">
+  <img src="docs/screenshots/01-main-classic-terminal.png" width="32%" alt="List view (Classic Terminal)">
+  <img src="docs/screenshots/01-main-corleone.png" width="32%" alt="List view (Corleone)">
+  <img src="docs/screenshots/01-main-gemstone.png" width="32%" alt="List view (Gemstone)">
+  <img src="docs/screenshots/01-main-metropolis.png" width="32%" alt="List view (Metropolis)">
+  <img src="docs/screenshots/01-main-miami.png" width="32%" alt="List view (Miami)">
+</p>
+
+### Calendar view
+
+<p align="center">
+  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Calendar view (Beastie)">
+  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Calendar view (BeBox)">
+  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Calendar view (Classic Terminal)">
+  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Calendar view (Corleone)">
+  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Calendar view (Gemstone)">
+  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Calendar view (Metropolis)">
+  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Calendar view (Miami)">
+</p>
+
+### Year view with forecast
+
+<p align="center">
+  <img src="docs/screenshots/03-year-view-beastie.png" width="32%" alt="Year view (Beastie)">
+  <img src="docs/screenshots/03-year-view-bebox.png" width="32%" alt="Year view (BeBox)">
+  <img src="docs/screenshots/03-year-view-classic-terminal.png" width="32%" alt="Year view (Classic Terminal)">
+  <img src="docs/screenshots/03-year-view-corleone.png" width="32%" alt="Year view (Corleone)">
+  <img src="docs/screenshots/03-year-view-gemstone.png" width="32%" alt="Year view (Gemstone)">
+  <img src="docs/screenshots/03-year-view-metropolis.png" width="32%" alt="Year view (Metropolis)">
+  <img src="docs/screenshots/03-year-view-miami.png" width="32%" alt="Year view (Miami)">
+</p>
+
+### Ticket details
+
+<p align="center">
+  <img src="docs/screenshots/04-details-beastie.png" width="32%" alt="Ticket details (Beastie)">
+  <img src="docs/screenshots/04-details-bebox.png" width="32%" alt="Ticket details (BeBox)">
+  <img src="docs/screenshots/04-details-classic-terminal.png" width="32%" alt="Ticket details (Classic Terminal)">
+  <img src="docs/screenshots/04-details-metropolis.png" width="32%" alt="Ticket details (Metropolis)">
+</p>
+
+### Settings
+
+<p align="center">
+  <img src="docs/screenshots/05-settings-beastie.png" width="32%" alt="Settings - language (Beastie)">
+  <img src="docs/screenshots/05-settings-classic-terminal.png" width="32%" alt="Settings - language (Classic Terminal)">
+  <img src="docs/screenshots/05-settings-corleone.png" width="32%" alt="Settings - language (Corleone)">
+  <img src="docs/screenshots/05-settings-gemstone-1.png" width="32%" alt="Settings - language (Gemstone)">
+  <img src="docs/screenshots/05-settings-gemstone-2.png" width="32%" alt="Settings - calculation (Gemstone)">
+  <img src="docs/screenshots/05-settings-metropolis.png" width="32%" alt="Settings - calculation (Metropolis)">
+  <img src="docs/screenshots/05-settings-metropolis-02.png" width="32%" alt="Settings - export (Metropolis)">
+  <img src="docs/screenshots/05-settings-metropolis-03.png" width="32%" alt="Settings - Jira (Metropolis)">
+</p>
+
+### Info
+
+<p align="center">
+  <img src="docs/screenshots/06-info-beastie.png" width="32%" alt="Info dialog (Beastie)">
+  <img src="docs/screenshots/06-info-bebox.png" width="32%" alt="Info dialog (BeBox)">
+  <img src="docs/screenshots/06-info-metropolis.png" width="32%" alt="Info dialog (Metropolis)">
+</p>
 
 ## Features
 

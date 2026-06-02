@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -12,9 +13,12 @@ from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Button, Static
 
-from jira_timesheet.i18n import t
+from jira_timesheet.i18n import format_eur, format_number, t
 
 _QUARTER_NAMES = ["Q1", "Q2", "Q3", "Q4"]
+
+# Maske fuer zensierte Geldbetraege im Anonymisierungs-Modus (Screenshots).
+_REDACTED = "••••• €"
 
 
 class MonthTile(Widget):
@@ -42,7 +46,7 @@ class MonthTile(Widget):
         target_hours: float = 0.0,
         working_days: int = 0,
         target_days: int = 0,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._month = month
@@ -85,21 +89,21 @@ class MonthTile(Widget):
             text.append("\u2591" * (bar_len - filled), style="dim")
             text.append("\n")
 
-            text.append(f"{self._actual:.1f}h", style=pct_style)
-            text.append(f" / {self._target:.0f}h\n", style="dim")
+            text.append(f"{format_number(self._actual, 1)}h", style=pct_style)
+            text.append(f" / {format_number(self._target, 0)}h\n", style="dim")
 
             days = t("year.month_days", days=self._working_days, target=self._target_days)
             text.append(f"\u25b8 {days}", style="dim")
 
         elif self._actual > 0:
             text.append(f"{name}\n", style="bold")
-            text.append(f"{self._actual:.1f}h\n", style="bold yellow")
+            text.append(f"{format_number(self._actual, 1)}h\n", style="bold yellow")
             text.append(f"\u25b8 {t('year.month_days_single', days=self._working_days)}", style="dim")
 
         elif self._target > 0:
             text.append(f"{name}\n", style="dim")
             text.append("\u2591" * 18 + "\n", style="dim")
-            text.append(f"{t('year.month_target', hours=f'{self._target:.0f}')}\n", style="dim")
+            text.append(f"{t('year.month_target', hours=format_number(self._target, 0))}\n", style="dim")
             text.append(f"\u25b8 {t('year.month_days_single', days=self._target_days)}", style="dim")
 
         else:
@@ -129,7 +133,7 @@ class QuarterRow(Horizontal):
     """
 
 
-class YearScreen(ModalScreen):
+class YearScreen(ModalScreen[None]):
     """Modal-Screen fuer die Jahresansicht."""
 
     DEFAULT_CSS = """
@@ -179,13 +183,14 @@ class YearScreen(ModalScreen):
     def __init__(
         self,
         year: int,
-        month_data: dict[int, dict],
+        month_data: dict[int, dict[str, Any]],
         max_yearly_hours: float = 1720.0,
         hourly_rate: float = 0.0,
         vacation_days: int = 30,
         hours_per_day: float = 8.0,
         federal_state: str = "SN",
-        **kwargs: object,
+        anonymized: bool = False,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._year = year
@@ -195,6 +200,8 @@ class YearScreen(ModalScreen):
         self._vacation_days = vacation_days
         self._hours_per_day = hours_per_day
         self._federal_state = federal_state
+        # Zensiert Geldbetraege fuer Screenshots (gekoppelt an a-Anonymisierung).
+        self._anonymized = anonymized
 
     def compose(self) -> ComposeResult:
         """Baut die Jahresansicht auf."""
@@ -234,13 +241,13 @@ class YearScreen(ModalScreen):
         total_days = sum(d.get("working_days", 0) for d in self._month_data.values())
 
         text.append(t("year.total", year=self._year), style="bold")
-        text.append(f"{total_actual:.1f}h", style="bold")
+        text.append(f"{format_number(total_actual, 1)}h", style="bold")
 
         if self._max_yearly > 0:
             remaining = self._max_yearly - total_actual
             pct = total_actual / self._max_yearly * 100
 
-            text.append(f" / {self._max_yearly:.0f}h", style="dim")
+            text.append(f" / {format_number(self._max_yearly, 0)}h", style="dim")
 
             bar_len = 20
             filled = min(int(pct / 100 * bar_len), bar_len)
@@ -253,9 +260,9 @@ class YearScreen(ModalScreen):
 
             text.append("  |  ", style="dim")
             if remaining > 0:
-                text.append(t("year.remaining", hours=f"{remaining:.1f}"), style="bold green")
+                text.append(t("year.remaining", hours=format_number(remaining, 1)), style="bold green")
             else:
-                text.append(t("year.exceeded", hours=f"{abs(remaining):.1f}"), style="bold red")
+                text.append(t("year.exceeded", hours=format_number(abs(remaining), 1)), style="bold red")
 
         text.append("  |  ", style="dim")
         text.append(t("year.workdays", days=total_days), style="dim")
@@ -263,10 +270,12 @@ class YearScreen(ModalScreen):
         if self._hourly_rate > 0:
             netto = total_actual * self._hourly_rate
             brutto = netto * 1.19
+            netto_str = _REDACTED if self._anonymized else format_eur(netto)
+            brutto_str = _REDACTED if self._anonymized else format_eur(brutto)
             text.append("\n")
-            text.append(f"  {t('year.net')}: {netto:,.2f}\u20ac", style="bold")
+            text.append(f"  {t('year.net')}: {netto_str}", style="bold")
             text.append("  |  ", style="dim")
-            text.append(f"{t('year.gross')}: {brutto:,.2f}\u20ac", style="bold")
+            text.append(f"{t('year.gross')}: {brutto_str}", style="bold")
 
         # Forecast
         text.append("\n")
@@ -280,7 +289,7 @@ class YearScreen(ModalScreen):
 
         import holidays as _holidays
 
-        h = _holidays.Germany(subdiv=self._federal_state, years=self._year)
+        h = _holidays.country_holidays("DE", subdiv=self._federal_state, years=self._year)
 
         from datetime import timedelta
 
@@ -305,18 +314,20 @@ class YearScreen(ModalScreen):
 
         text.append(t("year.forecast_hours_label"), style="dim")
         text.append(
-            t("year.forecast_hours_calc", days=available_days, per_day=f"{self._hours_per_day:.0f}"),
+            t("year.forecast_hours_calc", days=available_days, per_day=format_number(self._hours_per_day, 0)),
             style="dim",
         )
-        text.append(f"{forecast_hours:.0f}h\n", style="bold")
+        text.append(f"{format_number(forecast_hours, 0)}h\n", style="bold")
 
         if self._hourly_rate > 0:
             forecast_netto = forecast_hours * self._hourly_rate
             forecast_brutto = forecast_netto * 1.19
+            fc_netto_str = _REDACTED if self._anonymized else format_eur(forecast_netto)
+            fc_brutto_str = _REDACTED if self._anonymized else format_eur(forecast_brutto)
             text.append(t("year.forecast_revenue_label"), style="dim")
-            text.append(f"{t('year.net')}: {forecast_netto:,.2f}\u20ac", style="bold green")
+            text.append(f"{t('year.net')}: {fc_netto_str}", style="bold green")
             text.append("  |  ", style="dim")
-            text.append(f"{t('year.gross')}: {forecast_brutto:,.2f}\u20ac", style="bold green")
+            text.append(f"{t('year.gross')}: {fc_brutto_str}", style="bold green")
 
         return text
 
