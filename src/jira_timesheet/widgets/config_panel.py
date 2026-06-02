@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Any
 
 from textual.message import Message
 from textual_widgets import InfoHeader, InfoItem
 
 from jira_timesheet.i18n import t
 from jira_timesheet.models.settings import Settings
+from jira_timesheet.services.anonymizer import FAKE_EMAIL, FAKE_HOST
 
 _TOKEN_MASK = "●" * 20
 
@@ -49,8 +51,10 @@ class ConfigPanel(InfoHeader):  # type: ignore[misc]
             self.date_from = date_from
             self.date_to = date_to
 
-    def __init__(self, settings: Settings, **kwargs: object) -> None:
+    def __init__(self, settings: Settings, **kwargs: Any) -> None:
         self._settings = settings
+        # Anonymisierungs-Modus: zensiert Host + E-Mail im Header (Screenshots).
+        self._anonymized = False
 
         if settings.last_date_from and settings.last_date_to:
             try:
@@ -129,6 +133,15 @@ class ConfigPanel(InfoHeader):  # type: ignore[misc]
         self.set_value("token", self._format_token())
         self.set_value("developer", self._format_email())
 
+    def set_anonymized(self, value: bool) -> None:
+        """Zensiert Host + E-Mail im Header (bzw. zeigt sie wieder).
+
+        Token ist ohnehin maskiert, Zeitraum ist unkritisch.
+        """
+        self._anonymized = value
+        self.set_value("host", self._format_host())
+        self.set_value("developer", self._format_email())
+
     def on_mount(self) -> None:
         """Setzt den Host-Wert erneut, damit der Link-Markup greift."""
         super().on_mount()
@@ -162,14 +175,14 @@ class ConfigPanel(InfoHeader):  # type: ignore[misc]
         self.post_message(self.MonthChanged(self._date_from, self._date_to))
 
     def _format_host(self) -> str:
-        host = self._settings.jira_host
+        host = FAKE_HOST if self._anonymized else self._settings.jira_host
         if not host:
             # markup=True ist gesetzt → eckige Klammern müssen escaped werden.
             return t("common.not_set").replace("[", r"\[")
         # Klickbarer Link über ClickableLinksMixin der App, sobald gemountet.
         # Während __init__ ist self.app noch nicht erreichbar — dann plain.
         try:
-            return self.app.link_markup(host, host)  # type: ignore[attr-defined]
+            return str(self.app.link_markup(host, host))
         except Exception:
             return host
 
@@ -177,6 +190,8 @@ class ConfigPanel(InfoHeader):  # type: ignore[misc]
         return _TOKEN_MASK if self._settings.jira_token else t("common.not_set")
 
     def _format_email(self) -> str:
+        if self._anonymized:
+            return FAKE_EMAIL
         return self._settings.email or t("common.not_set")
 
     def _format_date_range(self) -> str:

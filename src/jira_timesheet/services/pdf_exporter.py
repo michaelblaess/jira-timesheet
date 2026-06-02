@@ -36,22 +36,37 @@ class PdfExporter:
         self._jira_host = jira_host.rstrip("/")
         self._hours_per_day = hours_per_day
 
+    @staticmethod
+    def suggested_filename(timesheet: Timesheet) -> str:
+        """Liefert einen vorgeschlagenen Dateinamen fuer den Speichern-Dialog."""
+        from datetime import datetime
+
+        now = datetime.now()
+        return (
+            f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}_"
+            f"{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.pdf"
+        )
+
     def export(
         self,
         timesheet: Timesheet,
         missing_days: list[tuple[date, str]] | None = None,
         target_hours: float = 0.0,
         output_dir: str = "",
+        output_path: str = "",
     ) -> str:
-        """Exportiert den Timesheet als .pdf Datei."""
-        if not output_dir:
-            output_dir = str(Path.home() / "Desktop")
+        """Exportiert den Timesheet als .pdf Datei.
 
-        from datetime import datetime
-
-        now = datetime.now()
-        filename = f"Stundenzettel_{timesheet.date_from:%Y-%m-%d}_{timesheet.date_to:%Y-%m-%d}_{now:%Y%m%d_%H%M%S}.pdf"
-        filepath = os.path.join(output_dir, filename)
+        Ist ``output_path`` gesetzt, wird genau dieser Pfad verwendet (z.B. aus
+        dem Speichern-Dialog). Andernfalls wird ein Name in ``output_dir`` bzw.
+        auf dem Desktop erzeugt.
+        """
+        if output_path:
+            filepath = output_path
+        else:
+            if not output_dir:
+                output_dir = str(Path.home() / "Desktop")
+            filepath = os.path.join(output_dir, self.suggested_filename(timesheet))
 
         pdf = FPDF(orientation="L", unit="mm", format="A4")
         pdf.set_auto_page_break(auto=True, margin=15)
