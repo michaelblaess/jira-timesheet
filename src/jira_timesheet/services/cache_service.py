@@ -13,21 +13,32 @@ logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path.home() / ".jira-timesheet" / "cache"
 
+# Karenzzeit (in Tagen), bevor ein abgeschlossener Monat in den Cache
+# eingefroren wird. Ein gerade beendeter Monat bleibt so lange "live", weil
+# dort noch haeufig Worklogs nachgetragen werden (z.B. die letzte Woche zu
+# Monatsbeginn). Erst danach ist ein Monat stabil genug fuers Cachen.
+_CACHE_GRACE_DAYS = 7
+
 
 class CacheService:
     """Cached Worklog-Daten fuer abgeschlossene Monate.
 
-    Nur Monate die komplett in der Vergangenheit liegen werden gecached.
-    Der aktuelle Monat wird immer frisch abgerufen.
+    Nur Monate die seit mehr als der Karenzzeit (_CACHE_GRACE_DAYS) vorbei sind
+    werden gecached. Der aktuelle und der gerade beendete Monat werden immer
+    frisch abgerufen.
     """
 
     @staticmethod
     def is_cacheable(year: int, month: int) -> bool:
-        """Prueft ob ein Monat gecached werden kann (komplett vorbei)."""
-        today = date.today()
-        if year < today.year:
-            return True
-        return bool(year == today.year and month < today.month)
+        """Prueft ob ein Monat gecached werden darf.
+
+        True nur, wenn der Monat seit mindestens _CACHE_GRACE_DAYS Tagen
+        komplett vorbei ist - ein gerade abgeschlossener Monat bleibt waehrend
+        der Karenzzeit live (nachtraegliche Worklog-Eintraege).
+        """
+        # Erster Tag des Folgemonats = Zeitpunkt, ab dem der Monat vorbei ist.
+        month_over = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+        return (date.today() - month_over).days >= _CACHE_GRACE_DAYS
 
     @staticmethod
     def has_cache(year: int, month: int, email: str) -> bool:

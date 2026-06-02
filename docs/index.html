@@ -11,24 +11,19 @@
     .gallery-tab { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text-tertiary); padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; cursor: pointer; transition: all var(--transition); }
     .gallery-tab:hover { color: var(--text-secondary); background: var(--bg-secondary); }
     .gallery-tab.active { color: var(--text-primary); background: var(--bg-secondary); border-color: var(--border); }
-    .gallery-frame { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-elevated); background: #0c0c0c; }
-    .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 14px 18px; background: rgba(255,255,255,0.03); border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .gallery-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .gallery-dot.r { background: #ff5f57; }
-    .gallery-dot.y { background: #febc2e; }
-    .gallery-dot.g { background: #28c840; }
-    .gallery-bar-title { flex: 1; text-align: center; font-family: var(--font-mono); font-size: 12px; color: #6b7280; font-weight: 500; }
-    .gallery-img-wrap { display: none; }
-    .gallery-img-wrap.active { display: block; }
-    .gallery-img-wrap img { width: 100%; height: auto; display: block; }
+    .gallery-cat { display: none; }
+    .gallery-cat.active { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }
+    .gallery-card { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-elevated); background: #0c0c0c; }
+    .gallery-card img { width: 100%; height: auto; display: block; }
     .gallery-caption { padding: 12px 18px; font-size: 0.8rem; color: var(--text-tertiary); background: rgba(255,255,255,0.02); border-top: 1px solid rgba(255,255,255,0.06); font-family: var(--font-mono); }
-    @media (max-width: 640px) { .gallery { padding: 0 16px 48px; } .gallery-tabs { overflow-x: auto; } }
+    @media (max-width: 640px) { .gallery { padding: 0 16px 48px; } .gallery-tabs { overflow-x: auto; } .gallery-cat.active { grid-template-columns: 1fr; } }
     .cli-table-wrap { overflow-x: auto; margin-top: 32px; }
     .cli-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
     .cli-table th { text-align: left; font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; padding: 12px 16px; border-bottom: 2px solid var(--border); }
     .cli-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
     .cli-table tr:hover td { background: var(--accent-subtle); }
     .cli-table code { font-family: var(--font-mono); font-size: 12px; color: var(--accent); background: var(--accent-muted); padding: 2px 6px; border-radius: 4px; }
+    .install-code { display: block; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.5; color: var(--accent); background: var(--accent-muted); padding: 12px 14px; border-radius: var(--radius-sm); margin-top: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -40,7 +35,7 @@
     </div>
     <div class="header-right">
       <a href="#features" class="header-link">Features</a>
-      <a href="#keys" class="header-link">Tastenkuerzel</a>
+      <a href="#keys" class="header-link">Tastenkürzel</a>
       <a href="#install" class="header-link">Installation</a>
       <a href="https://github.com/michaelblaess/jira-timesheet" class="header-link">GitHub</a>
       <button class="theme-toggle" onclick="toggleTheme()" aria-label="Theme wechseln">
@@ -52,7 +47,7 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.4.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.8.2</div>
     <h1>Jira <span class="accent">Timesheet</span></h1>
     <p class="hero-description">Terminal-basierte Anwendung zum Generieren von Stundenzetteln aus Jira Worklogs. Drei Ansichten, Excel/PDF-Export, Feiertagskalender und Jahres-Forecast.</p>
     <div class="hero-actions">
@@ -67,44 +62,66 @@
   <!-- ═══ SCREENSHOT GALLERY ═══ -->
   <section class="gallery">
     <div class="gallery-tabs">
-      <button class="gallery-tab active" onclick="showSlide(0)">Listenansicht</button>
-      <button class="gallery-tab" onclick="showSlide(1)">Classic Terminal</button>
-      <button class="gallery-tab" onclick="showSlide(2)">Kalender Gemstone</button>
-      <button class="gallery-tab" onclick="showSlide(3)">Kalender BeBox</button>
-      <button class="gallery-tab" onclick="showSlide(4)">Jahresansicht</button>
-      <button class="gallery-tab" onclick="showSlide(5)">Settings</button>
+      <button class="gallery-tab active" onclick="showCat(0)">Liste</button>
+      <button class="gallery-tab" onclick="showCat(1)">Kalender</button>
+      <button class="gallery-tab" onclick="showCat(2)">Jahr</button>
+      <button class="gallery-tab" onclick="showCat(3)">Details</button>
+      <button class="gallery-tab" onclick="showCat(4)">Einstellungen</button>
+      <button class="gallery-tab" onclick="showCat(5)">Info</button>
     </div>
-    <div class="gallery-frame">
-      <div class="gallery-bar">
-        <div class="gallery-dot r"></div>
-        <div class="gallery-dot y"></div>
-        <div class="gallery-dot g"></div>
-        <div class="gallery-bar-title">jira-timesheet</div>
-      </div>
-      <div class="gallery-img-wrap active" data-slide="0">
-        <img src="screenshots/01-main-atari.png" alt="Listenansicht im Gemstone Theme">
-        <div class="gallery-caption">Listenansicht — KW, Wochentag, Ticket, Beschreibung, Stunden, Tagessumme (Gemstone Theme)</div>
-      </div>
-      <div class="gallery-img-wrap" data-slide="1">
-        <img src="screenshots/02-main-ibm.png" alt="Listenansicht im Classic Terminal Theme">
-        <div class="gallery-caption">Listenansicht — Classic Terminal Theme mit Soll/Ist-Vergleich und Netto/Brutto</div>
-      </div>
-      <div class="gallery-img-wrap" data-slide="2">
-        <img src="screenshots/03-month-view-atari.png" alt="Kalenderansicht im Gemstone Theme">
-        <div class="gallery-caption">Kalenderansicht — Monatskalender mit farbcodierten Tageskacheln und Wochensumme</div>
-      </div>
-      <div class="gallery-img-wrap" data-slide="3">
-        <img src="screenshots/04-month-view-beos.png" alt="Kalenderansicht im BeBox Theme">
-        <div class="gallery-caption">Kalenderansicht — BeBox Theme mit Luecken-Erkennung (rote Kacheln)</div>
-      </div>
-      <div class="gallery-img-wrap" data-slide="4">
-        <img src="screenshots/05-year-view-atari.png" alt="Jahresansicht mit Progressbars">
-        <div class="gallery-caption">Jahresansicht — 12 Monatskacheln mit Progressbar, Forecast und Netto/Brutto</div>
-      </div>
-      <div class="gallery-img-wrap" data-slide="5">
-        <img src="screenshots/06-settings-atari.png" alt="Settings Dialog">
-        <div class="gallery-caption">Settings — Jira-Host, Token, Bundesland, Stundensatz und Export-Optionen</div>
-      </div>
+
+    <div class="gallery-cat active" data-cat="0">
+      <div class="gallery-card"><img src="screenshots/01-main-beastie.png" alt="Listenansicht (Beastie)"><div class="gallery-caption">Listenansicht - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-bebox.png" alt="Listenansicht (BeBox)"><div class="gallery-caption">Listenansicht - BeBox</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-classic-terminal.png" alt="Listenansicht (Classic Terminal)"><div class="gallery-caption">Listenansicht - Classic Terminal</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-corleone.png" alt="Listenansicht (Corleone)"><div class="gallery-caption">Listenansicht - Corleone</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-gemstone.png" alt="Listenansicht (Gemstone)"><div class="gallery-caption">Listenansicht - Gemstone</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-metropolis.png" alt="Listenansicht (Metropolis)"><div class="gallery-caption">Listenansicht - Metropolis</div></div>
+      <div class="gallery-card"><img src="screenshots/01-main-miami.png" alt="Listenansicht (Miami)"><div class="gallery-caption">Listenansicht - Miami</div></div>
+    </div>
+
+    <div class="gallery-cat" data-cat="1">
+      <div class="gallery-card"><img src="screenshots/02-month-view-beastie.png" alt="Kalenderansicht (Beastie)"><div class="gallery-caption">Kalenderansicht - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-bebox.png" alt="Kalenderansicht (BeBox)"><div class="gallery-caption">Kalenderansicht - BeBox</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-classic-terminal.png" alt="Kalenderansicht (Classic Terminal)"><div class="gallery-caption">Kalenderansicht - Classic Terminal</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-corleone.png" alt="Kalenderansicht (Corleone)"><div class="gallery-caption">Kalenderansicht - Corleone</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-gemstone.png" alt="Kalenderansicht (Gemstone)"><div class="gallery-caption">Kalenderansicht - Gemstone</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-metropolis.png" alt="Kalenderansicht (Metropolis)"><div class="gallery-caption">Kalenderansicht - Metropolis</div></div>
+      <div class="gallery-card"><img src="screenshots/02-month-view-miami.png" alt="Kalenderansicht (Miami)"><div class="gallery-caption">Kalenderansicht - Miami</div></div>
+    </div>
+
+    <div class="gallery-cat" data-cat="2">
+      <div class="gallery-card"><img src="screenshots/03-year-view-beastie.png" alt="Jahresansicht (Beastie)"><div class="gallery-caption">Jahresansicht - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-bebox.png" alt="Jahresansicht (BeBox)"><div class="gallery-caption">Jahresansicht - BeBox</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-classic-terminal.png" alt="Jahresansicht (Classic Terminal)"><div class="gallery-caption">Jahresansicht - Classic Terminal</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-corleone.png" alt="Jahresansicht (Corleone)"><div class="gallery-caption">Jahresansicht - Corleone</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-gemstone.png" alt="Jahresansicht (Gemstone)"><div class="gallery-caption">Jahresansicht - Gemstone</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-metropolis.png" alt="Jahresansicht (Metropolis)"><div class="gallery-caption">Jahresansicht - Metropolis</div></div>
+      <div class="gallery-card"><img src="screenshots/03-year-view-miami.png" alt="Jahresansicht (Miami)"><div class="gallery-caption">Jahresansicht - Miami</div></div>
+    </div>
+
+    <div class="gallery-cat" data-cat="3">
+      <div class="gallery-card"><img src="screenshots/04-details-beastie.png" alt="Ticket-Details (Beastie)"><div class="gallery-caption">Ticket-Details - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/04-details-bebox.png" alt="Ticket-Details (BeBox)"><div class="gallery-caption">Ticket-Details - BeBox</div></div>
+      <div class="gallery-card"><img src="screenshots/04-details-classic-terminal.png" alt="Ticket-Details (Classic Terminal)"><div class="gallery-caption">Ticket-Details - Classic Terminal</div></div>
+      <div class="gallery-card"><img src="screenshots/04-details-metropolis.png" alt="Ticket-Details (Metropolis)"><div class="gallery-caption">Ticket-Details - Metropolis</div></div>
+    </div>
+
+    <div class="gallery-cat" data-cat="4">
+      <div class="gallery-card"><img src="screenshots/05-settings-beastie.png" alt="Einstellungen Sprache (Beastie)"><div class="gallery-caption">Einstellungen: Sprache - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-classic-terminal.png" alt="Einstellungen Sprache (Classic Terminal)"><div class="gallery-caption">Einstellungen: Sprache - Classic Terminal</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-corleone.png" alt="Einstellungen Sprache (Corleone)"><div class="gallery-caption">Einstellungen: Sprache - Corleone</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-gemstone-1.png" alt="Einstellungen Sprache (Gemstone)"><div class="gallery-caption">Einstellungen: Sprache - Gemstone</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-gemstone-2.png" alt="Einstellungen Berechnung (Gemstone)"><div class="gallery-caption">Einstellungen: Berechnung - Gemstone</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-metropolis.png" alt="Einstellungen Berechnung (Metropolis)"><div class="gallery-caption">Einstellungen: Berechnung - Metropolis</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-metropolis-02.png" alt="Einstellungen Export (Metropolis)"><div class="gallery-caption">Einstellungen: Export - Metropolis</div></div>
+      <div class="gallery-card"><img src="screenshots/05-settings-metropolis-03.png" alt="Einstellungen Jira (Metropolis)"><div class="gallery-caption">Einstellungen: Jira - Metropolis</div></div>
+    </div>
+
+    <div class="gallery-cat" data-cat="5">
+      <div class="gallery-card"><img src="screenshots/06-info-beastie.png" alt="Info-Dialog (Beastie)"><div class="gallery-caption">Info-Dialog - Beastie</div></div>
+      <div class="gallery-card"><img src="screenshots/06-info-bebox.png" alt="Info-Dialog (BeBox)"><div class="gallery-caption">Info-Dialog - BeBox</div></div>
+      <div class="gallery-card"><img src="screenshots/06-info-metropolis.png" alt="Info-Dialog (Metropolis)"><div class="gallery-caption">Info-Dialog - Metropolis</div></div>
     </div>
   </section>
 
@@ -134,7 +151,7 @@
       <div class="feature-card">
         <div class="feature-icon">📅</div>
         <h3>Feiertagskalender</h3>
-        <p>Deutsche Feiertage pro Bundesland. Luecken-Erkennung fuer fehlende Arbeitstage.</p>
+        <p>Deutsche Feiertage pro Bundesland. Lücken-Erkennung für fehlende Arbeitstage.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📊</div>
@@ -154,12 +171,12 @@
       <div class="feature-card">
         <div class="feature-icon">🔒</div>
         <h3>Anonymisierung</h3>
-        <p>Daten per Tastendruck anonymisieren fuer sichere Screenshots und Demos.</p>
+        <p>Daten per Tastendruck anonymisieren für sichere Screenshots und Demos.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">💾</div>
         <h3>Worklog-Cache</h3>
-        <p>Abgeschlossene Monate werden gecached — Jahresansicht laedt beim zweiten Mal sofort.</p>
+        <p>Abgeschlossene Monate werden gecached — Jahresansicht lädt beim zweiten Mal sofort.</p>
       </div>
     </div>
   </section>
@@ -169,7 +186,7 @@
   <!-- ═══ TASTENKUERZEL ═══ -->
   <section class="section" id="keys">
     <div class="section-label">Bedienung</div>
-    <h2 class="section-title">Tastenkuerzel</h2>
+    <h2 class="section-title">Tastenkürzel</h2>
     <div class="cli-table-wrap">
       <table class="cli-table">
         <thead><tr><th>Taste</th><th>Aktion</th></tr></thead>
@@ -179,11 +196,11 @@
           <tr><td><code>P</code></td><td>PDF-Export</td></tr>
           <tr><td><code>D</code></td><td>Ticket-Details anzeigen</td></tr>
           <tr><td><code>TAB</code></td><td>Tab wechseln (Liste / Kalender)</td></tr>
-          <tr><td><code>R</code></td><td>Cache zuruecksetzen</td></tr>
+          <tr><td><code>R</code></td><td>Cache zurücksetzen</td></tr>
           <tr><td><code>J</code></td><td>Jahresansicht mit Forecast</td></tr>
           <tr><td><code>A</code></td><td>Daten anonymisieren</td></tr>
           <tr><td><code>&lt; / &gt;</code></td><td>Monat wechseln</td></tr>
-          <tr><td><code>S</code></td><td>Settings oeffnen</td></tr>
+          <tr><td><code>S</code></td><td>Settings öffnen</td></tr>
           <tr><td><code>I</code></td><td>Info-Dialog</td></tr>
           <tr><td><code>C</code></td><td>Log in Zwischenablage kopieren</td></tr>
           <tr><td><code>L</code></td><td>Log ein-/ausblenden</td></tr>
@@ -237,10 +254,10 @@
   <!-- ═══ DISCLAIMER ═══ -->
   <section class="section">
     <p style="text-align: center; color: var(--text-tertiary); font-size: 0.8rem; max-width: 640px; margin: 0 auto; line-height: 1.6;">
-      <strong>Disclaimer:</strong> Dieses Projekt ist nicht von Atlassian entwickelt, unterstuetzt oder autorisiert.
+      <strong>Disclaimer:</strong> Dieses Projekt ist nicht von Atlassian entwickelt, unterstützt oder autorisiert.
       "Jira" und "Atlassian" sind eingetragene Markenzeichen von
       <a href="https://www.atlassian.com/" style="color: var(--accent);">Atlassian Corporation</a>.
-      Dieses Tool nutzt die oeffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
+      Dieses Tool nutzt die öffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
     </p>
   </section>
 
@@ -257,9 +274,9 @@
 
   <script src="js/theme.js"></script>
   <script>
-    function showSlide(idx) {
+    function showCat(idx) {
       document.querySelectorAll('.gallery-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
-      document.querySelectorAll('.gallery-img-wrap').forEach((w, i) => w.classList.toggle('active', i === idx));
+      document.querySelectorAll('.gallery-cat').forEach((c, i) => c.classList.toggle('active', i === idx));
     }
   </script>
 </body>

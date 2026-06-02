@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import httpx
 
@@ -81,10 +82,10 @@ class JiraClient:
         client: httpx.AsyncClient,
         jql: str,
         fields: str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Fuehrt die JQL-Suche aus und gibt Issues zurueck."""
         url = f"{self._host}/rest/api/2/search"
-        params = {"jql": jql, "fields": fields, "maxResults": 200}
+        params: dict[str, str | int] = {"jql": jql, "fields": fields, "maxResults": 200}
 
         response = await client.get(
             url,
@@ -99,12 +100,13 @@ class JiraClient:
             raise JiraClientError(t("jira.api_error", status=response.status_code))
 
         data = response.json()
-        return data.get("issues", [])
+        issues: list[dict[str, Any]] = data.get("issues", [])
+        return issues
 
     async def _extract_worklogs(
         self,
         client: httpx.AsyncClient,
-        issue: dict,
+        issue: dict[str, Any],
         email: str,
         date_from: date,
         date_to: date,
@@ -206,7 +208,7 @@ class JiraClient:
         self,
         client: httpx.AsyncClient,
         issue_key: str,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Holt alle Worklogs eines Issues (bei Pagination)."""
         url = f"{self._host}/rest/api/2/issue/{issue_key}/worklog"
         response = await client.get(url, headers=self._headers())
@@ -216,7 +218,8 @@ class JiraClient:
             return []
 
         data = response.json()
-        return data.get("worklogs", [])
+        worklogs: list[dict[str, Any]] = data.get("worklogs", [])
+        return worklogs
 
     def _headers(self) -> dict[str, str]:
         """HTTP Headers fuer Jira API Requests."""

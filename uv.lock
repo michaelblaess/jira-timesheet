@@ -272,7 +272,7 @@ wheels = [
 
 [[package]]
 name = "jira-timesheet"
-version = "1.8.1"
+version = "1.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "fpdf2" },
@@ -281,6 +281,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "rich" },
     { name = "textual" },
+    { name = "textual-fspicker" },
     { name = "textual-themes" },
     { name = "textual-widgets" },
 ]
@@ -294,6 +295,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "types-openpyxl" },
 ]
 
 [package.metadata]
@@ -311,8 +313,10 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3" },
     { name = "textual", specifier = ">=0.40" },
+    { name = "textual-fspicker", specifier = ">=0.4.0" },
     { name = "textual-themes", git = "https://github.com/michaelblaess/textual-themes.git" },
     { name = "textual-widgets", git = "https://github.com/michaelblaess/textual-widgets.git" },
+    { name = "types-openpyxl", marker = "extra == 'dev'", specifier = ">=3.1.5.20260518" },
 ]
 provides-extras = ["dev"]
 
@@ -805,6 +809,18 @@ wheels = [
 ]
 
 [[package]]
+name = "textual-fspicker"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "textual" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/34/1d/1c078f971363d6b2fcfcccf3008b3c6d98cb78ba92d4d6152051bfeec76e/textual_fspicker-1.0.1.tar.gz", hash = "sha256:58f7fa983ded7a5ed69b7279f66de57a0ef6fad0e3acb622f217682e85986c9c", size = 16538, upload-time = "2026-05-20T15:56:36.264Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/f9/716c82823d1bd93b499a2ab42eaa8ca3c4d57211576c9b569b329a16e8e2/textual_fspicker-1.0.1-py3-none-any.whl", hash = "sha256:12ba71314790008c37f4bf9bb008e430b844bb63d9b615cd8738ca3c1fe1ebbb", size = 24949, upload-time = "2026-05-20T15:56:34.804Z" },
+]
+
+[[package]]
 name = "textual-themes"
 version = "0.9.0"
 source = { git = "https://github.com/michaelblaess/textual-themes.git#ee627a08d498694f4641e03233eb6df6ea468818" }
@@ -820,6 +836,15 @@ source = { git = "https://github.com/michaelblaess/textual-widgets.git#3b70144a0
 dependencies = [
     { name = "rich" },
     { name = "textual" },
+]
+
+[[package]]
+name = "types-openpyxl"
+version = "3.1.5.20260518"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/d1/a1e23040a758746ad5bb6b8849a011c3c901775618bc7e1fec3a1a8b7142/types_openpyxl-3.1.5.20260518.tar.gz", hash = "sha256:da9cd644e4e80215a3f60a8c2c2c8e980e941a9b581cffa3876285aa791ca5af", size = 101550, upload-time = "2026-05-18T06:03:57.59Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/0e/d745ce95fc74e34df802010fd0387e33db468179e6ff42b708280ab268c7/types_openpyxl-3.1.5.20260518-py3-none-any.whl", hash = "sha256:e6ca4b116c8b979ed57f3045edcd3d49c25917d6dae99e90358f41322a19d375", size = 165744, upload-time = "2026-05-18T06:03:56.036Z" },
 ]
 
 [[package]]

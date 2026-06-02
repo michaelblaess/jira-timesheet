@@ -37,12 +37,12 @@ class HolidayService:
 
     def is_holiday(self, d: date) -> bool:
         """Prueft ob ein Datum ein Feiertag ist."""
-        h = holidays.Germany(subdiv=self._state, years=d.year)
+        h = holidays.country_holidays("DE", subdiv=self._state, years=d.year)
         return d in h
 
     def get_holiday_name(self, d: date) -> str:
         """Gibt den Feiertagsnamen zurueck, oder leeren String."""
-        h = holidays.Germany(subdiv=self._state, years=d.year)
+        h = holidays.country_holidays("DE", subdiv=self._state, years=d.year)
         return h.get(d, "")
 
     def is_workday(self, d: date) -> bool:
@@ -53,7 +53,7 @@ class HolidayService:
 
     def count_workdays(self, date_from: date, date_to: date) -> int:
         """Zaehlt die Arbeitstage in einem Zeitraum."""
-        h = holidays.Germany(subdiv=self._state, years={date_from.year, date_to.year})
+        h = holidays.country_holidays("DE", subdiv=self._state, years={date_from.year, date_to.year})
         count = 0
         current = date_from
         one_day = __import__("datetime").timedelta(days=1)
@@ -65,7 +65,7 @@ class HolidayService:
 
     def get_holidays_in_range(self, date_from: date, date_to: date) -> dict[date, str]:
         """Gibt alle Feiertage in einem Zeitraum zurueck."""
-        h = holidays.Germany(subdiv=self._state, years={date_from.year, date_to.year})
+        h = holidays.country_holidays("DE", subdiv=self._state, years={date_from.year, date_to.year})
         result: dict[date, str] = {}
         for d, name in sorted(h.items()):
             if date_from <= d <= date_to:
@@ -87,7 +87,7 @@ class HolidayService:
         Der Luecken-Grund enthaelt IMMER einen Em-Dash; Konsumenten erkennen
         Luecken (vs. Feiertage) sprachneutral an diesem Marker.
         """
-        h = holidays.Germany(subdiv=self._state, years={date_from.year, date_to.year})
+        h = holidays.country_holidays("DE", subdiv=self._state, years={date_from.year, date_to.year})
         missing: list[tuple[date, str]] = []
         current = date_from
         one_day = __import__("datetime").timedelta(days=1)
