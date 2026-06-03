@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,7 @@ class Settings:
     year: int = 0
     vacation_days: int = 30
     config_collapsed: bool = False
+    search_history: list[str] = field(default_factory=list)
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -92,6 +93,7 @@ class Settings:
         "year",
         "vacation_days",
         "config_collapsed",
+        "search_history",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -134,6 +136,7 @@ class Settings:
                 year=data.get("year", 0),
                 vacation_days=data.get("vacation_days", 30),
                 config_collapsed=data.get("config_collapsed", False),
+                search_history=[str(x) for x in data.get("search_history", []) if isinstance(x, str)],
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
