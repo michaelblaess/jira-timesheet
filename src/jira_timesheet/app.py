@@ -92,6 +92,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._bindings.bind("s,S", "show_settings", t("binding.settings"), key_display="s")
         self._bindings.bind("i,I", "show_about", t("binding.info"), key_display="i")
         self._bindings.bind("tab", "next_tab", t("binding.switch_view"), key_display="TAB", priority=True)
+        # Filter-Suchfeld der Liste fokussieren - im Footer ausgeblendet
+        # (Konvention: / fokussiert den Filter, die Lupe macht ihn sichtbar).
+        self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
         self._bindings.bind("j,J", "show_year", t("binding.year"), key_display="j")
         self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
@@ -143,6 +146,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 yield TimesheetTable(
                     hours_per_day=self._settings.hours_per_day,
                     jira_host=self._settings.jira_host,
+                    search_history=self._settings.search_history,
                     id="timesheet-table",
                 )
             with TabPane(t("tab.calendar"), id="tab-calendar"):
@@ -733,6 +737,21 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """Wechselt zum naechsten Tab."""
         tabs = self.query_one("#view-tabs", TabbedContent)
         tabs.active = "tab-calendar" if tabs.active == "tab-list" else "tab-list"
+
+    def action_focus_filter(self) -> None:
+        """Fokussiert das Suchfeld der Liste (wechselt ggf. in den Listen-Tab)."""
+        tabs = self.query_one("#view-tabs", TabbedContent)
+        if tabs.active != "tab-list":
+            tabs.active = "tab-list"
+        self.query_one("#timesheet-table", TimesheetTable).focus_search()
+
+    def on_timesheet_table_filter_history_changed(
+        self,
+        event: TimesheetTable.FilterHistoryChanged,
+    ) -> None:
+        """Persistiert den Such-Verlauf der Liste in den Settings."""
+        self._settings.search_history = event.history
+        self._settings.save()
 
     def action_toggle_log(self) -> None:
         """Blendet den Log-Bereich ein/aus."""
