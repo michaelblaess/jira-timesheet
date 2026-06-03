@@ -94,6 +94,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 
 - **Jira Integration** — Worklogs per REST API abrufen (Bearer Token Auth)
 - **Listenansicht** — Tabellarisch mit KW, Wochentag, Tagesgruppen, Soll/Ist-Stunden
+- **Suche / Filter** — Live-Filter nach Ticket-ID oder Beschreibung (`/` zum Fokussieren, Verlauf mit Dropdown)
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
@@ -161,6 +162,7 @@ Dann `G` zum Generieren des Stundenzettels.
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
 | TAB | Tab wechseln (Liste / Kalender) |
+| / | Suchfeld fokussieren (Listenansicht) |
 | R | Cache zurücksetzen |
 | J | Jahresansicht mit Forecast |
 | A | Daten anonymisieren |
