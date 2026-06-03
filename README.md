@@ -94,6 +94,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 
 - **Jira integration** — Fetch worklogs via REST API (Bearer token auth)
 - **List view** — Tabular with calendar week, weekday, day groups, target/actual hours
+- **Search / filter** — Live filter by ticket ID or description (`/` to focus, history with dropdown)
 - **Calendar view** — Monthly calendar with color-coded day tiles
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — 12 monthly tiles with progress bar and forecast (J)
@@ -161,6 +162,7 @@ Then `G` to generate the timesheet.
 | P | PDF export |
 | D | Show ticket details |
 | TAB | Switch tab (list / calendar) |
+| / | Focus search field (list view) |
 | R | Reset cache |
 | J | Year view with forecast |
 | A | Anonymize data |
