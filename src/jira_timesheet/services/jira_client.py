@@ -1,7 +1,16 @@
-"""Jira REST API Client fuer Worklog-Abfragen."""
+"""Jira REST API Client fuer Worklog-Abfragen.
+
+Unterstuetzt zwei Modi:
+- Cloud (Default): REST v3, Basic-Auth (Mail + API-Token), native JQL
+  (worklogAuthor/worklogDate), nextPageToken-Pagination, Matching ueber accountId.
+- Data Center / Server (Legacy): REST v2, Bearer-PAT, ScriptRunner-JQL
+  (issueFunction in workLogged), Matching ueber author.name.
+Der Modus wird ueber das Flag ``legacy`` gewaehlt.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
@@ -20,46 +29,93 @@ class JiraClientError(Exception):
 
 
 class JiraClient:
-    """Async Client fuer Jira REST API v2."""
+    """Async Client fuer die Jira REST API (Cloud v3 oder Data Center v2)."""
 
     def __init__(
         self,
         host: str,
+        email: str,
         token: str,
         budget_field: str = "customfield_36461",
+        legacy: bool = False,
         on_log: Callable[[str], None] | None = None,
     ) -> None:
+        """Initialisiert den Client.
+
+        Args:
+            host:
+                Basis-URL der Jira-Instanz (Cloud: https://xxx.atlassian.net).
+            email:
+                Cloud-Modus: Atlassian-Login-Mail fuer Basic-Auth.
+                Legacy-Modus: Benutzername, nach dem die Worklogs gefiltert werden.
+            token:
+                Cloud-Modus: API-Token (id.atlassian.com). Legacy-Modus: PAT.
+            budget_field:
+                Custom-Field-ID des Budget-Felds.
+            legacy:
+                True = alte Data-Center-Methode (v2, Bearer, issueFunction).
+            on_log:
+                Optionaler Callback fuer Log-Ausgaben.
+        """
         self._host = host.rstrip("/")
+        self._email = email
         self._token = token
         self._budget_field = budget_field
+        self._legacy = legacy
         self._log = on_log or (lambda _: None)
+        # Cloud-Modus: accountId des angemeldeten Benutzers (fuer Matching).
+        self._account_id = ""
 
     async def get_worklogs(
         self,
-        email: str,
         date_from: date,
         date_to: date,
     ) -> list[WorklogEntry]:
-        """Holt alle Worklogs fuer einen Benutzer in einem Zeitraum.
+        """Holt alle Worklogs des Benutzers in einem Zeitraum.
 
-        Entspricht der VBA-Logik:
-        - JQL sucht mit workLogged "after" (date_from - 1 Tag)
-        - Filtert dann Ergebnisse nach exaktem Zeitraum + Assignee
+        Args:
+            date_from:
+                Erster Tag des Zeitraums (inklusive).
+            date_to:
+                Letzter Tag des Zeitraums (inklusive).
+
+        Returns:
+            Liste der Worklog-Eintraege, sortiert nach Datum und Ticket.
         """
-        search_from = date_from - timedelta(days=1)
-        jql = f'issueFunction in workLogged("after {search_from:%Y/%m/%d} by {email}")'
-        fields = f"worklog,summary,status,issuetype,components,labels,priority,resolution,assignee,created,updated,timespent,{self._budget_field}"
+        fields = (
+            f"worklog,summary,status,issuetype,components,labels,priority,"
+            f"resolution,assignee,created,updated,timespent,{self._budget_field}"
+        )
+
+        if self._legacy:
+            # Data Center: ScriptRunner-Funktion, sucht ab (date_from - 1 Tag).
+            search_from = date_from - timedelta(days=1)
+            jql = f'issueFunction in workLogged("after {search_from:%Y/%m/%d} by {self._email}")'
+        else:
+            # Cloud: native JQL ueber den angemeldeten Benutzer.
+            jql = (
+                f'worklogAuthor = currentUser() '
+                f'AND worklogDate >= "{date_from:%Y-%m-%d}" '
+                f'AND worklogDate <= "{date_to:%Y-%m-%d}"'
+            )
 
         self._log(t("jira.jql", jql=jql))
         self._log(t("jira.connecting", host=self._host))
 
         entries: list[WorklogEntry] = []
 
+        # Basic-Auth nur im Cloud-Modus ueber httpx; Legacy nutzt Bearer-Header.
+        auth = None if self._legacy else (self._email, self._token)
+
         async with httpx.AsyncClient(
             verify=False,
             timeout=60.0,
             follow_redirects=True,
+            auth=auth,
         ) as client:
+            if not self._legacy:
+                self._account_id = await self._fetch_account_id(client)
+
             issues = await self._search_issues(client, jql, fields)
             self._log(t("jira.issues_found", count=len(issues)))
 
@@ -67,7 +123,6 @@ class JiraClient:
                 issue_entries = await self._extract_worklogs(
                     client,
                     issue,
-                    email,
                     date_from,
                     date_to,
                 )
@@ -77,27 +132,156 @@ class JiraClient:
         entries.sort(key=lambda e: (e.date, e.ticket))
         return entries
 
+    async def detect_budget_field(self, keyword: str = "budget") -> list[tuple[str, str]]:
+        """Sucht Cloud-Custom-Fields, deren Name das Keyword enthaelt.
+
+        Ruft /rest/api/3/field ab und filtert auf Custom-Fields, deren Name
+        das Keyword (case-insensitive) enthaelt. Nur im Cloud-Modus sinnvoll.
+
+        Args:
+            keyword:
+                Suchbegriff im Feldnamen (Default "budget").
+
+        Returns:
+            Liste von (field_id, field_name)-Tupeln der Treffer.
+        """
+        url = f"{self._host}/rest/api/3/field"
+        keyword_lower = keyword.lower()
+        matches: list[tuple[str, str]] = []
+
+        async with httpx.AsyncClient(
+            verify=False,
+            timeout=30.0,
+            follow_redirects=True,
+            auth=(self._email, self._token),
+        ) as client:
+            response = await client.get(url, headers=self._headers())
+            self._check_response(response, url)
+            fields = response.json()
+
+        if not isinstance(fields, list):
+            return matches
+
+        for field in fields:
+            if not isinstance(field, dict) or not field.get("custom", False):
+                continue
+            field_id = str(field.get("id", ""))
+            field_name = str(field.get("name", ""))
+            if field_id and keyword_lower in field_name.lower():
+                matches.append((field_id, field_name))
+
+        return matches
+
+    async def _fetch_account_id(self, client: httpx.AsyncClient) -> str:
+        """Ermittelt die accountId des angemeldeten Benutzers (Cloud-Modus).
+
+        Args:
+            client:
+                Der HTTP-Client mit konfigurierter Basic-Auth.
+
+        Returns:
+            Die accountId als String (oder leer, falls nicht ermittelbar).
+        """
+        url = f"{self._host}/rest/api/3/myself"
+        response = await client.get(url, headers=self._headers())
+        self._check_response(response, url)
+        data = response.json()
+        account_id: str = data.get("accountId", "")
+        return account_id
+
     async def _search_issues(
         self,
         client: httpx.AsyncClient,
         jql: str,
         fields: str,
     ) -> list[dict[str, Any]]:
-        """Fuehrt die JQL-Suche aus und gibt Issues zurueck."""
+        """Fuehrt die JQL-Suche aus und gibt alle Issues zurueck.
+
+        Cloud nutzt /search/jql mit nextPageToken-Pagination, Legacy den
+        klassischen /search-Endpoint mit einer maxResults-Seite.
+
+        Args:
+            client:
+                Der HTTP-Client.
+            jql:
+                Die JQL-Abfrage.
+            fields:
+                Komma-separierte Feldliste.
+
+        Returns:
+            Liste der gefundenen Issues (rohe Dicts).
+        """
+        if self._legacy:
+            return await self._search_issues_legacy(client, jql, fields)
+        return await self._search_issues_cloud(client, jql, fields)
+
+    async def _search_issues_cloud(
+        self,
+        client: httpx.AsyncClient,
+        jql: str,
+        fields: str,
+    ) -> list[dict[str, Any]]:
+        """JQL-Suche ueber den Cloud-Endpoint /rest/api/3/search/jql.
+
+        Args:
+            client:
+                Der HTTP-Client.
+            jql:
+                Die JQL-Abfrage.
+            fields:
+                Komma-separierte Feldliste.
+
+        Returns:
+            Liste aller Issues ueber alle Seiten hinweg.
+        """
+        url = f"{self._host}/rest/api/3/search/jql"
+        issues: list[dict[str, Any]] = []
+        next_token: str | None = None
+
+        while True:
+            params: dict[str, str | int] = {"jql": jql, "fields": fields, "maxResults": 100}
+            if next_token:
+                params["nextPageToken"] = next_token
+
+            response = await client.get(url, params=params, headers=self._headers())
+            self._check_response(response, url)
+
+            data = response.json()
+            page: list[dict[str, Any]] = data.get("issues", [])
+            issues.extend(page)
+
+            if data.get("isLast", True):
+                break
+            next_token = data.get("nextPageToken")
+            if not next_token:
+                break
+
+        return issues
+
+    async def _search_issues_legacy(
+        self,
+        client: httpx.AsyncClient,
+        jql: str,
+        fields: str,
+    ) -> list[dict[str, Any]]:
+        """JQL-Suche ueber den klassischen Endpoint /rest/api/2/search.
+
+        Args:
+            client:
+                Der HTTP-Client.
+            jql:
+                Die JQL-Abfrage.
+            fields:
+                Komma-separierte Feldliste.
+
+        Returns:
+            Liste der gefundenen Issues (eine Seite, maxResults=200).
+        """
         url = f"{self._host}/rest/api/2/search"
         params: dict[str, str | int] = {"jql": jql, "fields": fields, "maxResults": 200}
 
-        response = await client.get(
-            url,
-            params=params,
-            headers=self._headers(),
-        )
-
-        if response.status_code == 401:
-            raise JiraClientError(t("jira.login_failed"))
-
-        if response.status_code != 200:
-            raise JiraClientError(t("jira.api_error", status=response.status_code))
+        response = await client.get(url, params=params, headers=self._headers())
+        self._check_response(response, url)
 
         data = response.json()
         issues: list[dict[str, Any]] = data.get("issues", [])
@@ -107,11 +291,24 @@ class JiraClient:
         self,
         client: httpx.AsyncClient,
         issue: dict[str, Any],
-        email: str,
         date_from: date,
         date_to: date,
     ) -> list[WorklogEntry]:
-        """Extrahiert Worklogs aus einem Issue, holt ggf. paginierte Daten."""
+        """Extrahiert die eigenen Worklogs aus einem Issue.
+
+        Args:
+            client:
+                Der HTTP-Client (fuer Nachladen bei Pagination).
+            issue:
+                Das rohe Issue-Dict aus der Suche.
+            date_from:
+                Erster Tag des Zeitraums (inklusive).
+            date_to:
+                Letzter Tag des Zeitraums (inklusive).
+
+        Returns:
+            Liste der eigenen Worklog-Eintraege dieses Issues im Zeitraum.
+        """
         issue_key = issue.get("key", "")
         fields = issue.get("fields", {})
         summary = fields.get("summary", "")
@@ -163,8 +360,6 @@ class JiraClient:
 
         for wl in worklogs:
             author = wl.get("author", {})
-            author_name = author.get("name", "")
-            author_display = author.get("displayName", author_name)
 
             started_str = wl.get("started", "")[:10]
             try:
@@ -172,7 +367,7 @@ class JiraClient:
             except ValueError:
                 continue
 
-            if author_name != email:
+            if not self._worklog_is_mine(author):
                 continue
             if started < date_from or started > date_to:
                 continue
@@ -185,7 +380,7 @@ class JiraClient:
                     date=started,
                     ticket=issue_key,
                     summary=summary,
-                    author=author_display,
+                    author=self._author_display(author),
                     budget=budget,
                     hours=hours,
                     status=issue_status,
@@ -204,28 +399,195 @@ class JiraClient:
 
         return entries
 
+    def _worklog_is_mine(self, author: dict[str, Any]) -> bool:
+        """Prueft, ob ein Worklog-Author der eigene Benutzer ist.
+
+        Cloud: Vergleich ueber accountId; Legacy: ueber author.name == email.
+
+        Args:
+            author:
+                Das author-Dict eines Worklogs.
+
+        Returns:
+            True, wenn das Worklog dem eigenen Benutzer gehoert.
+        """
+        if self._legacy:
+            return bool(author.get("name", "") == self._email)
+        # Cloud: ueber accountId matchen (zuverlaessig, DSGVO-konform).
+        if not self._account_id:
+            return True
+        return bool(author.get("accountId", "") == self._account_id)
+
+    @staticmethod
+    def _author_display(author: dict[str, Any]) -> str:
+        """Liefert den Anzeigenamen eines Worklog-Authors.
+
+        Args:
+            author:
+                Das author-Dict eines Worklogs.
+
+        Returns:
+            displayName, sonst name, sonst leerer String.
+        """
+        display: str = author.get("displayName", "") or author.get("name", "")
+        return display
+
     async def _fetch_all_worklogs(
         self,
         client: httpx.AsyncClient,
         issue_key: str,
     ) -> list[dict[str, Any]]:
-        """Holt alle Worklogs eines Issues (bei Pagination)."""
-        url = f"{self._host}/rest/api/2/issue/{issue_key}/worklog"
+        """Holt alle Worklogs eines Issues (bei Pagination > maxResults).
+
+        Args:
+            client:
+                Der HTTP-Client.
+            issue_key:
+                Der Issue-Key (z.B. DMZ-16784).
+
+        Returns:
+            Liste der Worklog-Dicts (leer bei Fehler).
+        """
+        api = "2" if self._legacy else "3"
+        url = f"{self._host}/rest/api/{api}/issue/{issue_key}/worklog"
         response = await client.get(url, headers=self._headers())
 
         if response.status_code != 200:
             logger.warning("Worklog-Abruf fuer %s fehlgeschlagen", issue_key)
+            self._log(t("jira.worklog_fetch_failed", issue=issue_key))
+            for line in self._describe_error(response, url):
+                self._log(line)
             return []
 
         data = response.json()
         worklogs: list[dict[str, Any]] = data.get("worklogs", [])
         return worklogs
 
+    def _check_response(self, response: httpx.Response, url: str) -> None:
+        """Prueft die Antwort und wirft bei Nicht-200 einen JiraClientError.
+
+        Schreibt vorher die vollstaendigen Fehlerdetails (Status, Ziel-URL,
+        Atlassian-Auth-Header und Antwort-Body) ins Log-Panel, damit die
+        Ursache eines 401/403 sichtbar wird. Die geworfene Exception bleibt
+        kompakt fuer die Toast-Meldung.
+
+        Args:
+            response:
+                Die HTTP-Antwort von Jira.
+            url:
+                Die angefragte URL (fuer die Diagnose-Ausgabe).
+        """
+        if response.status_code == 200:
+            return
+
+        for line in self._describe_error(response, url):
+            self._log(line)
+
+        if response.status_code == 401:
+            raise JiraClientError(t("jira.login_failed"))
+
+        raise JiraClientError(t("jira.api_error", status=response.status_code))
+
+    def _describe_error(self, response: httpx.Response, url: str) -> list[str]:
+        """Baut detaillierte Diagnose-Zeilen aus einer Fehler-Antwort.
+
+        Wertet die Atlassian-spezifischen Auth-Header aus (CAPTCHA-Challenge,
+        Seraph-Login-Grund) und extrahiert die Jira-Fehlermeldung aus dem
+        JSON-Body bzw. einen gekuerzten Auszug bei Nicht-JSON-Antworten
+        (z.B. HTML-Seiten von Proxy/WAF/Login).
+
+        Args:
+            response:
+                Die fehlerhafte HTTP-Antwort.
+            url:
+                Die angefragte URL.
+
+        Returns:
+            Liste von Log-Zeilen (eine pro Detail).
+        """
+        method = response.request.method if response.request else "GET"
+        lines = [
+            t(
+                "jira.error_status",
+                status=response.status_code,
+                reason=response.reason_phrase or "",
+            ).rstrip(),
+            t("jira.error_url", method=method, url=url),
+        ]
+
+        # Atlassian sendet bei verweigerter Auth aussagekraeftige Header
+        denied = response.headers.get("X-Authentication-Denied-Reason")
+        if denied:
+            lines.append(t("jira.error_denied", reason=denied))
+        seraph = response.headers.get("X-Seraph-LoginReason")
+        if seraph and seraph.upper() != "OK":
+            lines.append(t("jira.error_seraph", reason=seraph))
+
+        content_type = response.headers.get("content-type", "")
+        if "html" in content_type.lower():
+            lines.append(t("jira.error_html_hint"))
+
+        body = self._extract_body_message(response, content_type)
+        if body:
+            lines.append(t("jira.error_body", body=body))
+
+        return lines
+
+    @staticmethod
+    def _extract_body_message(response: httpx.Response, content_type: str) -> str:
+        """Liest die aussagekraeftigste Fehlermeldung aus dem Antwort-Body.
+
+        Bei JSON werden Jiras ``errorMessages``/``errors`` bevorzugt, sonst
+        der serialisierte JSON-Auszug. Bei Nicht-JSON wird der Text auf eine
+        Zeile normalisiert und gekuerzt.
+
+        Args:
+            response:
+                Die HTTP-Antwort.
+            content_type:
+                Der Content-Type-Header der Antwort.
+
+        Returns:
+            Eine einzeilige, auf 500 Zeichen gekuerzte Fehlermeldung.
+        """
+        max_len = 500
+
+        if "application/json" in content_type.lower():
+            try:
+                data = response.json()
+            except ValueError:
+                return (response.text or "").strip()[:max_len]
+
+            if isinstance(data, dict):
+                messages: list[str] = []
+                error_messages = data.get("errorMessages")
+                if isinstance(error_messages, list):
+                    messages.extend(str(m) for m in error_messages)
+                errors = data.get("errors")
+                if isinstance(errors, dict):
+                    messages.extend(f"{key}: {value}" for key, value in errors.items())
+                if messages:
+                    return " | ".join(messages)[:max_len]
+            return json.dumps(data, ensure_ascii=False)[:max_len]
+
+        # Nicht-JSON (HTML-Fehlerseite, Plain-Text) auf eine Zeile reduzieren
+        normalized = " ".join((response.text or "").split())
+        return normalized[:max_len]
+
     def _headers(self) -> dict[str, str]:
-        """HTTP Headers fuer Jira API Requests."""
-        return {
+        """HTTP Headers fuer Jira API Requests.
+
+        Cloud-Modus: Basic-Auth uebernimmt httpx (auth=). Legacy-Modus:
+        Bearer-PAT als Authorization-Header.
+
+        Returns:
+            Das Header-Dict.
+        """
+        headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "X-Atlassian-Token": "no-check",
-            "Authorization": f"Bearer {self._token}",
         }
+        if self._legacy:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return headers
