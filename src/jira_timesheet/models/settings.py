@@ -54,6 +54,7 @@ class Settings:
     jira_host: str = ""
     jira_token: str = ""
     email: str = ""
+    use_legacy_api: bool = False
     logo_path: str = ""
     last_date_from: str = ""
     last_date_to: str = ""
@@ -65,6 +66,7 @@ class Settings:
     show_target_hours_in_export: bool = False
     show_ticket_links_in_export: bool = False
     hourly_rate: float = 0.0
+    vat_rate: float = 19.0
     year: int = 0
     vacation_days: int = 30
     config_collapsed: bool = False
@@ -79,6 +81,7 @@ class Settings:
         "jira_host",
         "jira_token",
         "email",
+        "use_legacy_api",
         "logo_path",
         "last_date_from",
         "last_date_to",
@@ -90,6 +93,7 @@ class Settings:
         "show_target_hours_in_export",
         "show_ticket_links_in_export",
         "hourly_rate",
+        "vat_rate",
         "year",
         "vacation_days",
         "config_collapsed",
@@ -122,6 +126,7 @@ class Settings:
                 jira_host=data.get("jira_host", ""),
                 jira_token=data.get("jira_token", ""),
                 email=data.get("email", ""),
+                use_legacy_api=bool(data.get("use_legacy_api", False)),
                 logo_path=data.get("logo_path", ""),
                 last_date_from=data.get("last_date_from", ""),
                 last_date_to=data.get("last_date_to", ""),
@@ -133,6 +138,7 @@ class Settings:
                 show_target_hours_in_export=data.get("show_target_hours_in_export", False),
                 show_ticket_links_in_export=data.get("show_ticket_links_in_export", False),
                 hourly_rate=data.get("hourly_rate", 0.0),
+                vat_rate=data.get("vat_rate", 19.0),
                 year=data.get("year", 0),
                 vacation_days=data.get("vacation_days", 30),
                 config_collapsed=data.get("config_collapsed", False),

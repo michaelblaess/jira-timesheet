@@ -186,6 +186,7 @@ class YearScreen(ModalScreen[None]):
         month_data: dict[int, dict[str, Any]],
         max_yearly_hours: float = 1720.0,
         hourly_rate: float = 0.0,
+        vat_rate: float = 19.0,
         vacation_days: int = 30,
         hours_per_day: float = 8.0,
         federal_state: str = "SN",
@@ -197,6 +198,7 @@ class YearScreen(ModalScreen[None]):
         self._month_data = month_data
         self._max_yearly = max_yearly_hours
         self._hourly_rate = hourly_rate
+        self._vat_rate = vat_rate
         self._vacation_days = vacation_days
         self._hours_per_day = hours_per_day
         self._federal_state = federal_state
@@ -269,7 +271,7 @@ class YearScreen(ModalScreen[None]):
 
         if self._hourly_rate > 0:
             netto = total_actual * self._hourly_rate
-            brutto = netto * 1.19
+            brutto = netto * (1.0 + self._vat_rate / 100.0)
             netto_str = _REDACTED if self._anonymized else format_eur(netto)
             brutto_str = _REDACTED if self._anonymized else format_eur(brutto)
             text.append("\n")
@@ -321,7 +323,7 @@ class YearScreen(ModalScreen[None]):
 
         if self._hourly_rate > 0:
             forecast_netto = forecast_hours * self._hourly_rate
-            forecast_brutto = forecast_netto * 1.19
+            forecast_brutto = forecast_netto * (1.0 + self._vat_rate / 100.0)
             fc_netto_str = _REDACTED if self._anonymized else format_eur(forecast_netto)
             fc_brutto_str = _REDACTED if self._anonymized else format_eur(forecast_brutto)
             text.append(t("year.forecast_revenue_label"), style="dim")

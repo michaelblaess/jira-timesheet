@@ -291,8 +291,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         try:
             client = JiraClient(
                 host=self._settings.jira_host,
+                email=self._settings.email,
                 token=self._settings.jira_token,
                 budget_field=self._settings.budget_field,
+                legacy=self._settings.use_legacy_api,
                 on_log=self._write_log,
             )
 
@@ -304,7 +306,6 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 self._write_log(t("log.from_cache"))
             else:
                 entries = await client.get_worklogs(
-                    email=self._settings.email,
                     date_from=config.date_from,
                     date_to=config.date_to,
                 )
@@ -337,6 +338,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 self._timesheet,
                 target_hours=target_hours,
                 hourly_rate=self._settings.hourly_rate,
+                vat_rate=self._settings.vat_rate,
             )
 
             holidays_in_range = holiday_svc.get_holidays_in_range(config.date_from, config.date_to)
@@ -591,8 +593,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         try:
             client = JiraClient(
                 host=self._settings.jira_host,
+                email=self._settings.email,
                 token=self._settings.jira_token,
                 budget_field=self._settings.budget_field,
+                legacy=self._settings.use_legacy_api,
             )
 
             cached_count = 0
@@ -622,7 +626,6 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 else:
                     self.sub_title = t("subtitle.loading_month", month=t(f"month.{month}"))
                     entries = await client.get_worklogs(
-                        email=self._settings.email,
                         date_from=first,
                         date_to=last,
                     )
@@ -672,6 +675,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     month_data=month_data,
                     max_yearly_hours=self._settings.max_yearly_hours,
                     hourly_rate=self._settings.hourly_rate,
+                    vat_rate=self._settings.vat_rate,
                     vacation_days=self._settings.vacation_days,
                     hours_per_day=self._settings.hours_per_day,
                     federal_state=self._settings.federal_state,

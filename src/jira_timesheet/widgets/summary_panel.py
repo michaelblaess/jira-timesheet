@@ -38,6 +38,7 @@ class SummaryPanel(Static):
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
         self._hourly_rate: float = 0.0
+        self._vat_rate: float = 19.0
         # Anonymisierungs-Modus: zensiert Geldbetraege fuer Screenshots.
         self._anonymized: bool = False
 
@@ -50,11 +51,13 @@ class SummaryPanel(Static):
         timesheet: Timesheet,
         target_hours: float = 0.0,
         hourly_rate: float = 0.0,
+        vat_rate: float = 19.0,
     ) -> None:
         """Aktualisiert die Werte aus einem geladenen Timesheet."""
         self._timesheet = timesheet
         self._target_hours = target_hours
         self._hourly_rate = hourly_rate
+        self._vat_rate = vat_rate
         # Frisch geladene (echte) Daten -> Geldbetraege wieder anzeigen.
         self._anonymized = False
         self._redraw()
@@ -114,7 +117,7 @@ class SummaryPanel(Static):
 
         if self._hourly_rate > 0:
             netto = ts.total_hours * self._hourly_rate
-            brutto = netto * 1.19
+            brutto = netto * (1.0 + self._vat_rate / 100.0)
             netto_str = _REDACTED if self._anonymized else format_eur(netto)
             brutto_str = _REDACTED if self._anonymized else format_eur(brutto)
             text.append(sep, style="dim")
