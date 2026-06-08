@@ -47,7 +47,7 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.9.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.11.0</div>
     <h1>Jira <span class="accent">Timesheet</span></h1>
     <p class="hero-description">Terminal-basierte Anwendung zum Generieren von Stundenzetteln aus Jira Worklogs. Drei Ansichten, Excel/PDF-Export, Feiertagskalender und Jahres-Forecast.</p>
     <div class="hero-actions">
@@ -135,8 +135,18 @@
     <div class="feature-grid">
       <div class="feature-card">
         <div class="feature-icon">🔗</div>
-        <h3>Jira Integration</h3>
-        <p>Worklogs per REST API abrufen mit Bearer Token. Automatische Pagination und Filterung nach Zeitraum.</p>
+        <h3>Jira Cloud &amp; Data Center</h3>
+        <p>Worklogs per REST API — standardmäßig Jira Cloud (v3, Basic-Auth mit API-Token), per Schalter auch altes Server/Data Center (v2, Bearer-Token). Automatische Pagination und Filterung nach Zeitraum.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <h3>Budget-Feld automatisch ermitteln</h3>
+        <p>Bei Jira Cloud findet ein Klick das Budget-Custom-Field automatisch — kein manuelles Nachschlagen der Field-ID nötig.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧮</div>
+        <h3>MwSt konfigurierbar</h3>
+        <p>Der MwSt-Satz ist eine Einstellung für die Netto/Brutto-Berechnung in TUI und Jahresansicht (Standard 19 %).</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📋</div>
