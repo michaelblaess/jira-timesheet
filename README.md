@@ -92,7 +92,8 @@ The interface ships with retro themes. Every view is shown below across a range 
 
 ## Features
 
-- **Jira integration** — Fetch worklogs via REST API (Bearer token auth)
+- **Jira Cloud & Data Center** — Worklogs via REST API; Jira Cloud (v3, basic auth with API token) by default, with a toggle for legacy Jira Server/Data Center (v2, bearer token)
+- **Budget field auto-detect** — Find the budget custom field automatically on Jira Cloud (no manual ID lookup)
 - **List view** — Tabular with calendar week, weekday, day groups, target/actual hours
 - **Search / filter** — Live filter by ticket ID or description (`/` to focus, history with dropdown)
 - **Calendar view** — Monthly calendar with color-coded day tiles
@@ -102,6 +103,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **PDF export** — Adobe-signable, Unicode font (Arial)
 - **Public holidays** — German public holidays per federal state, gap detection
 - **Target/actual** — Working time comparison with difference display
+- **Configurable VAT** — VAT rate as a setting for the net/gross calculation (default 19%)
 - **Ticket details** — Enter/D shows status, type, assignee, components in the log
 - **Anonymization** — Anonymize data with a keypress for safe screenshots
 - **Worklog cache** — Completed months cached, year view loads instantly
@@ -146,9 +148,11 @@ jira-timesheet --lang en
 ```
 
 On first start, press `S` for settings and configure:
-- Jira host URL
-- Bearer token
-- Email (Jira username)
+- Jira host URL (Cloud: the canonical `https://your-company.atlassian.net`)
+- Token — Jira Cloud: an API token from [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens); Data Center: a bearer token (PAT)
+- Email / login — Cloud: your Atlassian login email; Data Center: your Jira username
+- **Jira mode** — leave off for Jira Cloud, enable for a legacy Server/Data Center
+- Budget custom field — on Cloud use **Auto-detect** to fill it in automatically
 - Federal state (public holidays)
 
 Then `G` to generate the timesheet.
@@ -180,14 +184,17 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 
 | Setting | Description | Default |
 |-------------|-------------|---------|
-| Jira host | URL of the Jira instance | — |
-| Token | Bearer token for authentication | — |
-| Email | Jira username | — |
+| Jira host | URL of the Jira instance (Cloud: `…atlassian.net`) | — |
+| Token | API token (Cloud) or bearer token (Data Center) | — |
+| Email | Atlassian login (Cloud) or Jira username (Data Center) | — |
+| Jira mode (legacy API) | Off = Jira Cloud (v3), on = Data Center (v2) | off |
+| Budget custom field | Custom field ID; Cloud supports **Auto-detect** | customfield_36461 |
 | Federal state | For public holiday calculation | SN |
 | Target hours/day | Working hours per day | 8.0 |
 | Max. yearly hours | Upper limit for progress bar | 1720 |
 | Vacation days | For yearly forecast | 30 |
 | Hourly rate | Net, TUI display only | 0 (off) |
+| VAT rate | Percent, for the gross calculation | 19 |
 | Year | For year view | current year |
 | Target hours in export | Shows target row in Excel/PDF | false |
 | Ticket links in export | Hyperlinks in Excel/PDF | false |

@@ -92,7 +92,8 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 
 ## Features
 
-- **Jira Integration** — Worklogs per REST API abrufen (Bearer Token Auth)
+- **Jira Cloud & Data Center** — Worklogs per REST API; standardmäßig Jira Cloud (v3, Basic-Auth mit API-Token), per Schalter auch altes Jira Server/Data Center (v2, Bearer-Token)
+- **Budget-Feld automatisch ermitteln** — Findet das Budget-Custom-Field bei Jira Cloud automatisch (kein manuelles Nachschlagen der ID)
 - **Listenansicht** — Tabellarisch mit KW, Wochentag, Tagesgruppen, Soll/Ist-Stunden
 - **Suche / Filter** — Live-Filter nach Ticket-ID oder Beschreibung (`/` zum Fokussieren, Verlauf mit Dropdown)
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
@@ -102,6 +103,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
 - **Feiertage** — Deutsche Feiertage pro Bundesland, Lücken-Erkennung
 - **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
+- **MwSt konfigurierbar** — MwSt-Satz als Setting für die Netto/Brutto-Berechnung (Standard 19 %)
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
 - **Anonymisierung** — Daten per Tastendruck anonymisieren für sichere Screenshots
 - **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort
@@ -146,9 +148,11 @@ jira-timesheet --lang en
 ```
 
 Beim ersten Start `S` für Settings drücken und konfigurieren:
-- Jira Host URL
-- Bearer Token
-- E-Mail (Jira Username)
+- Jira Host URL (Cloud: die kanonische `https://deine-firma.atlassian.net`)
+- Token — Jira Cloud: ein API-Token von [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens); Data Center: ein Bearer-Token (PAT)
+- E-Mail / Login — Cloud: deine Atlassian-Login-Mail; Data Center: dein Jira-Benutzername
+- **Jira-Modus** — für Jira Cloud aus lassen, für altes Server/Data Center anhaken
+- Budget-Custom-Field — bei Cloud per **Automatisch ermitteln** befüllen lassen
 - Bundesland (Feiertage)
 
 Dann `G` zum Generieren des Stundenzettels.
@@ -180,14 +184,17 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 
 | Einstellung | Beschreibung | Default |
 |-------------|-------------|---------|
-| Jira Host | URL der Jira-Instanz | — |
-| Token | Bearer Token für Authentifizierung | — |
-| E-Mail | Jira Username | — |
+| Jira Host | URL der Jira-Instanz (Cloud: `…atlassian.net`) | — |
+| Token | API-Token (Cloud) oder Bearer-Token (Data Center) | — |
+| E-Mail | Atlassian-Login (Cloud) oder Jira-Benutzername (Data Center) | — |
+| Jira-Modus (alte API) | Aus = Jira Cloud (v3), an = Data Center (v2) | aus |
+| Budget-Custom-Field | Custom-Field-ID; Cloud unterstützt **Automatisch ermitteln** | customfield_36461 |
 | Bundesland | Für Feiertagsberechnung | SN |
 | Soll-Stunden/Tag | Arbeitsstunden pro Tag | 8.0 |
 | Max. Jahresstunden | Obergrenze für Progressbar | 1720 |
 | Urlaubstage | Für Jahres-Forecast | 30 |
 | Stundensatz | Netto, nur TUI-Anzeige | 0 (aus) |
+| MwSt-Satz | Prozent, für die Brutto-Berechnung | 19 |
 | Jahr | Für Jahresansicht | aktuelles Jahr |
 | Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
 | Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
