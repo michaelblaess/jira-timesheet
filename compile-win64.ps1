@@ -47,6 +47,10 @@ $started = Get-Date
 # --standalone        : self-contained, kein Python auf dem Zielrechner noetig
 # --remove-output     : C-/Objekt-Zwischendateien nach dem Build aufraeumen
 # --include-package-data=jira_timesheet : Datendateien (z.B. *.tcss) mitnehmen
+# --include-package=holidays : holidays laedt seine Laender-Module (z.B.
+#   holidays.countries.germany) dynamisch -> Nuitka sieht den Import nicht und
+#   bundlet holidays.countries sonst NICHT (Laufzeitfehler "No module named
+#   'holidays.countries'"). Ganzes Package erzwingen.
 # (kein --windows-console-mode: Default behaelt die Konsole - noetig fuer das TUI)
 # Nuitka als Build-Tool sicherstellen (kein Dev-Dep, wird ad-hoc installiert).
 # 'uv sync' ohne --inexact entfernt es wieder, daher: nach jedem Sync pruefen.
@@ -63,6 +67,7 @@ if ($LASTEXITCODE -ne 0) {
     --remove-output `
     --include-package=jira_timesheet `
     --include-package-data=jira_timesheet `
+    --include-package=holidays `
     --output-dir=$outDir `
     --output-filename=jira-timesheet.exe `
     --company-name="Michael Blaess" `
