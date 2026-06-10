@@ -128,6 +128,7 @@
   "about.description": "TUI application for generating timesheets from Jira worklogs.",
 
   "settings.tab_jira": "Jira",
+  "settings.tab_network": "Network",
   "settings.tab_export": "Export",
   "settings.tab_calc": "Calculation",
   "settings.host": "Jira host URL:",
@@ -142,6 +143,9 @@
   "settings.host_tip": "Base URL of the Jira instance. Cloud: https://YOUR-COMPANY.atlassian.net (canonical URL, not the custom domain).",
   "settings.token_tip": "Cloud: API token from id.atlassian.com. Data Center (legacy): personal access token (PAT).",
   "settings.email_tip": "Cloud: your Atlassian login email (for basic auth). Data Center (legacy): your Jira username.",
+  "settings.proxy_url": "Proxy URL:",
+  "settings.proxy_url_tip": "Optional HTTP proxy for the Jira connection, e.g. http://proxy.example.com:8080 (corporate proxy/Zscaler). Leave empty for a direct connection; httpx will still read the HTTP_PROXY/HTTPS_PROXY environment variables.",
+  "settings.proxy_hint": "Behind a corporate proxy (e.g. Zscaler) enter the proxy here, otherwise the connection fails with \"All connection attempts failed\". Format: http://HOST:PORT. Applies to HTTP and HTTPS.",
   "settings.budget_field_tip": "Custom field ID of the budget field (e.g. customfield_36461). On Jira Cloud you can find it via 'Auto-detect'.",
   "settings.budget_detect_tip": "Reads all custom fields from Jira and fills in the budget field automatically. Cloud mode only.",
   "settings.budget_detect": "Auto-detect",

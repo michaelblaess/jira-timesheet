@@ -38,6 +38,7 @@ class JiraClient:
         token: str,
         budget_field: str = "customfield_36461",
         legacy: bool = False,
+        proxy: str = "",
         on_log: Callable[[str], None] | None = None,
     ) -> None:
         """Initialisiert den Client.
@@ -54,6 +55,10 @@ class JiraClient:
                 Custom-Field-ID des Budget-Felds.
             legacy:
                 True = alte Data-Center-Methode (v2, Bearer, issueFunction).
+            proxy:
+                Optionale Proxy-URL (z.B. Corporate-Proxy/Zscaler,
+                "http://host:port"). Leer = kein expliziter Proxy; httpx
+                liest dann weiterhin HTTP(S)_PROXY aus der Umgebung.
             on_log:
                 Optionaler Callback fuer Log-Ausgaben.
         """
@@ -62,6 +67,7 @@ class JiraClient:
         self._token = token
         self._budget_field = budget_field
         self._legacy = legacy
+        self._proxy = proxy.strip()
         self._log = on_log or (lambda _: None)
         # Cloud-Modus: accountId des angemeldeten Benutzers (fuer Matching).
         self._account_id = ""
@@ -112,6 +118,7 @@ class JiraClient:
             timeout=60.0,
             follow_redirects=True,
             auth=auth,
+            proxy=self._proxy or None,
         ) as client:
             if not self._legacy:
                 self._account_id = await self._fetch_account_id(client)
@@ -154,6 +161,7 @@ class JiraClient:
             timeout=30.0,
             follow_redirects=True,
             auth=(self._email, self._token),
+            proxy=self._proxy or None,
         ) as client:
             response = await client.get(url, headers=self._headers())
             self._check_response(response, url)

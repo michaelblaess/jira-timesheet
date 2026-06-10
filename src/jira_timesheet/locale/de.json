@@ -128,6 +128,7 @@
   "about.description": "TUI-Anwendung zum Generieren von Stundenzetteln aus Jira Worklogs.",
 
   "settings.tab_jira": "Jira",
+  "settings.tab_network": "Netzwerk",
   "settings.tab_export": "Export",
   "settings.tab_calc": "Berechnung",
   "settings.host": "Jira Host URL:",
@@ -142,6 +143,9 @@
   "settings.host_tip": "Basis-URL der Jira-Instanz. Cloud: https://DEINE-FIRMA.atlassian.net (kanonische URL, nicht die Custom-Domain).",
   "settings.token_tip": "Cloud: API-Token von id.atlassian.com. Data Center (Legacy): persönliches Bearer-Token (PAT).",
   "settings.email_tip": "Cloud: deine Atlassian-Login-Mail (für Basic-Auth). Data Center (Legacy): dein Jira-Benutzername.",
+  "settings.proxy_url": "Proxy-URL:",
+  "settings.proxy_url_tip": "Optionaler HTTP-Proxy für die Jira-Verbindung, z.B. http://proxy.example.com:8080 (Corporate-Proxy/Zscaler). Leer lassen für Direktverbindung; httpx liest dann weiterhin die Umgebungsvariablen HTTP_PROXY/HTTPS_PROXY.",
+  "settings.proxy_hint": "Hinter einem Firmen-Proxy (z.B. Zscaler) hier den Proxy eintragen, sonst schlägt die Verbindung mit \"All connection attempts failed\" fehl. Format: http://HOST:PORT. Gilt für HTTP und HTTPS.",
   "settings.budget_field_tip": "Custom-Field-ID des Budget-Felds (z.B. customfield_36461). Bei Jira Cloud per 'Automatisch ermitteln' findbar.",
   "settings.budget_detect_tip": "Liest alle Custom-Felder aus Jira und trägt das Budget-Feld automatisch ein. Nur im Cloud-Modus verfügbar.",
   "settings.budget_detect": "Automatisch ermitteln",
