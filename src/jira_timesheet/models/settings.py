@@ -55,6 +55,7 @@ class Settings:
     jira_token: str = ""
     email: str = ""
     use_legacy_api: bool = False
+    proxy_url: str = ""
     logo_path: str = ""
     last_date_from: str = ""
     last_date_to: str = ""
@@ -82,6 +83,7 @@ class Settings:
         "jira_token",
         "email",
         "use_legacy_api",
+        "proxy_url",
         "logo_path",
         "last_date_from",
         "last_date_to",
@@ -127,6 +129,7 @@ class Settings:
                 jira_token=data.get("jira_token", ""),
                 email=data.get("email", ""),
                 use_legacy_api=bool(data.get("use_legacy_api", False)),
+                proxy_url=data.get("proxy_url", ""),
                 logo_path=data.get("logo_path", ""),
                 last_date_from=data.get("last_date_from", ""),
                 last_date_to=data.get("last_date_to", ""),
