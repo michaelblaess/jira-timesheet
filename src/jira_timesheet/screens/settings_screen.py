@@ -40,6 +40,13 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         margin-bottom: 1;
     }
 
+    SettingsScreen .hint {
+        color: $text-muted;
+        padding: 1 1;
+        margin-top: 1;
+        border: round $surface-lighten-2;
+    }
+
     SettingsScreen .label-with-icon {
         width: 26;
         height: 1;
@@ -110,6 +117,14 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                     id="set-use-legacy-api",
                 )
 
+        with TabPane(t("settings.tab_network"), id="settings-tab-network"), VerticalScroll():
+            yield from self._text_row(
+                "settings.proxy_url", "set-proxy-url", "proxy_url",
+                "http://proxy.example.com:8080",
+                tooltip_key="settings.proxy_url_tip",
+            )
+            yield Static(t("settings.proxy_hint"), classes="hint")
+
         with TabPane(t("settings.tab_export"), id="settings-tab-export"), VerticalScroll():
             yield from self._text_row("settings.logo", "set-logo", "logo_path", "")
             yield Checkbox(
@@ -170,13 +185,14 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         host = self.query_one("#set-host", Input).value.strip()
         email = self.query_one("#set-email", Input).value.strip()
         token = self.query_one("#set-token", Input).value.strip()
+        proxy = self.query_one("#set-proxy-url", Input).value.strip()
 
         if not host or not email or not token:
             self.notify(t("settings.budget_detect_need_creds"), severity="warning")
             return
 
         self.notify(t("settings.budget_detect_running"))
-        client = JiraClient(host=host, email=email, token=token, legacy=False)
+        client = JiraClient(host=host, email=email, token=token, legacy=False, proxy=proxy)
 
         try:
             matches = await client.detect_budget_field("budget")
@@ -266,6 +282,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         settings["email"] = self.query_one("#set-email", Input).value.strip()
         settings["budget_field"] = self.query_one("#set-budget-field", Input).value.strip()
         settings["use_legacy_api"] = self.query_one("#set-use-legacy-api", Checkbox).value
+        settings["proxy_url"] = self.query_one("#set-proxy-url", Input).value.strip()
         settings["logo_path"] = self.query_one("#set-logo", Input).value.strip()
 
         settings["show_target_hours_in_export"] = self.query_one("#set-target-export", Checkbox).value

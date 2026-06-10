@@ -295,6 +295,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 token=self._settings.jira_token,
                 budget_field=self._settings.budget_field,
                 legacy=self._settings.use_legacy_api,
+                proxy=self._settings.proxy_url,
                 on_log=self._write_log,
             )
 
