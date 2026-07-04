@@ -824,8 +824,8 @@ wheels = [
 
 [[package]]
 name = "textual-themes"
-version = "0.9.0"
-source = { git = "https://github.com/michaelblaess/textual-themes.git#ee627a08d498694f4641e03233eb6df6ea468818" }
+version = "0.10.0"
+source = { git = "https://github.com/michaelblaess/textual-themes.git#ef3db08dba9f8375e82770edaf412a1f8796c330" }
 dependencies = [
     { name = "textual" },
     { name = "textual-widgets" },
@@ -833,8 +833,8 @@ dependencies = [
 
 [[package]]
 name = "textual-widgets"
-version = "0.25.1"
-source = { git = "https://github.com/michaelblaess/textual-widgets.git#23b84cd543ee5e84cab3e6a5d5e81092f6d39eaf" }
+version = "0.26.2"
+source = { git = "https://github.com/michaelblaess/textual-widgets.git#5f79c2d70e320ad9bc85d247c6ec8d2c2db0de56" }
 dependencies = [
     { name = "rich" },
     { name = "textual" },
