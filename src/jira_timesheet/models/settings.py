@@ -4,10 +4,54 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from jira_timesheet.models.export_column import ExportColumn, default_columns, parse_columns
+
 logger = logging.getLogger(__name__)
+
+# Markierungsfarbe manueller Eintraege als RRGGBB (ohne fuehrendes #).
+DEFAULT_MANUAL_COLOR = "FF0000"
+
+# Vorbelegte Kundenliste - der Benutzer pflegt sie in den Einstellungen.
+DEFAULT_CUSTOMERS = ("Vertrieb", "Corporate")
+
+_HEX_COLOR = re.compile(r"^[0-9A-Fa-f]{6}$")
+_RGB_TRIPLE = re.compile(r"^(\d{1,3})\s*[,;/ ]\s*(\d{1,3})\s*[,;/ ]\s*(\d{1,3})$")
+
+
+def normalize_color(value: str, fallback: str = DEFAULT_MANUAL_COLOR) -> str:
+    """Normalisiert eine Farbeingabe auf RRGGBB (Grossbuchstaben).
+
+    Akzeptiert "#RRGGBB", "RRGGBB", die Kurzform "#RGB" sowie ein
+    RGB-Tripel wie "255,0,0". Bei ungueltiger Eingabe kommt der Fallback
+    zurueck - eine kaputte Farbe darf den Export nie sprengen.
+
+    Args:
+        value:
+            Die Benutzereingabe.
+        fallback:
+            Rueckgabewert bei ungueltiger Eingabe.
+
+    Returns:
+        Farbe als sechsstelliger Hex-String ohne fuehrendes Doppelkreuz.
+    """
+    raw = (value or "").strip().lstrip("#").strip()
+    if _HEX_COLOR.match(raw):
+        return raw.upper()
+
+    if len(raw) == 3 and _HEX_COLOR.match(raw * 2):
+        return "".join(ch * 2 for ch in raw).upper()
+
+    match = _RGB_TRIPLE.match(raw)
+    if match is not None:
+        parts = [int(g) for g in match.groups()]
+        if all(0 <= p <= 255 for p in parts):
+            return "".join(f"{p:02X}" for p in parts)
+
+    return fallback
 
 
 # textual-themes 0.5 hat 25 Themes umbenannt (trademark-safety pass).
@@ -72,6 +116,15 @@ class Settings:
     vacation_days: int = 30
     config_collapsed: bool = False
     search_history: list[str] = field(default_factory=list)
+    # Manuell gezogene Spaltenbreiten der Liste, Schluessel ist der Spaltenindex.
+    column_widths: dict[str, int] = field(default_factory=dict)
+    # Konfiguration der Export-Spalten (aktiv + Bezeichnung).
+    export_columns: list[ExportColumn] = field(default_factory=default_columns)
+    mark_manual_entries: bool = True
+    manual_entry_color: str = DEFAULT_MANUAL_COLOR
+    default_customer: str = "Vertrieb"
+    # Auswahlliste fuer das Kunden-Feld im Dialog fuer manuelle Zeiten.
+    customers: list[str] = field(default_factory=lambda: list(DEFAULT_CUSTOMERS))
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -100,11 +153,20 @@ class Settings:
         "vacation_days",
         "config_collapsed",
         "search_history",
+        "column_widths",
+        "export_columns",
+        "mark_manual_entries",
+        "manual_entry_color",
+        "default_customer",
+        "customers",
     )
 
     def to_dict(self) -> dict[str, object]:
         """Konvertiert die Einstellungen in ein Dictionary fuer JSON."""
-        return {field: getattr(self, field) for field in self._FIELDS}
+        data: dict[str, object] = {name: getattr(self, name) for name in self._FIELDS}
+        # Spalten sind Dataclasses - fuer JSON in Dicts wandeln.
+        data["export_columns"] = [column.to_dict() for column in self.export_columns]
+        return data
 
     @staticmethod
     def load() -> Settings:
@@ -146,6 +208,12 @@ class Settings:
                 vacation_days=data.get("vacation_days", 30),
                 config_collapsed=data.get("config_collapsed", False),
                 search_history=[str(x) for x in data.get("search_history", []) if isinstance(x, str)],
+                column_widths=Settings._parse_column_widths(data.get("column_widths")),
+                export_columns=parse_columns(data.get("export_columns")),
+                mark_manual_entries=bool(data.get("mark_manual_entries", True)),
+                manual_entry_color=normalize_color(str(data.get("manual_entry_color", DEFAULT_MANUAL_COLOR))),
+                default_customer=str(data.get("default_customer", "Vertrieb")),
+                customers=Settings._parse_customers(data.get("customers")),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
@@ -157,6 +225,21 @@ class Settings:
             settings.save()
 
         return settings
+
+    @staticmethod
+    def _parse_customers(raw: object) -> list[str]:
+        """Liest die Kundenliste defensiv; leere Eintraege fliegen raus."""
+        if not isinstance(raw, list):
+            return list(DEFAULT_CUSTOMERS)
+        names = [str(item).strip() for item in raw if str(item).strip()]
+        return names or list(DEFAULT_CUSTOMERS)
+
+    @staticmethod
+    def _parse_column_widths(raw: object) -> dict[str, int]:
+        """Liest die gespeicherten Spaltenbreiten defensiv aus dem JSON."""
+        if not isinstance(raw, dict):
+            return {}
+        return {str(key): int(value) for key, value in raw.items() if isinstance(value, int) and value > 0}
 
     def save(self) -> None:
         """Speichert die Einstellungen in die JSON-Datei."""
