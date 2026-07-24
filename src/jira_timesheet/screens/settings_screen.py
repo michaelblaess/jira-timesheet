@@ -13,10 +13,17 @@ from textual.widgets import Button, Checkbox, Input, Label, Select, Static, TabP
 from textual_widgets import BaseSettingsScreen
 
 from jira_timesheet.i18n import t
-from jira_timesheet.models.settings import Settings
+from jira_timesheet.models.export_column import COLUMN_DEFAULTS, ExportColumn, default_label, parse_columns
+from jira_timesheet.models.settings import (
+    DEFAULT_CUSTOMERS,
+    DEFAULT_MANUAL_COLOR,
+    Settings,
+    normalize_color,
+)
 from jira_timesheet.services.cache_service import CACHE_DIR
 from jira_timesheet.services.holiday_service import FEDERAL_STATES
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
+from jira_timesheet.services.manual_entry_service import DB_FILE
 
 # Bundesland-Auswahl, alphabetisch nach Anzeigename sortiert.
 _STATE_OPTIONS = [(f"{name} ({code})", code) for code, name in sorted(FEDERAL_STATES.items(), key=lambda x: x[1])]
@@ -70,6 +77,28 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         background: cyan 30%;
     }
 
+    /* 9 Zellen sind das Minimum, in dem Textual "|X|" ungekuerzt rendert -
+       darunter kuerzt es auf "…" (empirisch gemessen). */
+    SettingsScreen .column-row Checkbox {
+        width: 9;
+        margin-bottom: 0;
+    }
+
+    SettingsScreen .column-row Input {
+        width: 1fr;
+    }
+
+    SettingsScreen .column-head {
+        height: 1;
+        margin-top: 1;
+    }
+
+    SettingsScreen .column-head-cell {
+        width: 9;
+        color: $text-muted;
+        text-style: bold;
+    }
+
     SettingsScreen #budget-row Input {
         width: 1fr;
     }
@@ -85,15 +114,25 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         """Erstellt die app-spezifischen Tabs."""
         with TabPane(t("settings.tab_jira"), id="settings-tab-jira"), VerticalScroll():
             yield from self._text_row(
-                "settings.host", "set-host", "jira_host", "https://jira.example.com",
+                "settings.host",
+                "set-host",
+                "jira_host",
+                "https://jira.example.com",
                 tooltip_key="settings.host_tip",
             )
             yield from self._text_row(
-                "settings.token", "set-token", "jira_token", "Token", password=True,
+                "settings.token",
+                "set-token",
+                "jira_token",
+                "Token",
+                password=True,
                 tooltip_key="settings.token_tip",
             )
             yield from self._text_row(
-                "settings.email", "set-email", "email", "user@example.com",
+                "settings.email",
+                "set-email",
+                "email",
+                "user@example.com",
                 tooltip_key="settings.email_tip",
             )
             legacy_on = bool(self._settings.get("use_legacy_api", False))
@@ -119,7 +158,9 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
         with TabPane(t("settings.tab_network"), id="settings-tab-network"), VerticalScroll():
             yield from self._text_row(
-                "settings.proxy_url", "set-proxy-url", "proxy_url",
+                "settings.proxy_url",
+                "set-proxy-url",
+                "proxy_url",
                 "http://proxy.example.com:8080",
                 tooltip_key="settings.proxy_url_tip",
             )
@@ -137,6 +178,49 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 value=bool(self._settings.get("show_ticket_links_in_export", False)),
                 id="set-ticket-links-export",
             )
+            yield from self._text_row(
+                "settings.default_customer",
+                "set-default-customer",
+                "default_customer",
+                "Vertrieb",
+                tooltip_key="settings.default_customer_tip",
+            )
+            with Horizontal(classes="settings-row"):
+                yield from self._label_with_icon(t("settings.customers"), t("settings.customers_tip"))
+                yield Input(
+                    value=", ".join(self._customer_list()),
+                    placeholder="Vertrieb, Corporate",
+                    id="set-customers",
+                )
+            yield Checkbox(
+                t("settings.mark_manual"),
+                value=bool(self._settings.get("mark_manual_entries", True)),
+                id="set-mark-manual",
+            )
+            yield from self._text_row(
+                "settings.manual_color",
+                "set-manual-color",
+                "manual_entry_color",
+                DEFAULT_MANUAL_COLOR,
+                tooltip_key="settings.manual_color_tip",
+            )
+            yield Static(t("settings.manual_color_hint"), classes="hint")
+
+        with TabPane(t("settings.tab_columns"), id="settings-tab-columns"), VerticalScroll():
+            yield Static(t("settings.columns_hint"), classes="hint")
+            with Horizontal(classes="column-row column-head"):
+                yield Static(t("settings.col_visible"), classes="column-head-cell")
+                yield Static(t("settings.col_export"), classes="column-head-cell")
+                yield Static(t("settings.col_label"))
+            for index, column in enumerate(parse_columns(self._settings.get("export_columns"))):
+                with Horizontal(classes="settings-row column-row"):
+                    yield Checkbox("", value=column.visible, id=f"set-col-visible-{index}")
+                    yield Checkbox("", value=column.enabled, id=f"set-col-enabled-{index}")
+                    yield Input(
+                        value=column.label,
+                        placeholder=default_label(column.key),
+                        id=f"set-col-label-{index}",
+                    )
 
         with TabPane(t("settings.tab_calc"), id="settings-tab-calc"), VerticalScroll():
             with Horizontal(classes="settings-row"):
@@ -150,11 +234,17 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             yield from self._text_row("settings.hours_per_day", "set-hours-per-day", "hours_per_day", "8.0")
             yield from self._text_row("settings.max_yearly", "set-max-yearly", "max_yearly_hours", "1720.0")
             yield from self._text_row(
-                "settings.hourly_rate", "set-hourly-rate", "hourly_rate", "0",
+                "settings.hourly_rate",
+                "set-hourly-rate",
+                "hourly_rate",
+                "0",
                 tooltip_key="settings.hourly_rate_tip",
             )
             yield from self._text_row(
-                "settings.vat_rate", "set-vat-rate", "vat_rate", "19",
+                "settings.vat_rate",
+                "set-vat-rate",
+                "vat_rate",
+                "19",
                 tooltip_key="settings.vat_rate_tip",
             )
             year_value = self._settings.get("year", 0)
@@ -273,6 +363,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         return [
             (t("settings.storage.config"), Settings.SETTINGS_FILE),
             (t("settings.storage.cache"), CACHE_DIR),
+            (t("settings.storage.manual_db"), DB_FILE),
         ]
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
@@ -287,6 +378,11 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
         settings["show_target_hours_in_export"] = self.query_one("#set-target-export", Checkbox).value
         settings["show_ticket_links_in_export"] = self.query_one("#set-ticket-links-export", Checkbox).value
+        settings["default_customer"] = self.query_one("#set-default-customer", Input).value.strip()
+        settings["customers"] = self._collect_customers()
+        settings["mark_manual_entries"] = self.query_one("#set-mark-manual", Checkbox).value
+        settings["manual_entry_color"] = normalize_color(self.query_one("#set-manual-color", Input).value)
+        settings["export_columns"] = self._collect_columns()
 
         state_value = self.query_one("#set-federal-state", Select).value
         if isinstance(state_value, str):
@@ -309,6 +405,42 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
         with contextlib.suppress(ValueError):
             settings["vacation_days"] = int(self.query_one("#set-vacation-days", Input).value.strip())
+
+    def _customer_list(self) -> list[str]:
+        """Kundenliste aus dem Settings-Dict, defensiv gelesen."""
+        raw = self._settings.get("customers")
+        if not isinstance(raw, list):
+            return list(DEFAULT_CUSTOMERS)
+        names = [str(item).strip() for item in raw if str(item).strip()]
+        return names or list(DEFAULT_CUSTOMERS)
+
+    def _collect_customers(self) -> list[str]:
+        """Zerlegt die kommagetrennte Eingabe; Duplikate und Leeres fliegen raus."""
+        raw = self.query_one("#set-customers", Input).value
+        names: list[str] = []
+        for part in raw.split(","):
+            name = part.strip()
+            if name and name not in names:
+                names.append(name)
+        return names or list(DEFAULT_CUSTOMERS)
+
+    def _collect_columns(self) -> list[dict[str, object]]:
+        """Liest die Spaltenkonfiguration aus den Checkboxen und Textfeldern.
+
+        Ein leer gelassenes Textfeld faellt auf die Standard-Bezeichnung
+        zurueck - eine namenlose Spalte waere im Export unbrauchbar.
+        """
+        columns: list[dict[str, object]] = []
+        for index, definition in enumerate(COLUMN_DEFAULTS):
+            enabled = True
+            visible = True
+            label = definition.label
+            with contextlib.suppress(Exception):
+                enabled = self.query_one(f"#set-col-enabled-{index}", Checkbox).value
+                visible = self.query_one(f"#set-col-visible-{index}", Checkbox).value
+                label = self.query_one(f"#set-col-label-{index}", Input).value.strip() or definition.label
+            columns.append(ExportColumn(key=definition.key, label=label, enabled=enabled, visible=visible).to_dict())
+        return columns
 
     @staticmethod
     def _is_float(value: str) -> bool:

@@ -8,6 +8,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from jira_timesheet.i18n import format_eur, format_number, t
+from jira_timesheet.models.settings import DEFAULT_MANUAL_COLOR
 from jira_timesheet.models.timesheet import Timesheet
 
 # Maske fuer zensierte Geldbetraege im Anonymisierungs-Modus (Screenshots).
@@ -41,6 +42,9 @@ class SummaryPanel(Static):
         self._vat_rate: float = 19.0
         # Anonymisierungs-Modus: zensiert Geldbetraege fuer Screenshots.
         self._anonymized: bool = False
+        # Markierung des manuellen Anteils - gleiche Einstellung wie die Tabelle.
+        self._mark_manual: bool = True
+        self._manual_color: str = DEFAULT_MANUAL_COLOR
 
     def on_mount(self) -> None:
         """Setzt den initialen Hinweistext."""
@@ -74,6 +78,16 @@ class SummaryPanel(Static):
         self._hourly_rate = 0.0
         self._redraw()
 
+    def set_manual_marking(self, enabled: bool, color: str) -> None:
+        """Uebernimmt die Markierungs-Einstellungen fuer den manuellen Anteil."""
+        self._mark_manual = enabled
+        self._manual_color = color
+        self._redraw()
+
+    def _manual_style(self) -> str:
+        """Rich-Style fuer den manuellen Stundenanteil."""
+        return f"bold #{self._manual_color}" if self._mark_manual else "bold"
+
     def _redraw(self) -> None:
         """Baut den aktuellen Inhalt und schreibt ihn ins Widget.
 
@@ -99,6 +113,14 @@ class SummaryPanel(Static):
         text.append(sep, style="dim")
         text.append(f"{t('summary.actual')}: ", style="dim")
         text.append(f"{format_number(ts.total_hours)}h", style="bold")
+
+        # Manueller Anteil nur zeigen, wenn es welchen gibt - sonst bliebe eine
+        # "0,00h"-Zelle stehen, die nichts aussagt.
+        manual_hours = sum(e.hours for e in ts.all_entries if e.manual)
+        if manual_hours > 0:
+            text.append(sep, style="dim")
+            text.append(f"{t('summary.manual')}: ", style="dim")
+            text.append(f"{format_number(manual_hours)}h", style=self._manual_style())
 
         if self._target_hours > 0:
             text.append(sep, style="dim")

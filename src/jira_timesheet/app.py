@@ -6,6 +6,7 @@ import contextlib
 import dataclasses
 import re
 import time
+import webbrowser
 from collections.abc import Callable
 from datetime import date, timedelta
 from pathlib import Path
@@ -18,6 +19,8 @@ from textual.widgets import DataTable, Footer, Header, TabbedContent, TabPane
 from textual_widgets import (
     AboutScreen,
     ClickableLinksMixin,
+    ContextMenuItem,
+    ContextMenuScreen,
     CrashGuard,
     HorizontalSplitter,
     LogPanel,
@@ -26,12 +29,15 @@ from textual_widgets import (
 
 from jira_timesheet import __author__, __version__, __year__
 from jira_timesheet.i18n import current_language, format_number, t
-from jira_timesheet.models.settings import Settings
+from jira_timesheet.models.export_column import parse_columns
+from jira_timesheet.models.settings import Settings, normalize_color
 from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
+from jira_timesheet.screens.manual_entry_screen import ManualEntryResult
 from jira_timesheet.services.anonymizer import FAKE_EMAIL, FAKE_HOST
 from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
+from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
 from jira_timesheet.services.timesheet_service import TimesheetService
 from jira_timesheet.widgets.calendar_view import CalendarView
 from jira_timesheet.widgets.config_panel import ConfigPanel
@@ -78,6 +84,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._attention_on = False
         # Zuletzt im Speichern-Dialog gewaehltes Verzeichnis (Default: Desktop).
         self._last_export_dir = str(Path.home() / "Desktop")
+        # Manuell erfasste Zeiten (SQLite) - bewusst getrennt vom Jira-Cache,
+        # der ausschliesslich abbildet was Jira geliefert hat.
+        self._manual_entries = ManualEntryService()
+        # Id des Eintrags, fuer den gerade die Loesch-Rueckfrage offen ist.
+        self._pending_delete_id = 0
+        # Kontext der Zeile, auf der das Kontextmenue geoeffnet wurde.
+        self._menu_entry: WorklogEntry | None = None
+        self._menu_date: date | None = None
 
         # Runtime-Bindings mit uebersetzten Labels - class-level BINDINGS
         # koennen kein t() nutzen. Buchstaben-Bindings case-insensitive.
@@ -100,6 +114,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
         self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
         self._bindings.bind("t,T", "cycle_theme", t("binding.theme"), key_display="t")
+        self._bindings.bind("m,M", "manual_entry", t("binding.manual_entry"), key_display="m")
+        # Loeschen bewusst auf DEL statt auf einen Buchstaben - destruktiv.
+        self._bindings.bind("delete", "delete_manual", t("binding.delete_manual"), key_display="DEL")
         # Monat-Navigation ist als Klick-Pfeile im ConfigPanel sichtbar -
         # Tastatur-Shortcut bleibt funktional, im Footer aber ausgeblendet.
         self._bindings.bind("comma", "prev_month", t("binding.month"), key_display="<", show=False)
@@ -130,6 +147,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             "reset_cache": t("tooltip.reset_cache"),
             "toggle_log": t("tooltip.toggle_log"),
             "cycle_theme": t("tooltip.theme"),
+            "manual_entry": t("tooltip.manual_entry"),
+            "delete_manual": t("tooltip.delete_manual"),
         }
         for key, bindings_list in self._bindings.key_to_bindings.items():
             for i, binding in enumerate(bindings_list):
@@ -147,6 +166,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     hours_per_day=self._settings.hours_per_day,
                     jira_host=self._settings.jira_host,
                     search_history=self._settings.search_history,
+                    column_widths=self._settings.column_widths,
+                    mark_manual=self._settings.mark_manual_entries,
+                    manual_color=self._settings.manual_entry_color,
+                    columns=self._settings.export_columns,
+                    default_customer=self._settings.default_customer,
                     id="timesheet-table",
                 )
             with TabPane(t("tab.calendar"), id="tab-calendar"):
@@ -312,7 +336,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 )
                 CacheService.save(m_year, m_month, self._settings.email, entries)
 
+            # Manuelle Zeiten NACH dem Cache dazumischen - sie duerfen nie in
+            # den Jira-Cache geraten, sonst wuerden sie beim naechsten Abgleich
+            # ueberschrieben bzw. beim Refresh doppelt gezaehlt.
             developer = entries[0].author if entries else self._settings.email
+            manual = self._manual_entries.worklogs_between(
+                config.date_from,
+                config.date_to,
+                author=developer,
+            )
+            if manual:
+                entries = entries + manual
+                self._write_log(t("log.manual_merged", count=len(manual)))
+
             self._timesheet = TimesheetService.build_timesheet(
                 entries=entries,
                 developer=developer,
@@ -456,6 +492,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
                 show_ticket_links=self._settings.show_ticket_links_in_export,
+                columns=self._settings.export_columns,
+                default_customer=self._settings.default_customer,
+                mark_manual=self._settings.mark_manual_entries,
+                manual_color=self._settings.manual_entry_color,
             )
             path = exporter.export(
                 self._timesheet,
@@ -482,6 +522,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 logo_path=self._settings.logo_path,
                 jira_host=self._settings.jira_host,
                 hours_per_day=self._settings.hours_per_day,
+                columns=self._settings.export_columns,
+                default_customer=self._settings.default_customer,
+                mark_manual=self._settings.mark_manual_entries,
+                manual_color=self._settings.manual_entry_color,
             )
             path = exporter.export(
                 self._timesheet,
@@ -511,12 +555,37 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return
 
         for key, value in new_settings.items():
-            if hasattr(self._settings, key):
+            if not hasattr(self._settings, key):
+                continue
+            # Der Dialog liefert Spalten als Dicts zurueck (JSON-Form) und die
+            # Farbe als Rohtext - beides hier in die typisierte Form bringen.
+            if key == "export_columns":
+                self._settings.export_columns = parse_columns(value)
+            elif key == "manual_entry_color":
+                self._settings.manual_entry_color = normalize_color(str(value))
+            else:
                 setattr(self._settings, key, value)
         self._settings.save()
 
         config = self.query_one("#config-panel", ConfigPanel)
         config.refresh_display()
+        self._apply_manual_marking()
+
+    def _apply_manual_marking(self) -> None:
+        """Uebernimmt geaenderte Anzeige-Einstellungen in Tabelle und Kennzahlen."""
+        with contextlib.suppress(Exception):
+            table = self.query_one("#timesheet-table", TimesheetTable)
+            table.set_manual_marking(
+                self._settings.mark_manual_entries,
+                self._settings.manual_entry_color,
+            )
+            table.set_default_customer(self._settings.default_customer)
+            table.set_columns(self._settings.export_columns)
+        with contextlib.suppress(Exception):
+            self.query_one("#summary-panel", SummaryPanel).set_manual_marking(
+                self._settings.mark_manual_entries,
+                self._settings.manual_entry_color,
+            )
 
     def action_copy_log(self) -> None:
         """Kopiert den Log-Inhalt in die Zwischenablage."""
@@ -555,15 +624,203 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         try:
             table_widget = self.query_one("#timesheet-table", TimesheetTable)
-            dt = table_widget.query_one("#timesheet-data", DataTable)
-            row_idx = dt.cursor_row
-            if row_idx is None or row_idx < 0 or row_idx >= len(dt.ordered_rows):
-                return
-            row = dt.ordered_rows[row_idx]
-            entry = table_widget._row_entries.get(str(row.key.value))
-            self._show_entry_details(entry)
+            self._show_entry_details(table_widget.current_entry())
         except Exception as exc:
             self._write_log(t("log.details_error", error=exc))
+
+    # --- Manuelle Zeiterfassung -------------------------------------
+
+    def action_manual_entry(self) -> None:
+        """Legt einen manuellen Eintrag an bzw. bearbeitet den unter dem Cursor."""
+
+        if self._active_tab() == "tab-calendar":
+            return
+
+        existing: ManualEntry | None = None
+        default_date = self._config_panel_date_from()
+        entry = self._cursor_entry()
+        if entry is not None:
+            default_date = entry.date
+            if entry.manual and entry.manual_id > 0:
+                existing = self._manual_entries.get(entry.manual_id)
+
+        self._open_manual_dialog(existing=existing, default_date=default_date)
+
+    def _open_manual_dialog(self, existing: ManualEntry | None, default_date: date | None) -> None:
+        """Oeffnet den Dialog fuer manuelle Zeiten."""
+        from jira_timesheet.screens.manual_entry_screen import ManualEntryScreen
+
+        self.push_screen(
+            ManualEntryScreen(
+                entry=existing,
+                default_date=default_date or self._config_panel_date_from(),
+                default_customer=self._settings.default_customer,
+                customers=self._customer_options(),
+            ),
+            callback=self._on_manual_entry_saved,
+        )
+
+    def _customer_options(self) -> list[str]:
+        """Kundenliste aus den Einstellungen plus bereits benutzte Werte.
+
+        So taucht ein Kunde, der irgendwann einmal erfasst wurde, weiter in der
+        Auswahl auf - auch wenn er aus der Einstellungsliste geflogen ist.
+        """
+        options = [name for name in self._settings.customers if name]
+        for name in [self._settings.default_customer, *self._manual_entries.distinct_customers()]:
+            if name and name not in options:
+                options.append(name)
+        return options
+
+    def _on_manual_entry_saved(self, result: ManualEntryResult | None) -> None:
+        """Speichert das Ergebnis des Dialogs und laedt den Stundenzettel neu."""
+        if result is None:
+            return
+
+        # Loeschen aus dem Dialog laeuft ueber dieselbe Rueckfrage wie ENTF.
+        if result.delete:
+            self._confirm_delete_manual(result.entry.entry_id, result.entry)
+            return
+
+        entry = result.entry
+        if entry.entry_id > 0:
+            saved = self._manual_entries.update(entry)
+            message = t("log.manual_updated", ticket=entry.ticket or entry.summary)
+        else:
+            saved = self._manual_entries.add(entry) > 0
+            message = t("log.manual_added", ticket=entry.ticket or entry.summary)
+
+        if not saved:
+            self.notify(t("notify.manual_save_error"), severity="error")
+            return
+
+        self._write_log(message)
+        self.notify(message)
+        self._reload_after_manual_change()
+
+    def action_delete_manual(self) -> None:
+        """Fragt nach und loescht dann den manuellen Eintrag unter dem Cursor."""
+        entry = self._cursor_entry()
+        if entry is None or not entry.manual or entry.manual_id <= 0:
+            self.notify(t("notify.manual_select_first"), severity="warning")
+            return
+
+        self._confirm_delete_manual(entry.manual_id, entry)
+
+    def _confirm_delete_manual(self, entry_id: int, entry: WorklogEntry | ManualEntry) -> None:
+        """Stellt die Rueckfrage vor dem Loeschen eines manuellen Eintrags.
+
+        Args:
+            entry_id:
+                Id des zu loeschenden Datensatzes.
+            entry:
+                Der Eintrag - fuer die Beschriftung der Rueckfrage. Kann aus der
+                Tabelle (WorklogEntry) oder aus dem Dialog (ManualEntry) kommen.
+        """
+        from jira_timesheet.screens.confirm_screen import ConfirmScreen
+
+        if entry_id <= 0:
+            return
+        when = entry.date if isinstance(entry, WorklogEntry) else entry.entry_date
+        # Loeschen ist nicht umkehrbar - vorher nachfragen.
+        self._pending_delete_id = entry_id
+        self.push_screen(
+            ConfirmScreen(
+                t(
+                    "confirm.delete_manual",
+                    ticket=entry.ticket or entry.summary,
+                    entry_date=f"{when:%d.%m.%Y}",
+                    hours=format_number(entry.hours),
+                )
+            ),
+            callback=self._on_delete_confirmed,
+        )
+
+    def _on_delete_confirmed(self, confirmed: bool | None) -> None:
+        """Callback der Rueckfrage: loescht nur bei ausdruecklicher Zustimmung."""
+        entry_id = self._pending_delete_id
+        self._pending_delete_id = 0
+        if not confirmed or entry_id <= 0:
+            return
+
+        entry = self._manual_entries.get(entry_id)
+        if entry is None or not self._manual_entries.delete(entry_id):
+            self.notify(t("notify.manual_delete_error"), severity="error")
+            return
+
+        message = t("log.manual_deleted", ticket=entry.ticket or entry.summary)
+        self._write_log(message)
+        self.notify(message)
+        self._reload_after_manual_change()
+
+    def on_timesheet_table_row_right_clicked(self, event: TimesheetTable.RowRightClicked) -> None:
+        """Oeffnet das Kontextmenue der Liste an der Mausposition."""
+        entry = event.entry
+        is_manual = entry is not None and entry.manual and entry.manual_id > 0
+        has_ticket = entry is not None and bool(entry.ticket)
+
+        # Struktur bleibt stabil, nicht anwendbare Eintraege werden ausgegraut -
+        # so sitzen die Punkte immer an derselben Stelle.
+        items = [
+            ContextMenuItem("details", t("menu.details"), enabled=entry is not None),
+            ContextMenuItem(
+                "open_ticket",
+                t("menu.open_ticket"),
+                enabled=has_ticket and bool(self._settings.jira_host) and not self._anonymized,
+            ),
+            ContextMenuItem.separator(),
+            ContextMenuItem("manual_new", t("menu.manual_new"), enabled=event.entry_date is not None),
+            ContextMenuItem("manual_edit", t("menu.manual_edit"), enabled=is_manual),
+            ContextMenuItem("manual_delete", t("menu.manual_delete"), enabled=is_manual),
+        ]
+
+        self._menu_entry = entry
+        self._menu_date = event.entry_date
+        self.push_screen(
+            ContextMenuScreen(items, at=(event.screen_x, event.screen_y)),
+            callback=self._on_context_menu,
+        )
+
+    def _on_context_menu(self, action: str | None) -> None:
+        """Fuehrt die im Kontextmenue gewaehlte Aktion aus."""
+        entry = self._menu_entry
+        entry_date = self._menu_date
+        self._menu_entry = None
+        self._menu_date = None
+
+        if action == "details":
+            self._show_entry_details(entry)
+        elif action == "open_ticket" and entry is not None and entry.ticket:
+            host = self._settings.jira_host.rstrip("/")
+            with contextlib.suppress(Exception):
+                webbrowser.open(f"{host}/browse/{entry.ticket}")
+        elif action == "manual_new":
+            self._open_manual_dialog(existing=None, default_date=entry_date)
+        elif action == "manual_edit" and entry is not None:
+            self._open_manual_dialog(existing=self._manual_entries.get(entry.manual_id), default_date=entry.date)
+        elif action == "manual_delete" and entry is not None:
+            self._confirm_delete_manual(entry.manual_id, entry)
+
+    def _cursor_entry(self) -> WorklogEntry | None:
+        """Eintrag unter dem Tabellen-Cursor, None wenn es keinen gibt."""
+        try:
+            return self.query_one("#timesheet-table", TimesheetTable).current_entry()
+        except Exception:
+            return None
+
+    def _config_panel_date_from(self) -> date:
+        """Startdatum des eingestellten Zeitraums, als Vorbelegung im Dialog."""
+        with contextlib.suppress(Exception):
+            return self.query_one("#config-panel", ConfigPanel).date_from
+        return date.today()
+
+    def _reload_after_manual_change(self) -> None:
+        """Baut den Stundenzettel nach einer Aenderung neu auf (aus dem Cache)."""
+        if self._timesheet is None:
+            return
+        # force_refresh=False: die Jira-Daten liegen im Cache, nur der Merge
+        # mit den manuellen Zeiten muss neu laufen - kein Netzabruf noetig.
+        self._generate(force_refresh=False)
 
     def _show_entry_details(self, entry: WorklogEntry | None) -> None:
         """Zeigt Details eines Worklog-Eintrags als Modal."""
@@ -598,6 +855,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 token=self._settings.jira_token,
                 budget_field=self._settings.budget_field,
                 legacy=self._settings.use_legacy_api,
+                # Ohne Proxy scheitert hinter einem Corporate-Proxy jeder Monat,
+                # der noch nicht im Cache liegt ("All connection attempts failed").
+                proxy=self._settings.proxy_url,
+                on_log=self._write_log,
             )
 
             cached_count = 0
@@ -636,11 +897,17 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     # Abgeschlossene Monate cachen
                     CacheService.save(year, month, self._settings.email, entries)
 
+                # Manuelle Zeiten erst nach dem Cache dazumischen (siehe
+                # action_generate) - sonst fehlen sie in der Jahressumme.
+                entries = entries + self._manual_entries.worklogs_between(first, last)
+
                 actual = sum(e.hours for e in entries)
+                manual = sum(e.hours for e in entries if e.manual)
                 worked_dates = len({e.date for e in entries})
 
                 month_data[month] = {
                     "actual": actual,
+                    "manual": manual,
                     "target": target_h,
                     "working_days": worked_dates,
                     "target_days": target_days,
@@ -681,6 +948,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     hours_per_day=self._settings.hours_per_day,
                     federal_state=self._settings.federal_state,
                     anonymized=self._anonymized,
+                    mark_manual=self._settings.mark_manual_entries,
+                    manual_color=self._settings.manual_entry_color,
                 )
             )
 
@@ -758,6 +1027,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._settings.search_history = event.history
         self._settings.save()
 
+    def on_timesheet_table_column_widths_changed(
+        self,
+        event: TimesheetTable.ColumnWidthsChanged,
+    ) -> None:
+        """Persistiert die gezogenen Spaltenbreiten der Liste."""
+        self._settings.column_widths = event.widths
+        self._settings.save()
+
     def action_toggle_log(self) -> None:
         """Blendet den Log-Bereich ein/aus."""
         panel = self.query_one("#log-panel", LogPanel)
@@ -800,9 +1077,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return None
         if action in ("export_excel", "export_pdf") and self._timesheet is None:
             return None
-        # "Details" gibt es nur in der Listenansicht - im Kalender kann keine
-        # Ticket-Zeile markiert werden, daher dort deaktivieren (dimmen).
-        return not (action == "show_details" and self._active_tab() == "tab-calendar")
+        # Loeschen nur anbieten, wenn der Cursor wirklich auf einem manuellen
+        # Eintrag steht - sonst laeuft die Taste ins Leere.
+        if action == "delete_manual":
+            entry = self._cursor_entry()
+            return None if entry is None or not entry.manual else True
+        # "Details" und die manuelle Erfassung gibt es nur in der Listenansicht -
+        # im Kalender kann keine Ticket-Zeile markiert werden.
+        return not (action in ("show_details", "manual_entry") and self._active_tab() == "tab-calendar")
 
     def _active_tab(self) -> str:
         """Liefert die id des aktiven View-Tabs (oder '' wenn nicht ermittelbar)."""
@@ -813,6 +1095,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Footer neu bewerten - 'Details' ist nur in der Listenansicht aktiv."""
         self.refresh_bindings()
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Footer neu bewerten - DEL gilt nur auf manuellen Zeilen."""
+        self.refresh_bindings()
+
+    def on_unmount(self) -> None:
+        """Schliesst die SQLite-Verbindung der manuellen Eintraege."""
+        self._manual_entries.close()
 
     def _write_log(self, message: str) -> None:
         """Schreibt eine Zeile ins Log-Panel; http(s)-URLs werden klickbar.
