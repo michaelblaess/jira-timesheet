@@ -14,6 +14,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Static
 
 from jira_timesheet.i18n import format_eur, format_number, t
+from jira_timesheet.models.settings import DEFAULT_MANUAL_COLOR
 
 _QUARTER_NAMES = ["Q1", "Q2", "Q3", "Q4"]
 
@@ -46,6 +47,9 @@ class MonthTile(Widget):
         target_hours: float = 0.0,
         working_days: int = 0,
         target_days: int = 0,
+        manual_hours: float = 0.0,
+        mark_manual: bool = True,
+        manual_color: str = DEFAULT_MANUAL_COLOR,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -55,6 +59,9 @@ class MonthTile(Widget):
         self._target = target_hours
         self._working_days = working_days
         self._target_days = target_days
+        self._manual = manual_hours
+        self._mark_manual = mark_manual
+        self._manual_color = manual_color
 
     def on_mount(self) -> None:
         """CSS-Klassen setzen."""
@@ -94,11 +101,13 @@ class MonthTile(Widget):
 
             days = t("year.month_days", days=self._working_days, target=self._target_days)
             text.append(f"\u25b8 {days}", style="dim")
+            self._append_manual(text)
 
         elif self._actual > 0:
             text.append(f"{name}\n", style="bold")
             text.append(f"{format_number(self._actual, 1)}h\n", style="bold yellow")
             text.append(f"\u25b8 {t('year.month_days_single', days=self._working_days)}", style="dim")
+            self._append_manual(text)
 
         elif self._target > 0:
             text.append(f"{name}\n", style="dim")
@@ -111,6 +120,14 @@ class MonthTile(Widget):
             text.append("\u2014", style="dim")
 
         return text
+
+    def _append_manual(self, text: Text) -> None:
+        """Haengt den manuell erfassten Anteil an - nur wenn es einen gibt."""
+        if self._manual <= 0:
+            return
+        style = f"bold #{self._manual_color}" if self._mark_manual else "bold"
+        text.append("\n▸ ", style="dim")
+        text.append(t("year.month_manual", hours=format_number(self._manual)), style=style)
 
 
 class QuarterRow(Horizontal):
@@ -191,6 +208,8 @@ class YearScreen(ModalScreen[None]):
         hours_per_day: float = 8.0,
         federal_state: str = "SN",
         anonymized: bool = False,
+        mark_manual: bool = True,
+        manual_color: str = DEFAULT_MANUAL_COLOR,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -204,6 +223,8 @@ class YearScreen(ModalScreen[None]):
         self._federal_state = federal_state
         # Zensiert Geldbetraege fuer Screenshots (gekoppelt an a-Anonymisierung).
         self._anonymized = anonymized
+        self._mark_manual = mark_manual
+        self._manual_color = manual_color
 
     def compose(self) -> ComposeResult:
         """Baut die Jahresansicht auf."""
@@ -224,6 +245,9 @@ class YearScreen(ModalScreen[None]):
                                 target_hours=data.get("target", 0.0),
                                 working_days=data.get("working_days", 0),
                                 target_days=data.get("target_days", 0),
+                                manual_hours=data.get("manual", 0.0),
+                                mark_manual=self._mark_manual,
+                                manual_color=self._manual_color,
                             )
 
             yield Static(self._build_summary(), id="year-summary")
@@ -239,7 +263,7 @@ class YearScreen(ModalScreen[None]):
         text = Text()
 
         total_actual = sum(d.get("actual", 0.0) for d in self._month_data.values())
-        sum(d.get("target", 0.0) for d in self._month_data.values())
+        total_manual = sum(d.get("manual", 0.0) for d in self._month_data.values())
         total_days = sum(d.get("working_days", 0) for d in self._month_data.values())
 
         text.append(t("year.total", year=self._year), style="bold")
@@ -268,6 +292,13 @@ class YearScreen(ModalScreen[None]):
 
         text.append("  |  ", style="dim")
         text.append(t("year.workdays", days=total_days), style="dim")
+
+        # Manueller Jahresanteil nur zeigen, wenn es welchen gibt.
+        if total_manual > 0:
+            text.append("  |  ", style="dim")
+            manual_style = f"bold #{self._manual_color}" if self._mark_manual else "bold"
+            text.append(t("summary.manual") + ": ", style="dim")
+            text.append(f"{format_number(total_manual)}h", style=manual_style)
 
         if self._hourly_rate > 0:
             netto = total_actual * self._hourly_rate

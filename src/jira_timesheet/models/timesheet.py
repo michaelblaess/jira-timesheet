@@ -27,6 +27,14 @@ class WorklogEntry:
     created: str = ""
     updated: str = ""
     total_logged: str = ""
+    # Manuell im Tool erfasst statt aus Jira geholt. Wird NICHT im Jira-Cache
+    # abgelegt - die Quelle ist die SQLite-Tabelle manual_entries.
+    manual: bool = False
+    # Id des zugehoerigen Datensatzes in manual_entries; 0 bei Jira-Eintraegen.
+    manual_id: int = 0
+    # Kunde/Kostenstelle. Bei Jira-Eintraegen leer; die Exporte fallen dann
+    # auf die Einstellung default_customer zurueck.
+    customer: str = ""
 
 
 @dataclass

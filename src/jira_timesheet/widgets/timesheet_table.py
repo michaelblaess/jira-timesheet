@@ -16,11 +16,36 @@ from textual.widgets import DataTable, Input, Static
 from textual_widgets import SearchInputWithHistory
 
 from jira_timesheet.i18n import format_number, t
+from jira_timesheet.models.export_column import (
+    DESCRIPTION_KEY,
+    ExportColumn,
+    default_columns,
+    visible_keys,
+)
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
+from jira_timesheet.widgets.resizable_data_table import ResizableDataTable
 
 # Sortier-Indikator-Pfeile (Skill-Konvention).
 _ARROW_ASC = " ▲"
 _ARROW_DESC = " ▼"
+
+# Die Beschreibung fuellt den Rest der Tabellenbreite, solange der Benutzer sie
+# nicht selbst gezogen hat.
+_MIN_DESCRIPTION_WIDTH = 20
+
+# i18n-Schluessel der Spaltenueberschriften je Spalten-Key. Die Ueberschriften
+# der Liste bleiben uebersetzt; die frei vergebene Bezeichnung aus den
+# Einstellungen gilt nur fuer die Exporte.
+_COLUMN_LABEL_KEYS = {
+    "week": "table.col.week",
+    "weekday": "table.col.day",
+    "date": "table.col.date",
+    "ticket": "table.col.ticket",
+    DESCRIPTION_KEY: "table.col.description",
+    "customer": "table.col.customer",
+    "hours": "table.col.hours",
+    "day_hours": "table.col.day_hours",
+}
 
 
 # Ein Eintrag in der gemergten Liste ist entweder ein Tag oder eine Luecke
@@ -54,6 +79,38 @@ class TimesheetTable(Vertical):
             super().__init__()
             self.history = history
 
+    class RowRightClicked(Message):
+        """Rechtsklick auf eine Zeile - mit dem Kontext fuer das Menue.
+
+        ``entry`` ist None auf einer Luecken-/Feiertagszeile; ``entry_date``
+        ist dort trotzdem gesetzt, damit sich fuer den Tag eine Zeit erfassen
+        laesst.
+        """
+
+        def __init__(
+            self,
+            screen_x: int,
+            screen_y: int,
+            entry: WorklogEntry | None,
+            entry_date: date | None,
+        ) -> None:
+            super().__init__()
+            self.screen_x = screen_x
+            self.screen_y = screen_y
+            self.entry = entry
+            self.entry_date = entry_date
+
+    class ColumnWidthsChanged(Message):
+        """Wird gesendet wenn der Benutzer Spaltenbreiten gezogen hat.
+
+        Wie beim Such-Verlauf ist der Host fuer die Persistenz zustaendig.
+        Schluessel ist der Spaltenindex als String.
+        """
+
+        def __init__(self, widths: dict[str, int]) -> None:
+            super().__init__()
+            self.widths = widths
+
     DEFAULT_CSS = """
     TimesheetTable {
         height: 1fr;
@@ -84,17 +141,32 @@ class TimesheetTable(Vertical):
         hours_per_day: float = 8.0,
         jira_host: str = "",
         search_history: list[str] | None = None,
+        column_widths: dict[str, int] | None = None,
+        mark_manual: bool = True,
+        manual_color: str = "FF0000",
+        columns: list[ExportColumn] | None = None,
+        default_customer: str = "",
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        # Spaltenbreiten werden ueber den Spalten-Key gemerkt, nicht ueber den
+        # Index - der verschiebt sich, sobald eine Spalte ausgeblendet wird.
+        self._column_widths: dict[str, int] = dict(column_widths or {})
+        self._columns = list(columns) if columns is not None else default_columns()
+        self._visible_keys: list[str] = visible_keys(self._columns)
+        self._default_customer = default_customer
+        self._mark_manual = mark_manual
+        self._manual_color = manual_color
         self._hours_per_day = hours_per_day
         self._jira_host = jira_host.rstrip("/")
         self._row_entries: dict[str, WorklogEntry] = {}
+        # Datum je Zeile - auch fuer Luecken-Zeilen, die keinen Eintrag haben.
+        self._row_dates: dict[str, date] = {}
         # Sort-Status fuer Klick auf Spaltenkoepfe.
         self._timesheet: Timesheet | None = None
         self._missing_days: list[tuple[date, str]] = []
         # Default-Sortierung: Datum aufsteigend (chronologisch).
-        self._sort_col: int = 2
+        self._sort_col: str = "date"
         self._sort_desc: bool = False
         self._col_keys: list[Any] = []
         self._base_column_labels: list[str] = []
@@ -113,26 +185,93 @@ class TimesheetTable(Vertical):
             id="timesheet-search",
         )
         yield Static("", id="timesheet-filter-count")
-        yield DataTable(id="timesheet-data", cursor_type="row", zebra_stripes=False)
+        yield ResizableDataTable(id="timesheet-data", cursor_type="row", zebra_stripes=False)
 
     def on_mount(self) -> None:
-        """Initialisiert die Tabellenspalten."""
-        table = self.query_one("#timesheet-data", DataTable)
-        self._base_column_labels = [
-            t("table.col.week"),
-            t("table.col.day"),
-            t("table.col.date"),
-            t("table.col.ticket"),
-            t("table.col.description"),
-            t("table.col.hours"),
-            t("table.col.day_hours"),
-        ]
-        self._col_keys = table.add_columns(*self._base_column_labels)
-        self._update_sort_indicator()
+        """Initialisiert die Tabellenspalten aus der Spaltenkonfiguration."""
+        table = self.query_one("#timesheet-data", ResizableDataTable)
+        self._build_columns(table)
         # Tabelle initial fokussieren - sonst zieht das Such-Input den Start-
         # Fokus und einzelne Buchstaben-Shortcuts (g/s/...) landen im Suchfeld
         # statt eine Aktion auszuloesen.
         self.call_after_refresh(table.focus)
+
+    def _build_columns(self, table: ResizableDataTable) -> None:
+        """Legt die sichtbaren Spalten an und stellt gemerkte Breiten wieder her."""
+        self._base_column_labels = [t(_COLUMN_LABEL_KEYS[key]) for key in self._visible_keys]
+        self._col_keys = table.add_columns(*self._base_column_labels)
+        self._update_sort_indicator()
+
+        # Die Beschreibung fuellt den Rest der Breite, bis der Benutzer die
+        # Spalte selbst zieht. Ist sie ausgeblendet, gibt es keine Flex-Spalte.
+        description_index = self._index_of(DESCRIPTION_KEY)
+        if description_index >= 0:
+            table.set_flex_column(self._col_keys[description_index], min_width=_MIN_DESCRIPTION_WIDTH)
+        self._restore_column_widths(table)
+
+    def _index_of(self, column_key: str) -> int:
+        """Position einer Spalte in der sichtbaren Liste, -1 wenn ausgeblendet."""
+        try:
+            return self._visible_keys.index(column_key)
+        except ValueError:
+            return -1
+
+    def _restore_column_widths(self, table: ResizableDataTable) -> None:
+        """Stellt die zuletzt gezogenen Spaltenbreiten wieder her."""
+        for column_key, width in self._column_widths.items():
+            index = self._index_of(column_key)
+            if index >= 0:
+                table.set_column_width(self._col_keys[index], width)
+
+    def on_resizable_data_table_right_clicked(self, event: ResizableDataTable.RightClicked) -> None:
+        """Reicht den Rechtsklick mit Zeilen-Kontext an den Host weiter."""
+        event.stop()
+        row_key = ""
+        try:
+            table = self.query_one("#timesheet-data", ResizableDataTable)
+            if 0 <= event.row_index < len(table.ordered_rows):
+                row_key = str(table.ordered_rows[event.row_index].key.value)
+        except Exception:
+            return
+        self.post_message(
+            self.RowRightClicked(
+                event.screen_x,
+                event.screen_y,
+                self._row_entries.get(row_key),
+                self._row_dates.get(row_key),
+            )
+        )
+
+    def on_resizable_data_table_column_resized(self, event: ResizableDataTable.ColumnResized) -> None:
+        """Merkt sich eine gezogene Breite und meldet sie an den Host."""
+        event.stop()
+        try:
+            index = self._col_keys.index(event.column_key)
+        except ValueError:
+            return
+        column_key = self._visible_keys[index]
+        if event.width is None:
+            self._column_widths.pop(column_key, None)
+        else:
+            self._column_widths[column_key] = event.width
+        self.post_message(self.ColumnWidthsChanged(dict(self._column_widths)))
+
+    def set_columns(self, columns: list[ExportColumn]) -> None:
+        """Uebernimmt eine geaenderte Spaltenkonfiguration und baut neu auf."""
+        new_visible = visible_keys(columns)
+        self._columns = list(columns)
+        if new_visible == self._visible_keys:
+            return
+        self._visible_keys = new_visible
+        try:
+            table = self.query_one("#timesheet-data", ResizableDataTable)
+        except Exception:
+            return
+        # clear(columns=True) wirft auch die Spalten weg - danach neu anlegen.
+        table.clear(columns=True)
+        self._build_columns(table)
+        if self._timesheet is not None:
+            self._refresh()
 
     # --- Public API -------------------------------------------------
 
@@ -175,11 +314,50 @@ class TimesheetTable(Vertical):
         except Exception:
             return
 
+    def set_manual_marking(self, enabled: bool, color: str) -> None:
+        """Aendert die Markierung manueller Eintraege und zeichnet neu."""
+        if enabled == self._mark_manual and color == self._manual_color:
+            return
+        self._mark_manual = enabled
+        self._manual_color = color
+        if self._timesheet is not None:
+            self._refresh()
+
+    def set_default_customer(self, customer: str) -> None:
+        """Uebernimmt den Standard-Kunden fuer Jira-Eintraege ohne eigenen Wert."""
+        if customer == self._default_customer:
+            return
+        self._default_customer = customer
+        if self._timesheet is not None:
+            self._refresh()
+
+    def current_entry(self) -> WorklogEntry | None:
+        """Der Eintrag unter dem Cursor, None bei Luecken-Zeile oder leerer Tabelle."""
+        row_key = self._cursor_row_key()
+        return self._row_entries.get(row_key) if row_key else None
+
+    def current_date(self) -> date | None:
+        """Das Datum der Zeile unter dem Cursor, auch bei Luecken-Zeilen."""
+        row_key = self._cursor_row_key()
+        return self._row_dates.get(row_key) if row_key else None
+
+    def _cursor_row_key(self) -> str:
+        """Schluessel der Zeile unter dem Cursor, leer wenn es keine gibt."""
+        try:
+            table = self.query_one("#timesheet-data", ResizableDataTable)
+            row_idx = table.cursor_row
+            if row_idx is None or row_idx < 0 or row_idx >= len(table.ordered_rows):
+                return ""
+            return str(table.ordered_rows[row_idx].key.value)
+        except Exception:
+            return ""
+
     def clear_table(self) -> None:
         """Leert die Tabelle."""
         self._timesheet = None
         self._missing_days = []
         self._row_entries.clear()
+        self._row_dates.clear()
         table = self.query_one("#timesheet-data", DataTable)
         table.clear()
 
@@ -247,12 +425,12 @@ class TimesheetTable(Vertical):
 
     # --- Sortierung -------------------------------------------------
 
-    # Sort-Keys pro Spalten-Index. Nur Spalten mit Eintrag hier sind klickbar.
+    # Sort-Keys pro Spalten-Key. Nur Spalten mit Eintrag hier sind klickbar -
     # Tag-/Ticket-/Beschreibung-/h-Spalten wuerden die Tagesgruppen sprengen.
-    _SORT_KEYS: dict[int, Callable[[_DayItem], Any]] = {
-        0: lambda item: TimesheetTable._item_date(item).isocalendar()[:2],
-        2: lambda item: TimesheetTable._item_date(item),
-        6: lambda item: TimesheetTable._item_hours(item),
+    _SORT_KEYS: dict[str, Callable[[_DayItem], Any]] = {
+        "week": lambda item: TimesheetTable._item_date(item).isocalendar()[:2],
+        "date": lambda item: TimesheetTable._item_date(item),
+        "day_hours": lambda item: TimesheetTable._item_hours(item),
     }
 
     @staticmethod
@@ -273,15 +451,15 @@ class TimesheetTable(Vertical):
         (Tag/Ticket/Beschreibung/h) wird ignoriert.
         """
         try:
-            col_index = self._col_keys.index(event.column_key)
-        except ValueError:
+            column_key = self._visible_keys[self._col_keys.index(event.column_key)]
+        except (ValueError, IndexError):
             return
-        if col_index not in self._SORT_KEYS:
+        if column_key not in self._SORT_KEYS:
             return
-        if col_index == self._sort_col:
+        if column_key == self._sort_col:
             self._sort_desc = not self._sort_desc
         else:
-            self._sort_col = col_index
+            self._sort_col = column_key
             self._sort_desc = False
         self._refresh()
 
@@ -292,6 +470,7 @@ class TimesheetTable(Vertical):
         table = self.query_one("#timesheet-data", DataTable)
         table.clear()
         self._row_entries.clear()
+        self._row_dates.clear()
         if self._timesheet is None:
             self._update_sort_indicator()
             self._update_filter_count([])
@@ -362,16 +541,18 @@ class TimesheetTable(Vertical):
         date_str = f"{gap_date:%d.%m.}"
         # Em-Dash-Marker: Luecke (rot) vs. Feiertag (dim) - sprachneutral.
         style = "red" if "—" in gap_reason else "dim"
+        cells = {
+            "week": Text(kw, style="dim"),
+            "weekday": Text(weekday, style="dim"),
+            "date": Text(date_str, style="dim"),
+            DESCRIPTION_KEY: Text(gap_reason, style=style),
+            "day_hours": Text(format_number(0.0), style=style),
+        }
         table.add_row(
-            Text(kw, style="dim"),
-            Text(weekday, style="dim"),
-            Text(date_str, style="dim"),
-            Text("", style="dim"),
-            Text(gap_reason, style=style),
-            Text("", style="dim"),
-            Text(format_number(0.0), style=style),
+            *(cells.get(key, Text("", style="dim")) for key in self._visible_keys),
             key=str(row_idx),
         )
+        self._row_dates[str(row_idx)] = gap_date
         return row_idx + 1
 
     def _render_day(self, table: DataTable[Any], day: TimesheetDay, row_idx: int) -> int:
@@ -383,7 +564,9 @@ class TimesheetTable(Vertical):
             kw = str(entry.date.isocalendar()[1]) if is_first else ""
             weekday = t(f"weekday.{entry.date.weekday()}") if is_first else ""
             date_str = f"{entry.date:%d.%m.}" if is_first else ""
-            hours_str = format_number(entry.hours)
+            # Manuelle Eintraege werden in der eingestellten Farbe fett gesetzt.
+            manual_style = self._manual_style(entry.manual)
+            hours_str = Text(format_number(entry.hours), style=manual_style)
 
             if is_last:
                 total = day.total_hours
@@ -394,20 +577,26 @@ class TimesheetTable(Vertical):
                 day_total = Text("")
 
             if self._jira_host and entry.ticket:
-                ticket_text = Text(entry.ticket, style=f"link {self._jira_host}/browse/{entry.ticket}")
+                link_style = f"link {self._jira_host}/browse/{entry.ticket}"
+                ticket_text = Text(entry.ticket, style=f"{manual_style} {link_style}".strip())
             else:
-                ticket_text = Text(entry.ticket)
+                ticket_text = Text(entry.ticket, style=manual_style)
 
             row_key = str(row_idx)
             self._row_entries[row_key] = entry
+            self._row_dates[row_key] = entry.date
+            cells: dict[str, Any] = {
+                "week": kw,
+                "weekday": weekday,
+                "date": date_str,
+                "ticket": ticket_text,
+                DESCRIPTION_KEY: self._description_text(entry.summary, entry.manual),
+                "customer": Text(entry.customer or self._default_customer, style=manual_style),
+                "hours": hours_str,
+                "day_hours": day_total,
+            }
             table.add_row(
-                kw,
-                weekday,
-                date_str,
-                ticket_text,
-                self._truncate(entry.summary, 80),
-                hours_str,
-                day_total,
+                *(cells.get(key, "") for key in self._visible_keys),
                 key=row_key,
             )
             row_idx += 1
@@ -422,7 +611,8 @@ class TimesheetTable(Vertical):
         arrow = _ARROW_DESC if self._sort_desc else _ARROW_ASC
         for idx, key in enumerate(self._col_keys):
             base = self._base_column_labels[idx]
-            label = f"{base}{arrow}" if idx == self._sort_col else base
+            is_sorted = self._visible_keys[idx] == self._sort_col
+            label = f"{base}{arrow}" if is_sorted else base
             column = table.columns.get(key)
             if column is not None:
                 column.label = Text(label)
@@ -448,9 +638,16 @@ class TimesheetTable(Vertical):
 
         return items
 
-    @staticmethod
-    def _truncate(text: str, max_len: int) -> str:
-        """Kuerzt Text mit Ellipsis."""
-        if len(text) <= max_len:
-            return text
-        return text[: max_len - 1] + "…"
+    def _manual_style(self, manual: bool) -> str:
+        """Rich-Style fuer manuelle Eintraege, sonst leer."""
+        if not manual or not self._mark_manual:
+            return ""
+        return f"bold #{self._manual_color}"
+
+    def _description_text(self, summary: str, manual: bool = False) -> Text:
+        """Beschreibungs-Zelle: nicht umbrechen, bei Bedarf mit … abschneiden.
+
+        Rich kuerzt selbst auf die aktuelle Spaltenbreite - so zeigt eine breiter
+        gezogene Spalte sofort mehr Text, ohne dass die Zeilen neu gebaut werden.
+        """
+        return Text(summary, no_wrap=True, overflow="ellipsis", end="", style=self._manual_style(manual))
