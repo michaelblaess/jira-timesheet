@@ -47,9 +47,9 @@
 
   <!-- ═══ HERO ═══ -->
   <section class="hero">
-    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.11.0</div>
+    <div class="hero-badge"><span class="dot"></span> Open Source TUI Tool · v1.12.0</div>
     <h1>Jira <span class="accent">Timesheet</span></h1>
-    <p class="hero-description">Terminal-basierte Anwendung zum Generieren von Stundenzetteln aus Jira Worklogs. Drei Ansichten, Excel/PDF-Export, Feiertagskalender und Jahres-Forecast.</p>
+    <p class="hero-description">Terminal-basierte Anwendung für Stundenzettel aus Jira-Worklogs — inklusive manueller Nacherfassung für Zeiten, die nicht in Jira gebucht sind. Drei Ansichten, Excel/PDF-Export, Feiertagskalender und Jahres-Forecast.</p>
     <div class="hero-actions">
       <a href="https://github.com/michaelblaess/jira-timesheet" class="btn btn-primary">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -131,7 +131,7 @@
   <section class="section" id="features">
     <div class="section-label">Features</div>
     <h2 class="section-title">Was es kann</h2>
-    <p class="section-description">Stundenzettel aus Jira — automatisch generiert, visuell aufbereitet, exportbereit.</p>
+    <p class="section-description">Stundenzettel aus Jira — automatisch generiert, um eigene Zeiten ergänzt, visuell aufbereitet, exportbereit.</p>
     <div class="feature-grid">
       <div class="feature-card">
         <div class="feature-icon">🔗</div>
@@ -184,6 +184,16 @@
         <p>Daten per Tastendruck anonymisieren für sichere Screenshots und Demos.</p>
       </div>
       <div class="feature-card">
+        <div class="feature-icon">✍️</div>
+        <h3>Manuelle Zeiterfassung</h3>
+        <p>Nicht jede Stunde landet als Worklog in Jira. Mit <code>M</code> lassen sich Zeiten direkt im Tool erfassen — Aufwand wahlweise als <code>3h 30m</code>, <code>3:30</code> oder <code>3,5</code>. Sie liegen in einer eigenen SQLite-Datei, zählen überall mit und sind farblich markiert - inklusive ausgewiesenem Anteil in der Kennzahlen-Zeile und in der Jahresansicht.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📐</div>
+        <h3>Konfigurierbare Spalten</h3>
+        <p>Jede der acht Spalten lässt sich getrennt für Anzeige und Export schalten und im Export frei benennen — inklusive Kunden-Spalte. In der Liste lassen sich die Breiten mit der Maus ziehen; die Beschreibung füllt automatisch den Rest.</p>
+      </div>
+      <div class="feature-card">
         <div class="feature-icon">💾</div>
         <h3>Worklog-Cache</h3>
         <p>Abgeschlossene Monate werden gecached — Jahresansicht lädt beim zweiten Mal sofort.</p>
@@ -205,6 +215,8 @@
           <tr><td><code>E</code></td><td>Excel-Export</td></tr>
           <tr><td><code>P</code></td><td>PDF-Export</td></tr>
           <tr><td><code>D</code></td><td>Ticket-Details anzeigen</td></tr>
+          <tr><td><code>M</code></td><td>Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten</td></tr>
+          <tr><td><code>ENTF</code></td><td>Markierten manuellen Eintrag löschen (mit Rückfrage)</td></tr>
           <tr><td><code>TAB</code></td><td>Tab wechseln (Liste / Kalender)</td></tr>
           <tr><td><code>R</code></td><td>Cache zurücksetzen</td></tr>
           <tr><td><code>J</code></td><td>Jahresansicht mit Forecast</td></tr>
