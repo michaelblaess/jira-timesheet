@@ -16,7 +16,7 @@
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
-Terminal-basierte Anwendung (TUI) zum Generieren von Stundenzetteln aus Jira Worklogs.
+Terminal-basierte Anwendung (TUI) für Stundenzettel aus Jira-Worklogs — inklusive manueller Nacherfassung für Zeiten, die nicht in Jira gebucht sind.
 
 > **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstützt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die öffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
 
@@ -96,6 +96,9 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Budget-Feld automatisch ermitteln** — Findet das Budget-Custom-Field bei Jira Cloud automatisch (kein manuelles Nachschlagen der ID)
 - **Listenansicht** — Tabellarisch mit KW, Wochentag, Tagesgruppen, Soll/Ist-Stunden
 - **Suche / Filter** — Live-Filter nach Ticket-ID oder Beschreibung (`/` zum Fokussieren, Verlauf mit Dropdown)
+- **Spaltenbreiten ziehen** — Trennlinie im Spaltenkopf mit der Maus ziehen; Doppelklick setzt zurück, die Breiten werden gespeichert. Die Beschreibung füllt sonst automatisch die freie Breite
+- **Manuelle Zeiterfassung** — Zeiten, die nicht in Jira gebucht sind, per Dialog erfassen (`m`), bearbeiten und löschen (`ENTF`); gespeichert in SQLite, farblich markiert in Liste, Excel und PDF
+- **Konfigurierbare Export-Spalten** — jede Spalte an-/abwählbar und frei benennbar (Settings-Tab "Spalten"), inklusive Kunden-Spalte
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
@@ -157,6 +160,42 @@ Beim ersten Start `S` für Settings drücken und konfigurieren:
 
 Dann `G` zum Generieren des Stundenzettels.
 
+### Zeiten erfassen, die nicht in Jira stehen
+
+Nicht jede Stunde landet als Worklog in Jira. Mit `M` öffnet sich ein Dialog für
+Datum, Ticket, Beschreibung, Kunde und Aufwand. Der Aufwand darf so geschrieben
+werden, wie man ihn ohnehin notiert: `3h 30m`, `3:30`, `3,5` oder `45m`.
+
+Diese Einträge landen in einer eigenen SQLite-Datei
+(`~/.jira-timesheet/manual-entries.db`) und **nie** im Jira-Cache. Sie zählen
+überall mit — Tagessumme, Monatssumme, Soll/Ist, Kalender, Jahresansicht,
+Excel und PDF — und sind farblich markiert, damit auf einen Blick klar ist,
+was aus Jira kommt und was nicht. Wie viel davon manuell erfasst wurde, steht
+in der Kennzahlen-Zeile, in jeder Monatskachel der Jahresansicht und in deren
+Jahres-Summe.
+
+Steht der Cursor auf einem manuellen Eintrag, öffnet `M` ihn zum Bearbeiten;
+`ENTF` löscht ihn nach einer Rückfrage. Im Bearbeiten-Dialog gibt es zusätzlich
+einen **Löschen**-Button, der dieselbe Rückfrage stellt.
+
+Ein **Rechtsklick** auf eine Zeile öffnet ein Kontextmenü: Details anzeigen,
+Ticket im Browser öffnen, Zeit für diesen Tag erfassen, Eintrag bearbeiten oder
+löschen. Was auf die angeklickte Zeile nicht zutrifft, ist ausgegraut - die
+Punkte sitzen also immer an derselben Stelle. Das funktioniert auch auf einer
+Lückenzeile (`— kein Eintrag —`), um dort direkt eine Zeit nachzutragen.
+
+### Export-Spalten anpassen
+
+Im Settings-Tab **Spalten** hat jede der acht Spalten (KW, Tag, Datum, Ticket,
+Beschreibung, Kunde, Aufwand, Tagessumme) zwei Häkchen: **Anzeige** steuert die
+Listenansicht, **Export** die Excel- und PDF-Datei. Beides ist getrennt
+schaltbar - eine Spalte kann also im Export stehen, ohne die Liste zu füllen.
+
+Das Textfeld daneben ist die Überschrift **im Export**; die Liste behält ihre
+übersetzten Überschriften, damit sie beim Sprachwechsel mitgeht. Die
+Beschreibung ist die flexible Spalte: sie bekommt die Breite, die die übrigen
+sichtbaren Spalten übrig lassen.
+
 ## Tastenkürzel
 
 | Taste | Aktion |
@@ -165,6 +204,8 @@ Dann `G` zum Generieren des Stundenzettels.
 | E | Excel-Export |
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
+| M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
+| ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | TAB | Tab wechseln (Liste / Kalender) |
 | / | Suchfeld fokussieren (Listenansicht) |
 | R | Cache zurücksetzen |
@@ -198,6 +239,11 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Jahr | Für Jahresansicht | aktuelles Jahr |
 | Soll-Stunden im Export | Zeigt Soll-Zeile in Excel/PDF | false |
 | Ticket-Links im Export | Hyperlinks in Excel/PDF | false |
+| Standard-Kunde | Kunde für alle aus Jira geholten Einträge | Vertrieb |
+| Kunden-Auswahl | Liste für das Kunden-Dropdown (kommagetrennt) | Vertrieb, Corporate |
+| Manuelle Einträge markieren | Färbt manuelle Zeiten in Liste, Excel und PDF | true |
+| Markierungsfarbe | `#RRGGBB`, `RRGGBB`, `#RGB` oder `255,0,0` | FF0000 |
+| Spalten | Pro Spalte Anzeige, Export und Bezeichnung | alle aktiv |
 | Sprache | Oberflächensprache (de / en) | de |
 
 ## Tech Stack

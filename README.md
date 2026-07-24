@@ -16,7 +16,7 @@
 [![License](https://img.shields.io/badge/license-Apache_2.0-3b82f6)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-3b82f6?logo=python&logoColor=white)](https://www.python.org/)
 
-Terminal-based application (TUI) for generating timesheets from Jira worklogs.
+Terminal-based application (TUI) for timesheets from Jira worklogs — including manual time entry for hours that are not booked in Jira.
 
 > **Disclaimer:** This project is **not** developed, supported, or authorized by Atlassian. "Jira" and "Atlassian" are registered trademarks of [Atlassian Corporation](https://www.atlassian.com/). This tool uses the public Jira REST API and is not affiliated with Atlassian.
 
@@ -96,6 +96,9 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Budget field auto-detect** — Find the budget custom field automatically on Jira Cloud (no manual ID lookup)
 - **List view** — Tabular with calendar week, weekday, day groups, target/actual hours
 - **Search / filter** — Live filter by ticket ID or description (`/` to focus, history with dropdown)
+- **Resizable columns** — Drag the divider in the column header; double-click resets it, widths are persisted. Otherwise the description column fills the remaining width automatically
+- **Manual time tracking** — Record time that is not booked in Jira via a dialog (`m`), edit and delete it (`DEL`); stored in SQLite, colour-marked in the list, Excel and PDF
+- **Configurable export columns** — Every column can be toggled and renamed (settings tab "Columns"), including a customer column
 - **Calendar view** — Monthly calendar with color-coded day tiles
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — 12 monthly tiles with progress bar and forecast (J)
@@ -157,6 +160,40 @@ On first start, press `S` for settings and configure:
 
 Then `G` to generate the timesheet.
 
+### Recording time that is not in Jira
+
+Not every hour ends up as a worklog in Jira. `M` opens a dialog for date,
+ticket, description, customer and effort. The effort may be written the way you
+note it anyway: `3h 30m`, `3:30`, `3.5` or `45m`.
+
+These entries live in their own SQLite file
+(`~/.jira-timesheet/manual-entries.db`) and **never** in the Jira cache. They
+count everywhere — daily total, monthly total, target/actual, calendar, year
+view, Excel and PDF — and are colour-marked so it is obvious at a glance what
+comes from Jira and what does not. How much of it was entered manually is shown
+in the stats line, in every month tile of the year view and in its yearly total.
+
+With the cursor on a manual entry, `M` opens it for editing and `DEL` deletes it
+after a confirmation. The edit dialog also has a **Delete** button that asks the
+same question.
+
+A **right-click** on a row opens a context menu: show details, open the ticket in
+the browser, record time for that day, edit or delete the entry. Whatever does
+not apply to the clicked row is greyed out, so the items always sit in the same
+place. It also works on a gap row (`— no entry —`) to fill in time right there.
+
+### Adjusting export columns
+
+In the settings tab **Columns** each of the eight columns (week, day, date,
+ticket, description, customer, effort, daily total) has two checkboxes:
+**Display** controls the list view, **Export** the Excel and PDF file. Both are
+switched independently — a column can go into the export without cluttering the
+list.
+
+The text field next to them is the heading **in the export**; the list keeps its
+translated headings so it follows a language change. The description is the
+flexible column: it takes whatever width the other visible columns leave.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -165,6 +202,8 @@ Then `G` to generate the timesheet.
 | E | Excel export |
 | P | PDF export |
 | D | Show ticket details |
+| M | Record manual time, or edit the selected entry |
+| DEL | Delete the selected manual entry (with confirmation) |
 | TAB | Switch tab (list / calendar) |
 | / | Focus search field (list view) |
 | R | Reset cache |
@@ -198,6 +237,11 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Year | For year view | current year |
 | Target hours in export | Shows target row in Excel/PDF | false |
 | Ticket links in export | Hyperlinks in Excel/PDF | false |
+| Default customer | Customer for all entries fetched from Jira | Vertrieb |
+| Customer choices | List for the customer dropdown (comma-separated) | Vertrieb, Corporate |
+| Highlight manual entries | Colours manual time in list, Excel and PDF | true |
+| Highlight colour | `#RRGGBB`, `RRGGBB`, `#RGB` or `255,0,0` | FF0000 |
+| Columns | Per column display, export and label | all enabled |
 | Language | UI language (de / en) | de |
 
 ## Tech Stack
