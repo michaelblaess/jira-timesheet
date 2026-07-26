@@ -17,11 +17,14 @@ from textual.app import App, ComposeResult
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, TabbedContent, TabPane
 from textual_widgets import (
+    DISCLAIMER_VERSION,
     AboutScreen,
     ClickableLinksMixin,
     ContextMenuItem,
     ContextMenuScreen,
     CrashGuard,
+    DisclaimerScreen,
+    DisclaimerStore,
     HorizontalSplitter,
     LogPanel,
     LogRouter,
@@ -69,6 +72,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         self._settings = Settings.load()
         self.theme = self._settings.theme
+
+        # Zustimmung zum Haftungshinweis liegt neben den Einstellungen.
+        self._disclaimer = DisclaimerStore(Settings.SETTINGS_DIR / "disclaimer.json")
 
         # CrashGuard: lokalisierter Fehler-Dialog statt Total-Absturz.
         self.crash_guard_lang = current_language()
@@ -200,6 +206,40 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # keine Daten geladen -> "g" blinkt. Manuelles Toggle per Timer statt
         # ANSI-blink, damit es auch auf Windows Terminal funktioniert.
         self.set_interval(0.6, self._tick_attention)
+
+        self._ask_disclaimer()
+
+    def _ask_disclaimer(self) -> None:
+        """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
+        if self._disclaimer.accepted_version == DISCLAIMER_VERSION:
+            return
+        lang = current_language()
+        self.push_screen(
+            DisclaimerScreen(
+                app_name=f"jira-timesheet {__version__}",
+                lang=lang,
+                author=__author__,
+                # Der Standardtext des Widgets beschreibt Scanner, die Last auf
+                # fremden Servern erzeugen. Hier geht es stattdessen um den
+                # Zugriff auf fremde Arbeitszeit-Daten - daher eigener Wortlaut.
+                title=t("disclaimer.title"),
+                intro=t("disclaimer.intro"),
+                duties=(
+                    t("disclaimer.duty_authorisation"),
+                    t("disclaimer.duty_foreign_data"),
+                    t("disclaimer.duty_export"),
+                ),
+                footer=f"© {__year__} {__author__} · github.com/michaelblaess/jira-timesheet",
+            ),
+            callback=self._on_disclaimer,
+        )
+
+    def _on_disclaimer(self, accepted: bool | None) -> None:
+        """Ohne Zustimmung wird das Programm beendet - der Hinweis ist nicht optional."""
+        if not accepted:
+            self.exit()
+            return
+        self._disclaimer.record()
 
     def _settings_complete(self) -> bool:
         """True, wenn alle fuer das Generieren noetigen Settings gesetzt sind."""
