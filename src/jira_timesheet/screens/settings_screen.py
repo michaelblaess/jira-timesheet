@@ -359,11 +359,12 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             yield icon
 
     def storage_paths(self) -> list[tuple[str, Path]]:
-        """Speicherort-Tab: settings.json + Worklog-Cache."""
+        """Speicherort-Tab: settings.json, Worklog-Cache, manuelle Zeiten, Zustimmung."""
         return [
             (t("settings.storage.config"), Settings.SETTINGS_FILE),
             (t("settings.storage.cache"), CACHE_DIR),
             (t("settings.storage.manual_db"), DB_FILE),
+            (t("settings.storage.disclaimer"), Settings.SETTINGS_DIR / "disclaimer.json"),
         ]
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
