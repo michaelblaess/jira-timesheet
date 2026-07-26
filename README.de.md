@@ -144,6 +144,12 @@ run.bat
 jira-timesheet
 ```
 
+### Haftungshinweis beim ersten Start
+
+Beim ersten Start erscheint ein Hinweis, der bestätigt werden muss - ohne Zustimmung beendet sich das Programm. Grund: Das Werkzeug liest über die Jira-REST-API Arbeitszeit-Buchungen aus einem fremden System. Welche Vorgänge und Worklogs dabei sichtbar werden, bestimmen allein die Berechtigungen des verwendeten Zugangs, und je nach Rechtevergabe gehören dazu auch Buchungen anderer Personen. Mit der Bestätigung erklärst Du, das Programm nur gegen dazu berechtigte Jira-Instanzen einzusetzen und nur Daten auszuwerten, zu deren Verarbeitung Du befugt bist.
+
+Die Zustimmung wird in `~/.jira-timesheet/disclaimer.json` festgehalten und nur erneut abgefragt, wenn sich der Wortlaut ändert. Den Speicherort zeigt der Reiter "Speicherort" im Einstellungsdialog - dort lässt sich die Datei auch löschen, um den Hinweis wieder anzuzeigen.
+
 Die Oberflächensprache (Deutsch/Englisch) folgt dem `--lang`-Flag — die Wahl wird gespeichert und ist auch im Settings-Dialog umschaltbar:
 
 ```bash
