@@ -144,6 +144,12 @@ run.bat
 jira-timesheet
 ```
 
+### Liability notice on first start
+
+On its first start the program shows a notice that has to be confirmed - without your consent it exits. The reason: this tool reads work log entries from a third-party system through the Jira REST API. Which issues and work logs become visible is determined solely by the permissions of the account you use, and depending on how rights are assigned these may include entries booked by other people. By confirming, you declare that you will only use the program against Jira instances you are authorised to access, and that you will only evaluate data you are permitted to process.
+
+Your consent is recorded in `~/.jira-timesheet/disclaimer.json` and is only requested again when the wording changes. The "Storage" tab of the settings dialog shows the location, where you can also delete the file to see the notice again.
+
 The interface language (German/English) follows the `--lang` flag — the choice is saved and can also be changed in the settings dialog:
 
 ```bash
