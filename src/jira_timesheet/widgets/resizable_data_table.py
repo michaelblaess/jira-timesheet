@@ -11,6 +11,7 @@ die restliche Tabellenbreite, bis der Benutzer sie selbst zieht.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Iterable
 from typing import Any
 
@@ -127,11 +128,29 @@ class ResizableDataTable(DataTable[Any]):
         event.stop()
         event.prevent_default()
 
+    def _resize_column(self) -> Any:
+        """Spalte des laufenden Drags, oder None wenn keiner aktiv/gueltig ist.
+
+        Faengt einen veralteten ``_resize_index`` ab: wird die Tabelle waehrend
+        eines Drags neu aufgebaut (z.B. nach einem verschluckten mouse_up, dann
+        Spaltenwechsel), zeigt der Index ins Leere. Statt eines IndexError -
+        der ueber den CrashGuard bis zum harten Absturz eskalieren kann - wird
+        der Drag dann sauber verworfen.
+        """
+        if self._resize_index is None:
+            return None
+        if not 0 <= self._resize_index < len(self.ordered_columns):
+            self._resize_index = None
+            with contextlib.suppress(Exception):
+                self.release_mouse()
+            return None
+        return self.ordered_columns[self._resize_index]
+
     def _on_mouse_move(self, event: events.MouseMove) -> None:
         """Verstellt die Breite waehrend des Drags."""
-        if self._resize_index is None:
+        column = self._resize_column()
+        if column is None:
             return
-        column = self.ordered_columns[self._resize_index]
         delta = event.screen_x - self._resize_start_x
         width = max(self.MIN_COLUMN_WIDTH, self._resize_start_width + delta)
         if column.auto_width or column.width != width:
@@ -144,9 +163,9 @@ class ResizableDataTable(DataTable[Any]):
 
     async def _on_mouse_up(self, event: events.MouseUp) -> None:
         """Beendet den Drag und meldet die neue Breite."""
-        if self._resize_index is None:
+        column = self._resize_column()
+        if column is None:
             return
-        column = self.ordered_columns[self._resize_index]
         self._resize_index = None
         self.release_mouse()
         self.post_message(self.ColumnResized(column.key, column.width))

@@ -133,6 +133,39 @@ async def test_header_drag_changes_column_width() -> None:
 
 
 @pytest.mark.asyncio
+async def test_mouse_move_survives_stale_resize_index() -> None:
+    """Ein Drag, dessen Spalten zwischenzeitlich schrumpfen, crasht nicht.
+
+    Reproduziert den Absturzpfad: ein mouse_up wurde verschluckt, danach wird
+    die Spaltenkonfiguration geaendert. Ohne Bounds-Guard wuerde die naechste
+    Mausbewegung ``ordered_columns[stale_index]`` mit IndexError treffen und
+    ueber den CrashGuard bis zum harten Terminal-Absturz eskalieren.
+    """
+    app = _TableApp()
+    async with app.run_test(size=(120, 30)) as pilot:
+        widget = app.query_one(TimesheetTable)
+        widget.load_timesheet(_timesheet(), missing_days=[])
+        await pilot.pause()
+        table = widget.query_one("#timesheet-data", ResizableDataTable)
+
+        # Drag an einer bekannten Trennlinie starten (Index 3, gueltig).
+        await pilot.mouse_down(table, offset=(_column_edge(table, 3), 0))
+        await pilot.pause()
+        assert table._resize_index == 3
+
+        # Spalten auf eine einzige reduzieren - der gemerkte Index (3) zeigt
+        # jetzt ins Leere.
+        widget.set_columns([ExportColumn("date", "Datum", visible=True)])
+        await pilot.pause()
+        assert table._resize_index is not None
+        assert table._resize_index >= len(table.ordered_columns)
+
+        # Die Mausbewegung darf NICHT crashen und muss den Drag sauber verwerfen.
+        await _mouse_move(pilot, table, (10, 0))
+        assert table._resize_index is None
+
+
+@pytest.mark.asyncio
 async def test_header_drag_does_not_sort() -> None:
     """Ein Resize-Drag darf die Sortierung nicht umschalten."""
     app = _TableApp()
