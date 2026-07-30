@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 from textual_widgets import reset_terminal_title, set_terminal_title
 
@@ -64,6 +65,22 @@ def main() -> None:
         app.run()
     finally:
         reset_terminal_title()
+        # Nach einem harten Absturz laesst Textuals Windows-Teardown das
+        # Maus-Tracking an - danach kippt jede Mausbewegung Steuerzeichen-Muell
+        # in die Shell. Hier abschalten, auch bei Crash (finally).
+        _reset_mouse_tracking()
+
+
+def _reset_mouse_tracking() -> None:
+    """Schaltet alle Maus-Tracking-Modi des Terminals ab (idempotent).
+
+    ?1000/?1002/?1003 = Tracking-Modi, ?1006/?1015 = erweitertes Encoding.
+    Sind sie bereits aus, bewirken die Sequenzen nichts.
+    """
+    if not sys.stdout.isatty():
+        return
+    sys.stdout.write("\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l")
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
