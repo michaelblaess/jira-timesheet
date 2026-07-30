@@ -32,3 +32,6 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Crash-Log (liegt normalerweise in ~/.jira-timesheet/, nie ins Repo)
+last-crash.txt
