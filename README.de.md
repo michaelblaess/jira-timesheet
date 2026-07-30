@@ -18,6 +18,10 @@
 
 Terminal-basierte Anwendung (TUI) für Stundenzettel aus Jira-Worklogs — inklusive manueller Nacherfassung für Zeiten, die nicht in Jira gebucht sind.
 
+<p align="center">
+  <img src="docs/images/teaser.png" width="70%" alt="jira-timesheet">
+</p>
+
 > **Disclaimer:** Dieses Projekt ist **nicht** von Atlassian entwickelt, unterstützt oder autorisiert. "Jira" und "Atlassian" sind eingetragene Markenzeichen von [Atlassian Corporation](https://www.atlassian.com/). Dieses Tool nutzt die öffentliche Jira REST API und steht in keiner Verbindung zu Atlassian.
 
 ## Screenshots
