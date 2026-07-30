@@ -6,9 +6,10 @@ import contextlib
 import dataclasses
 import re
 import time
+import traceback
 import webbrowser
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -161,6 +162,27 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 tooltip = binding_tooltips.get(binding.action)
                 if tooltip:
                     self._bindings.key_to_bindings[key][i] = dataclasses.replace(binding, tooltip=tooltip)
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Schreibt den Traceback auf Platte, bevor der CrashGuard-Dialog laeuft.
+
+        Der CrashGuard zeigt den Traceback nur im ErrorScreen an. Crasht dieser
+        beim Re-Layout selbst mit (struktureller Defekt), geht der Bericht sonst
+        verloren und der naechste Absturz ist wieder undiagnostizierbar. Die
+        Datei ueberlebt auch den harten Textual-Absturzpfad.
+        """
+        with contextlib.suppress(Exception):
+            self._persist_crash(error)
+        super()._handle_exception(error)
+
+    def _persist_crash(self, error: BaseException) -> None:
+        """Haengt den Traceback mit Zeitstempel an die Crash-Log-Datei an."""
+        report = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        path = Settings.SETTINGS_DIR / "last-crash.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        header = f"\n===== {datetime.now():%Y-%m-%d %H:%M:%S} - jira-timesheet v{__version__} =====\n"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(header + report)
 
     def compose(self) -> ComposeResult:
         """Erstellt das UI-Layout."""
