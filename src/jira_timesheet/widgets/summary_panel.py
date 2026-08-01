@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.text import Text
-from textual.widgets import Static
+from textual_widgets import StatusBar, StatusItem
 
 from jira_timesheet.i18n import format_eur, format_number, t
 from jira_timesheet.models.settings import DEFAULT_MANUAL_COLOR
@@ -15,27 +14,17 @@ from jira_timesheet.models.timesheet import Timesheet
 _REDACTED = "••••• €"
 
 
-class SummaryPanel(Static):
+class SummaryPanel(StatusBar):  # type: ignore[misc]
     """Einzeilige Kennzahlen: Soll/Ist/Differenz, Durchschnitt, Verdienst.
 
-    Static statt InfoHeader — eine fixe Inline-Stats-Zeile mit Pipe-Trennern
-    laesst sich mit dem InfoHeader-Spaltenraster nicht kompakt rendern (die
-    feste ``label_width`` spreizt Label und Wert auseinander). Static gibt
-    die volle Kontrolle ueber Spacing und Doppelpunkte.
-    """
-
-    DEFAULT_CSS = """
-    SummaryPanel {
-        height: auto;
-        min-height: 1;
-        padding: 0 1;
-        background: $surface;
-        border: solid $accent;
-    }
+    Rahmen und Trenner kommen aus der StatusBar in textual-widgets - damit
+    sieht die Leiste in allen Anwendungen gleich aus. Der InfoHeader taugt
+    dafuer weiterhin nicht: sein Spaltenraster mit fester ``label_width``
+    spreizt Label und Wert auseinander.
     """
 
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__("", **kwargs)
+        super().__init__(hint=t("summary.generate_hint"), **kwargs)
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
         self._hourly_rate: float = 0.0
@@ -48,7 +37,7 @@ class SummaryPanel(Static):
 
     def on_mount(self) -> None:
         """Setzt den initialen Hinweistext."""
-        self._redraw()
+        self._aktualisieren()
 
     def update_timesheet(
         self,
@@ -64,90 +53,94 @@ class SummaryPanel(Static):
         self._vat_rate = vat_rate
         # Frisch geladene (echte) Daten -> Geldbetraege wieder anzeigen.
         self._anonymized = False
-        self._redraw()
+        self._aktualisieren()
 
     def set_anonymized(self, value: bool) -> None:
         """Schaltet die Zensur der Geldbetraege ein/aus (Screenshot-Modus)."""
         self._anonymized = value
-        self._redraw()
+        self._aktualisieren()
 
     def clear(self) -> None:
         """Setzt die Anzeige zurueck (zeigt den Generate-Hinweis)."""
         self._timesheet = None
         self._target_hours = 0.0
         self._hourly_rate = 0.0
-        self._redraw()
+        self._aktualisieren()
 
     def set_manual_marking(self, enabled: bool, color: str) -> None:
         """Uebernimmt die Markierungs-Einstellungen fuer den manuellen Anteil."""
         self._mark_manual = enabled
         self._manual_color = color
-        self._redraw()
+        self._aktualisieren()
 
     def _manual_style(self) -> str:
         """Rich-Style fuer den manuellen Stundenanteil."""
         return f"bold #{self._manual_color}" if self._mark_manual else "bold"
 
-    def _redraw(self) -> None:
-        """Baut den aktuellen Inhalt und schreibt ihn ins Widget.
+    def _aktualisieren(self) -> None:
+        """Traegt die Kennzahlen in die Leiste ein.
 
-        NICHT ``_render`` nennen — das ist eine interne Textual-Widget-API,
-        ein Override mit ``-> None`` crasht das Layout-System.
+        NICHT ``_redraw`` nennen — so heisst die interne Methode der
+        StatusBar. Ein Override davon fuehrt in eine Endlosschleife, weil
+        ``set_items``/``clear`` genau sie aufrufen. (``_render`` ist aus dem
+        gleichen Grund tabu: das gehoert Textual selbst.)
         """
         if self._timesheet is None:
-            self.update(Text(t("summary.generate_hint"), style="dim"))
+            # super(), nicht self: die eigene clear() setzt den Zustand
+            # zurueck und ruft wieder hierher - das waere eine Endlosschleife.
+            super().clear()
             return
-        self.update(self._build_stats_text())
+        self.set_items(self._build_items())
 
-    def _build_stats_text(self) -> Text:
-        """Erzeugt die Stats-Zeile als Rich Text."""
+    def _build_items(self) -> list[StatusItem]:
+        """Stellt die Kennzahlen als Eintraege der Statusleiste zusammen."""
         assert self._timesheet is not None
         ts = self._timesheet
-        text = Text()
-        sep = "  |  "
-
-        text.append("  ")
-        text.append(f"{t('summary.workdays')}: ", style="dim")
-        text.append(str(ts.working_days), style="bold")
-
-        text.append(sep, style="dim")
-        text.append(f"{t('summary.actual')}: ", style="dim")
-        text.append(f"{format_number(ts.total_hours)}h", style="bold")
+        items = [
+            StatusItem(t("summary.workdays"), str(ts.working_days)),
+            StatusItem(t("summary.actual"), f"{format_number(ts.total_hours)}h"),
+        ]
 
         # Manueller Anteil nur zeigen, wenn es welchen gibt - sonst bliebe eine
         # "0,00h"-Zelle stehen, die nichts aussagt.
         manual_hours = sum(e.hours for e in ts.all_entries if e.manual)
         if manual_hours > 0:
-            text.append(sep, style="dim")
-            text.append(f"{t('summary.manual')}: ", style="dim")
-            text.append(f"{format_number(manual_hours)}h", style=self._manual_style())
+            items.append(
+                StatusItem(
+                    t("summary.manual"),
+                    f"{format_number(manual_hours)}h",
+                    value_style=self._manual_style(),
+                )
+            )
 
         if self._target_hours > 0:
-            text.append(sep, style="dim")
-            text.append(f"{t('summary.target')}: ", style="dim")
-            text.append(f"{format_number(self._target_hours)}h", style="bold")
-
-            text.append(sep, style="dim")
+            items.append(StatusItem(t("summary.target"), f"{format_number(self._target_hours)}h"))
             diff = ts.total_hours - self._target_hours
-            diff_style = "bold red" if diff < 0 else "bold green"
             sign = "+" if diff >= 0 else ""
-            text.append(f"{sign}{format_number(diff)}h", style=diff_style)
+            items.append(
+                StatusItem(
+                    "",
+                    f"{sign}{format_number(diff)}h",
+                    value_style="bold red" if diff < 0 else "bold green",
+                )
+            )
 
-        text.append(sep, style="dim")
-        text.append("Ø ", style="dim")
-        text.append(f"{format_number(ts.average_hours)}{t('summary.avg_suffix')}", style="bold")
+        # Ohne Beschriftung: das Zeichen selbst ist die Beschriftung.
+        items.append(StatusItem("", f"Ø {format_number(ts.average_hours)}{t('summary.avg_suffix')}"))
 
         if self._hourly_rate > 0:
             netto = ts.total_hours * self._hourly_rate
             brutto = netto * (1.0 + self._vat_rate / 100.0)
-            netto_str = _REDACTED if self._anonymized else format_eur(netto)
-            brutto_str = _REDACTED if self._anonymized else format_eur(brutto)
-            text.append(sep, style="dim")
-            text.append(f"{t('summary.net')}: ", style="dim")
-            text.append(netto_str, style="bold")
-
-            text.append(sep, style="dim")
-            text.append(f"{t('summary.gross')}: ", style="dim")
-            text.append(brutto_str, style="bold")
-
-        return text
+            items.append(
+                StatusItem(
+                    t("summary.net"),
+                    _REDACTED if self._anonymized else format_eur(netto),
+                )
+            )
+            items.append(
+                StatusItem(
+                    t("summary.gross"),
+                    _REDACTED if self._anonymized else format_eur(brutto),
+                )
+            )
+        return items
