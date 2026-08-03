@@ -183,6 +183,8 @@
   "settings.proxy_url_tip": "Optional HTTP proxy for the Jira connection, e.g. http://proxy.example.com:8080 (corporate proxy/Corporate-Proxy). Leave empty for a direct connection; httpx will still read the HTTP_PROXY/HTTPS_PROXY environment variables.",
   "settings.storage.cache": "Worklog cache",
   "settings.storage.config": "Settings",
+  "settings.storage.crash": "Crash reports",
+  "settings.storage.fault": "Hard crashes (fault.log)",
   "settings.storage.disclaimer": "Notice acceptance",
   "settings.storage.manual_db": "Manual time (SQLite)",
   "settings.tab_calc": "Calculation",
