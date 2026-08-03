@@ -360,12 +360,22 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
     def storage_paths(self) -> list[tuple[str, Path]]:
         """Speicherort-Tab: settings.json, Worklog-Cache, manuelle Zeiten, Zustimmung."""
-        return [
+        paths: list[tuple[str, Path]] = [
             (t("settings.storage.config"), Settings.SETTINGS_FILE),
             (t("settings.storage.cache"), CACHE_DIR),
             (t("settings.storage.manual_db"), DB_FILE),
             (t("settings.storage.disclaimer"), Settings.SETTINGS_DIR / "disclaimer.json"),
         ]
+        # Die beiden Fehlerprotokolle nur auffuehren, wenn es sie gibt - sonst
+        # schickt der Tab den Anwender zu Dateien, die nie angelegt wurden.
+        for key, name in (
+            ("settings.storage.crash", "last-crash.txt"),
+            ("settings.storage.fault", "fault.log"),
+        ):
+            datei = Settings.SETTINGS_DIR / name
+            if datei.is_file():
+                paths.append((t(key), datei))
+        return paths
 
     def collect_app_settings(self, settings: dict[str, object]) -> None:
         """Liest die Widget-Werte ins Ergebnis-Dict."""
