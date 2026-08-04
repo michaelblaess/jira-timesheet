@@ -244,3 +244,41 @@ def test_client_holt_alle_drei_antworten(monkeypatch: pytest.MonkeyPatch) -> Non
     assert daten.key == "ABC-1"
     assert len(daten.changelog) == 1
     assert len(daten.comments) == 1
+
+
+class TestKontextmenue:
+    """Aus dem Rechtsklick auf eine Zeile heraus."""
+
+    def _eintrag(self) -> Any:
+        from datetime import date
+
+        from jira_timesheet.models.timesheet import WorklogEntry
+
+        return WorklogEntry(
+            date=date(2026, 7, 1),
+            ticket="ABC-123",
+            summary="Testticket",
+            author="Erika Muster",
+            budget="",
+            hours=1.0,
+        )
+
+    async def test_startet_die_analyse_fuer_die_zeile(self) -> None:
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            gerufen: list[str] = []
+            app._fetch_ticket_report = lambda key: gerufen.append(key)  # type: ignore[assignment]
+            app._menu_entry = self._eintrag()
+            app._on_context_menu("ticket_report")
+            await pilot.pause()
+            assert gerufen == ["ABC-123"]
+
+    async def test_ohne_ticket_passiert_nichts(self) -> None:
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            gerufen: list[str] = []
+            app._fetch_ticket_report = lambda key: gerufen.append(key)  # type: ignore[assignment]
+            app._menu_entry = None
+            app._on_context_menu("ticket_report")
+            await pilot.pause()
+            assert gerufen == []
