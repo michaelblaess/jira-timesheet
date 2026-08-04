@@ -552,6 +552,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.notify(str(exc), severity="error")
             return
 
+        # Titel der nur im Text erwaehnten Tickets nachreichen - ein Aufruf
+        # fuer alle, damit die Karten nicht nur den Key zeigen.
+        from jira_timesheet.services.ticket_report import lifecycle as _lifecycle
+
+        leben = _lifecycle.from_raw(data.issue, data.changelog, data.comments)
+        offen = [key for key in leben.mentioned if key not in leben.titles]
+        if offen:
+            data.titles = await client.get_ticket_summaries(offen)
+
         self._ticket_data = data
         self._open_save_dialog(
             f"{data.key or key}.html",
@@ -574,6 +583,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 data.changelog,
                 data.comments,
                 f"{self._settings.jira_host.rstrip('/')}/browse",
+                titles=data.titles,
             )
             path = write_report(report, target)
         except Exception as exc:  # noqa: BLE001 - der Lauf darf nie unbemerkt scheitern
@@ -584,6 +594,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._last_export_dir = str(path.parent)
         self._write_log(t("ticket_report.written", path=self.link_markup(str(path), str(path))))
         self.notify(t("ticket_report.done", ticket=report.key))
+        # Der Bericht ist zum Ansehen da - also gleich aufmachen.
+        with contextlib.suppress(Exception):
+            webbrowser.open(path.resolve().as_uri())
 
     def action_export_excel(self) -> None:
         """Oeffnet den Speichern-Dialog und exportiert als Excel-Datei."""
@@ -940,6 +953,16 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 t("menu.open_ticket"),
                 enabled=has_ticket and bool(self._settings.jira_host) and not self._anonymized,
             ),
+            ContextMenuItem(
+                "ticket_report",
+                t("menu.ticket_report"),
+                # Anonymisierte Keys sind erfunden - ein Abruf ginge ins Leere.
+                enabled=(
+                    has_ticket
+                    and bool(self._settings.jira_host and self._settings.jira_token)
+                    and not self._anonymized
+                ),
+            ),
             ContextMenuItem.separator(),
             ContextMenuItem("manual_new", t("menu.manual_new"), enabled=event.entry_date is not None),
             ContextMenuItem("manual_edit", t("menu.manual_edit"), enabled=is_manual),
@@ -966,6 +989,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             host = self._settings.jira_host.rstrip("/")
             with contextlib.suppress(Exception):
                 webbrowser.open(f"{host}/browse/{entry.ticket}")
+        elif action == "ticket_report" and entry is not None and entry.ticket:
+            self._fetch_ticket_report(entry.ticket)
         elif action == "manual_new":
             self._open_manual_dialog(existing=None, default_date=entry_date)
         elif action == "manual_edit" and entry is not None:
