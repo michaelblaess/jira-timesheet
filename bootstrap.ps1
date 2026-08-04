@@ -11,8 +11,8 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# Corporate-Proxy (Corporate-Proxy/EON): uv soll den Windows-Zertifikatspeicher nutzen,
-# in dem die "EON Internal Root CA" liegt - sonst scheitern HTTPS-Downloads an
+# Firmen-Proxy: uv soll den Windows-Zertifikatspeicher nutzen,
+# in dem die Firmen-Root-CA liegt - sonst scheitern HTTPS-Downloads an
 # "invalid peer certificate: UnknownIssuer".
 $env:UV_SYSTEM_CERTS = "1"
 # SSL_CERT_FILE wuerde uv ein von rustls abgelehntes Bundle aufzwingen und
@@ -26,7 +26,7 @@ Write-Host "=== jira-timesheet - dev environment ===" -ForegroundColor Cyan
 # --inexact: laesst zusaetzlich installierte Pakete (v.a. das ad-hoc via Schritt
 # 2 installierte Nuitka) in Ruhe. Ohne den Flag pruned uv sync die venv auf die
 # Lock-Deps zurueck und wirft Nuitka jedes Mal raus - danach muss Schritt 2 es
-# neu holen, was hinter dem Corporate-Proxy-Proxy an pypi.org scheitert.
+# neu holen, was hinter einem TLS-aufbrechenden Proxy an pypi.org scheitert.
 Write-Host "[1/2] venv + dependencies (uv sync)..."
 uv sync --extra dev --inexact --python 3.13
 if ($LASTEXITCODE -ne 0) { throw "uv sync fehlgeschlagen" }

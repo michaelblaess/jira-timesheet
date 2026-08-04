@@ -108,7 +108,7 @@ class TestManualEntryService:
         assert worklogs[0].author == "Michael"
 
     def test_update_changes_values(self, service: ManualEntryService) -> None:
-        entry_id = service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="PROJ-1", hours=1.0))
+        entry_id = service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="ABC-1", hours=1.0))
         stored = service.get(entry_id)
         assert stored is not None
         stored.hours = 3.5
@@ -121,7 +121,7 @@ class TestManualEntryService:
         assert again.ticket == "PROJ-1004"
 
     def test_delete_removes_row(self, service: ManualEntryService) -> None:
-        entry_id = service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="PROJ-1", hours=1.0))
+        entry_id = service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="ABC-1", hours=1.0))
         assert service.delete(entry_id) is True
         assert service.get(entry_id) is None
         assert service.delete(entry_id) is False
@@ -130,7 +130,7 @@ class TestManualEntryService:
         """Zweiter Start auf derselben Datei darf nicht scheitern."""
         db = tmp_path / "manual.db"
         with ManualEntryService(db_path=db) as first:
-            first.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="PROJ-1", hours=1.0))
+            first.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="ABC-1", hours=1.0))
         with ManualEntryService(db_path=db) as second:
             assert second.count() == 1
 
@@ -215,7 +215,7 @@ class TestCustomerList:
 
     def test_distinct_customers_from_db(self, service: ManualEntryService) -> None:
         for customer in ("Corporate", "Vertrieb", "Corporate", ""):
-            service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="PROJ-1", hours=1.0, customer=customer))
+            service.add(ManualEntry(entry_date=date(2026, 7, 1), ticket="ABC-1", hours=1.0, customer=customer))
         assert service.distinct_customers() == ["Corporate", "Vertrieb"]
 
 
