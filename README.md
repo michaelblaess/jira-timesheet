@@ -112,6 +112,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Target/actual** — Working time comparison with difference display
 - **Configurable VAT** — VAT rate as a setting for the net/gross calculation (default 19%)
 - **Ticket details** — Enter/D shows status, type, assignee, components in the log
+- **Ticket analysis** - Turns any ticket into an interactive report: a true-to-scale timeline of its life cycle, waiting time per status (calendar time versus actual working hours), the people involved, key figures such as flow efficiency and first response, plus findings with evidence. The result is a single HTML file that works offline (key `B`)
 - **Anonymization** — Anonymize data with a keypress for safe screenshots
 - **Worklog cache** — Completed months cached, year view loads instantly
 - **Bilingual UI** — German/English, switchable via `--lang` or the settings dialog
@@ -243,6 +244,7 @@ flexible column: it takes whatever width the other visible columns leave.
 | E | Excel export |
 | P | PDF export |
 | D | Show ticket details |
+| B | Ticket analysis (interactive report as an HTML file) |
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
 | TAB | Switch tab (list / calendar) |
@@ -268,7 +270,7 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Token | API token (Cloud) or bearer token (Data Center) | — |
 | Email | Atlassian login (Cloud) or Jira username (Data Center) | — |
 | Jira mode (legacy API) | Off = Jira Cloud (v3), on = Data Center (v2) | off |
-| Budget custom field | Custom field ID; Cloud supports **Auto-detect** | customfield_36461 |
+| Budget custom field | Custom field ID; Cloud supports **Auto-detect** | (leer) |
 | Federal state | For public holiday calculation | SN |
 | Target hours/day | Working hours per day | 8.0 |
 | Max. yearly hours | Upper limit for progress bar | 1720 |

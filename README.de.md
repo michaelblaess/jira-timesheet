@@ -112,6 +112,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
 - **MwSt konfigurierbar** — MwSt-Satz als Setting für die Netto/Brutto-Berechnung (Standard 19 %)
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
+- **Ticket-Analyse** - Macht aus einem Ticket einen interaktiven Bericht: maßstabsgetreue Zeitachse des Lebenszyklus, Liegezeit je Status (Kalenderzeit gegen echte Arbeitszeit), Beteiligte, Kennzahlen wie Flow-Effizienz und erste Reaktion, dazu Befunde mit Beleg. Ergebnis ist eine einzelne HTML-Datei, die offline läuft (Taste `B`)
 - **Anonymisierung** — Daten per Tastendruck anonymisieren für sichere Screenshots
 - **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort
 - **Zweisprachige Oberfläche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
@@ -247,6 +248,7 @@ sichtbaren Spalten übrig lassen.
 | E | Excel-Export |
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
+| B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | TAB | Tab wechseln (Liste / Kalender) |
@@ -272,7 +274,7 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Token | API-Token (Cloud) oder Bearer-Token (Data Center) | — |
 | E-Mail | Atlassian-Login (Cloud) oder Jira-Benutzername (Data Center) | — |
 | Jira-Modus (alte API) | Aus = Jira Cloud (v3), an = Data Center (v2) | aus |
-| Budget-Custom-Field | Custom-Field-ID; Cloud unterstützt **Automatisch ermitteln** | customfield_36461 |
+| Budget-Custom-Field | Custom-Field-ID; Cloud unterstützt **Automatisch ermitteln** | (leer) |
 | Bundesland | Für Feiertagsberechnung | SN |
 | Soll-Stunden/Tag | Arbeitsstunden pro Tag | 8.0 |
 | Max. Jahresstunden | Obergrenze für Progressbar | 1720 |
