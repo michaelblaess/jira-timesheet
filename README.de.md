@@ -133,14 +133,47 @@ curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/i
 
 Danach einfach `jira-timesheet` im Terminal eingeben.
 
-### Manuelle Installation
+### Manuelle Installation (aus dem Quellcode)
 
+Der Betrieb aus dem Quellcode braucht [uv](https://docs.astral.sh/uv/) - das
+Werkzeug holt ein passendes Python und alle Abhängigkeiten. Einmalig
+installieren:
+
+**Windows (PowerShell):**
+```powershell
+irm https://astral.sh/uv/install.ps1 | iex
+```
+
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Danach das Terminal einmal schließen und neu öffnen, dann:
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/michaelblaess/jira-timesheet.git
+cd jira-timesheet
+./bootstrap.ps1
+./run.ps1
+```
+
+**Linux/macOS:**
 ```bash
 git clone https://github.com/michaelblaess/jira-timesheet.git
 cd jira-timesheet
-setup.bat
-run.bat
+./bootstrap.sh
+./run.sh
 ```
+
+`bootstrap` richtet die Umgebung einmalig ein, `run` startet das Programm - das
+ist ab dann Dein einziger Befehl.
+
+Dieser Weg funktioniert auch auf **Intel-Macs**: Die fertige Programmdatei wird
+für Apple Silicon gebaut und startet dort mit `bad CPU type in executable` gar
+nicht erst, während der Quellcode-Weg das Python passend zu Deinem Prozessor
+zieht.
 
 ## Benutzung
 
@@ -296,6 +329,47 @@ Unter Windows startest Du das Programm am besten ueber `run.ps1`: das Skript
 setzt das Terminal auch dann wieder zurueck, wenn das Programm hart abstuerzt
 und selbst nichts mehr tun kann. Sonst bleibt die Maus-Erfassung aktiv, und
 jede Mausbewegung kippt Steuerzeichen in die Eingabezeile.
+
+### Wenn die Oberfläche nicht mehr reagiert
+
+Ein Hänger hinterlässt keinen Absturzbericht - es ist ja nichts abgestürzt.
+Öffne ein **zweites** Terminalfenster (macOS: Cmd+N) und hole dort den Beleg:
+
+**macOS:**
+```bash
+pgrep -fl jira_timesheet
+top -l 2 -pid $(pgrep -f jira_timesheet | head -1) | grep -E "^PID|python"
+```
+
+**Linux:**
+```bash
+pgrep -fl jira_timesheet
+top -b -n 2 -p $(pgrep -f jira_timesheet | head -1) | grep -E "^ *PID|python"
+```
+
+**Windows (PowerShell, zweites Fenster):**
+```powershell
+$p = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*jira_timesheet*' }
+Get-Process -Id $p.ProcessId | Select-Object Id, CPU
+Start-Sleep 3
+Get-Process -Id $p.ProcessId | Select-Object Id, CPU
+```
+
+`CPU` zählt Prozessorsekunden. Bleibt der Wert zwischen beiden Abfragen gleich,
+wartet das Programm. Steigt er, dreht es sich im Kreis. Beenden lässt es sich
+mit `Stop-Process -Id $p.ProcessId -Force`.
+
+Die CPU-Spalte trennt die Fälle:
+
+| Befund | Bedeutung |
+| --- | --- |
+| CPU nahe 0 %, Zustand `S` | wartet auf eine Antwort aus dem Netz - langsame oder abgerissene Verbindung |
+| CPU nahe 100 %, Zustand `R` | Endlosschleife - bitte mit den letzten Protokollzeilen melden |
+| Zustand `U` (macOS) / `D` (Linux) | hängt im Dateizugriff und lässt sich nicht beenden. Meist sind synchronisierte Ordner (Dropbox, iCloud Drive) die Ursache - das Arbeitsverzeichnis gehört dort nicht hinein |
+
+Aus dem Hänger kommst Du mit `kill <PID>` aus dem zweiten Fenster oder über
+"Sofort beenden" im Apfel-Menü. Es geht nichts verloren, die Einstellungen
+werden bei jeder Änderung geschrieben.
 
 ## Lizenz
 
