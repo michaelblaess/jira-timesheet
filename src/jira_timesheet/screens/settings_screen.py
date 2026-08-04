@@ -140,7 +140,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             budget_value = "" if budget_raw is None else str(budget_raw)
             with Horizontal(classes="settings-row", id="budget-row"):
                 yield from self._label_with_icon(t("settings.budget_field"), t("settings.budget_field_tip"))
-                yield Input(value=budget_value, placeholder="customfield_36461", id="set-budget-field")
+                yield Input(value=budget_value, placeholder="customfield_12345", id="set-budget-field")
                 detect_btn = Button(
                     t("settings.budget_detect"),
                     id="btn-detect-budget",

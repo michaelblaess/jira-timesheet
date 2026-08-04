@@ -36,7 +36,7 @@ def _timesheet() -> Timesheet:
     """Baut einen Stundenzettel mit einem langen Beschreibungstext."""
     entry = WorklogEntry(
         date=date(2026, 7, 23),
-        ticket="DMZ-17301",
+        ticket="ABC-17301",
         summary=_LONG_SUMMARY,
         author="Michael",
         budget="",
@@ -246,10 +246,10 @@ def _styles_of_line(table: ResizableDataTable, line: int) -> set[str]:
 
 def _mixed_timesheet() -> Timesheet:
     """Ein Tag mit einem Jira- und einem manuellen Eintrag."""
-    jira = WorklogEntry(date=date(2026, 7, 23), ticket="DMZ-13983", summary="Agile", author="M", budget="", hours=1.0)
+    jira = WorklogEntry(date=date(2026, 7, 23), ticket="ABC-13983", summary="Agile", author="M", budget="", hours=1.0)
     manual = ManualEntry(
         entry_date=date(2026, 7, 23),
-        ticket="DMZ-17024",
+        ticket="ABC-17024",
         summary="Pipelines",
         hours=10.0,
         entry_id=7,
@@ -393,7 +393,7 @@ async def test_manual_dialog_customer_is_a_dropdown() -> None:
 @pytest.mark.asyncio
 async def test_manual_dialog_keeps_unknown_customer_when_editing() -> None:
     """Ein Kunde, der nicht mehr in der Liste steht, geht beim Bearbeiten nicht verloren."""
-    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="DMZ-17024", hours=8.0, customer="Altkunde")
+    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="ABC-17024", hours=8.0, customer="Altkunde")
     app = _DialogApp(ManualEntryScreen(entry=entry, customers=["Vertrieb"]))
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -655,7 +655,7 @@ async def test_year_manual_share_respects_marking_setting() -> None:
 @pytest.mark.asyncio
 async def test_edit_dialog_has_delete_button() -> None:
     """Beim Bearbeiten gibt es Löschen, beim Anlegen nicht."""
-    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="DMZ-17024", hours=8.0)
+    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="ABC-17024", hours=8.0)
 
     app = _DialogApp(ManualEntryScreen(entry=entry, customers=["Vertrieb"]))
     async with app.run_test(size=(100, 30)) as pilot:
@@ -671,7 +671,7 @@ async def test_edit_dialog_has_delete_button() -> None:
 @pytest.mark.asyncio
 async def test_delete_button_returns_delete_flag() -> None:
     """Der Löschen-Button gibt den Eintrag mit delete=True zurück - ohne selbst zu löschen."""
-    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="DMZ-17024", hours=8.0)
+    entry = ManualEntry(entry_id=3, entry_date=date(2026, 7, 1), ticket="ABC-17024", hours=8.0)
     app = _DialogApp(ManualEntryScreen(entry=entry, customers=["Vertrieb"]))
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -689,7 +689,7 @@ async def test_save_returns_result_without_delete_flag() -> None:
     app = _DialogApp(ManualEntryScreen(default_customer="Vertrieb", customers=["Vertrieb"]))
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        app.screen.query_one("#manual-ticket", Input).value = "DMZ-17024"
+        app.screen.query_one("#manual-ticket", Input).value = "ABC-17024"
         app.screen.query_one("#manual-hours", Input).value = "3h 30m"
         await pilot.click("#manual-save")
         await pilot.pause()
