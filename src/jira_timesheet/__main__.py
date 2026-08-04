@@ -124,10 +124,6 @@ def _reset_mouse_tracking() -> None:
     stream.flush()
 
 
-if __name__ == "__main__":
-    main()
-
-
 def _write_fault_end() -> None:
     """Schreibt die Endzeile der Sitzungsklammer (ueber atexit registriert).
 
@@ -150,3 +146,7 @@ def _write_fault_end() -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         _fault_log.write(f"===== Ende {stamp} =====\n")
         _fault_log.flush()
+
+
+if __name__ == "__main__":
+    main()
