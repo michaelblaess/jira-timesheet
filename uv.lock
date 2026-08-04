@@ -272,7 +272,7 @@ wheels = [
 
 [[package]]
 name = "jira-timesheet"
-version = "1.15.1"
+version = "1.15.2"
 source = { editable = "." }
 dependencies = [
     { name = "fpdf2" },
