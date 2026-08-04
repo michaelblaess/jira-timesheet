@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import dataclasses
 import re
@@ -15,6 +16,7 @@ from typing import Any
 
 from textual import work
 from textual.app import App, ComposeResult
+from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import DataTable, Footer, Header, TabbedContent, TabPane
 from textual_widgets import (
@@ -58,6 +60,10 @@ except ImportError:
 # Projekt-Repository (im About-Dialog verlinkt).
 _REPO_URL = "https://github.com/michaelblaess/jira-timesheet"
 
+# Wartezeit nach einem Monatswechsel, bevor abgerufen wird. Blaettert der
+# Anwender mehrere Monate weiter, startet nur der letzte Stand einen Abruf.
+_MONTH_DEBOUNCE_SECONDS = 0.35
+
 
 class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
     """TUI fuer Jira Stundenzettel."""
@@ -83,6 +89,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._timesheet: Timesheet | None = None
         self._missing_days: list[tuple[date, str]] = []
         self._generating = False
+        # Laufzaehler je Abruf - siehe _generate(). Trennt den juengsten Lauf
+        # von abgebrochenen Vorgaengern.
+        self._generate_run = 0
+        # Timer, der die Monats-Navigation entprellt (schnelles Blaettern soll
+        # nicht pro Tastendruck einen Abruf starten und sofort abbrechen).
+        self._month_timer: Timer | None = None
         self._anonymized = False
         # Roh-Log-Zeilen (unzensiert) - ermoeglichen das Neu-Rendern des Logs
         # beim Umschalten der Anonymisierung.
@@ -332,10 +344,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         force_refresh=True umgeht den Cache und ruft immer frisch ab. Bei der
         Monats-Navigation (Pfeile) ist es False - dort darf der Cache fuer
         schnelles Blaettern genutzt werden.
-        """
-        if self._generating:
-            return
 
+        KEIN Guard auf self._generating: exclusive=True bricht den laufenden
+        Worker bereits ab, der Abbruch wirkt aber erst verzoegert (asyncio
+        markiert den Task nur). Ein Guard wuerde deshalb den NEUEN Lauf
+        verwerfen, waehrend der alte noch aufraeumt - Ergebnis: Abruf
+        abgebrochen, kein neuer gestartet, Flag bleibt haengen. Das Flag dient
+        nur noch der Oberflaeche und wird ueber einen Laufzaehler gepflegt.
+        """
         if not self._settings.jira_host:
             self.notify(t("notify.host_not_set"), severity="error")
             return
@@ -348,6 +364,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.notify(t("notify.email_not_set"), severity="error")
             return
 
+        # Laufzaehler hochzaehlen: nur der juengste Lauf darf das Flag am Ende
+        # zuruecksetzen. Ein abgebrochener Vorgaenger raeumt sonst hinter dem
+        # gerade gestarteten Nachfolger auf und die Oberflaeche zeigt "fertig",
+        # obwohl noch abgerufen wird.
+        self._generate_run += 1
+        run_id = self._generate_run
         self._generating = True
         # Frisch generierte (echte) Daten -> Anonymisierung zuruecksetzen, bevor
         # die erste Log-Zeile geschrieben wird. Tabelle, Kalender, Summary und
@@ -465,6 +487,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._settings.last_date_to = config.date_to.isoformat()
             self._settings.save()
 
+        except asyncio.CancelledError:
+            # Monatswechsel waehrend des Abrufs: exclusive=True bricht diesen
+            # Lauf ab. CancelledError erbt von BaseException und liefe an den
+            # except-Zweigen unten vorbei - ohne diesen Block reisst das Log
+            # mitten im Abruf ab und niemand weiss warum. Weiterreichen ist
+            # Pflicht, sonst haelt Textual den Worker faelschlich fuer beendet.
+            self._write_log(t("log.aborted"))
+            raise
         except JiraClientError as exc:
             self._write_log(t("log.error", error=exc))
             self.notify(str(exc), severity="error")
@@ -472,8 +502,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._write_log(t("log.unexpected_error", error=exc))
             self.notify(t("notify.error", error=exc), severity="error")
         finally:
-            self._generating = False
-            self.refresh_bindings()
+            # Nur der juengste Lauf raeumt auf - ein abgebrochener Vorgaenger
+            # darf den Zustand des laufenden Nachfolgers nicht ueberschreiben.
+            if run_id == self._generate_run:
+                self._generating = False
+                self.refresh_bindings()
 
     def action_export_excel(self) -> None:
         """Oeffnet den Speichern-Dialog und exportiert als Excel-Datei."""
@@ -1128,9 +1161,17 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
     def on_config_panel_month_changed(self, event: ConfigPanel.MonthChanged) -> None:
         """Reagiert auf die Zeitraum-Pfeile im ConfigPanel (Tastatur + Maus)."""
+        # Entprellen: Wer mehrere Monate am Stueck blaettert, soll nicht pro
+        # Tastendruck einen Abruf starten, der sofort wieder abgebrochen wird.
+        # Geladen wird erst, wenn die Navigation kurz zur Ruhe kommt.
+        if self._month_timer is not None:
+            self._month_timer.stop()
         # Navigation darf den Cache nutzen (schnelles Blaettern) - nur die
         # g-Taste (action_generate) erzwingt einen frischen Abruf.
-        self._generate(force_refresh=False)
+        self._month_timer = self.set_timer(
+            _MONTH_DEBOUNCE_SECONDS,
+            lambda: self._generate(force_refresh=False),
+        )
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Steuert die Sichtbarkeit kontextabhaengiger Bindings."""

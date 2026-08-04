@@ -5,8 +5,9 @@
 #  Verwendung:
 #    curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.sh | bash
 #
-#  Klont das Repository, erstellt ein venv und installiert alle Dependencies.
-#  Voraussetzung: Python 3.10+ muss installiert sein.
+#  Laedt den Quellcode des neuesten Releases, erstellt ein venv und
+#  installiert alle Dependencies. Kein git und kein uv noetig.
+#  Voraussetzung: Python 3.12+ muss installiert sein (siehe requires-python).
 #
 #  Installiert nach: ~/.jira-timesheet-app/
 #  Erstellt Wrapper:  ~/.local/bin/jira-timesheet
@@ -30,8 +31,13 @@ PYTHON_CMD=""
 for cmd in python3 python; do
     if command -v "$cmd" &> /dev/null; then
         ver=$("$cmd" --version 2>&1)
-        minor=$(echo "$ver" | grep -oP 'Python 3\.(\d+)' | grep -oP '\d+$')
-        if [ -n "$minor" ] && [ "$minor" -ge 10 ]; then
+        # Python selbst fragen statt die Ausgabe zu zerlegen: 'grep -oP' gibt es
+        # auf dem BSD-grep von macOS NICHT, dort lieferte die alte Pruefung
+        # immer leer - der Installer meldete "kein Python gefunden", obwohl ein
+        # passendes installiert war.
+        minor=$("$cmd" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null)
+        major=$("$cmd" -c 'import sys; print(sys.version_info.major)' 2>/dev/null)
+        if [ "$major" = "3" ] && [ -n "$minor" ] && [ "$minor" -ge 12 ]; then
             PYTHON_CMD="$cmd"
             echo "  [OK] $ver gefunden ($cmd)"
             break
@@ -40,7 +46,7 @@ for cmd in python3 python; do
 done
 
 if [ -z "$PYTHON_CMD" ]; then
-    echo "  [FEHLER] Python 3.10+ nicht gefunden!"
+    echo "  [FEHLER] Python 3.12+ nicht gefunden!"
     echo "  Bitte installieren: https://python.org"
     exit 1
 fi

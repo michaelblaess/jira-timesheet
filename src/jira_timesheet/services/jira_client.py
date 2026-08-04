@@ -23,6 +23,9 @@ from jira_timesheet.models.timesheet import WorklogEntry
 
 logger = logging.getLogger(__name__)
 
+# Nach je so vielen abgearbeiteten Vorgaengen eine Fortschrittszeile ins Log.
+_PROGRESS_EVERY = 10
+
 
 class JiraClientError(Exception):
     """Fehler bei der Jira-Kommunikation."""
@@ -115,7 +118,9 @@ class JiraClient:
 
         async with httpx.AsyncClient(
             verify=False,
-            timeout=60.0,
+            # Getrenntes, knappes connect-Timeout: haengt der Verbindungsaufbau
+            # (Proxy, VPN), soll das nach 15s auffliegen statt erst nach 60.
+            timeout=httpx.Timeout(60.0, connect=15.0),
             follow_redirects=True,
             auth=auth,
             proxy=self._proxy or None,
@@ -124,9 +129,10 @@ class JiraClient:
                 self._account_id = await self._fetch_account_id(client)
 
             issues = await self._search_issues(client, jql, fields)
-            self._log(t("jira.issues_found", count=len(issues)))
+            total_issues = len(issues)
+            self._log(t("jira.issues_found", count=total_issues))
 
-            for issue in issues:
+            for index, issue in enumerate(issues, start=1):
                 issue_entries = await self._extract_worklogs(
                     client,
                     issue,
@@ -134,6 +140,13 @@ class JiraClient:
                     date_to,
                 )
                 entries.extend(issue_entries)
+                # Lebenszeichen: ohne Fortschritt steht das Log nach "Issues
+                # gefunden" still - ein langsamer Abruf ist dann von einem
+                # haengenden nicht zu unterscheiden.
+                if index % _PROGRESS_EVERY == 0 and index != total_issues:
+                    self._log(
+                        t("jira.worklog_progress", done=index, total=total_issues)
+                    )
 
         self._log(t("jira.worklogs_found", count=len(entries)))
         entries.sort(key=lambda e: (e.date, e.ticket))

@@ -5,7 +5,7 @@
 #    irm https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/install.ps1 | iex
 #
 #  Klont das Repository, erstellt ein venv und installiert alle Dependencies.
-#  Voraussetzung: Python 3.10+ muss installiert sein.
+#  Voraussetzung: Python 3.12+ muss installiert sein (siehe requires-python).
 #
 #  Installiert nach: %LOCALAPPDATA%\jira-timesheet\
 #  Erstellt Wrapper:  %LOCALAPPDATA%\jira-timesheet\bin\jira-timesheet.cmd
@@ -31,7 +31,7 @@ foreach ($cmd in @("python", "python3", "py")) {
         $ver = & $cmd --version 2>&1
         if ($ver -match "Python 3\.(\d+)") {
             $minor = [int]$Matches[1]
-            if ($minor -ge 10) {
+            if ($minor -ge 12) {
                 $PythonCmd = $cmd
                 Write-Host "  [OK] $ver gefunden ($cmd)" -ForegroundColor Green
                 break
@@ -41,7 +41,7 @@ foreach ($cmd in @("python", "python3", "py")) {
 }
 
 if (-not $PythonCmd) {
-    Write-Host "  [FEHLER] Python 3.10+ nicht gefunden!" -ForegroundColor Red
+    Write-Host "  [FEHLER] Python 3.12+ nicht gefunden!" -ForegroundColor Red
     Write-Host "  Bitte installieren: https://python.org"
     exit 1
 }
