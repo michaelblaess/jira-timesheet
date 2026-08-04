@@ -133,14 +133,45 @@ curl -fsSL https://raw.githubusercontent.com/michaelblaess/jira-timesheet/main/i
 
 Afterwards just type `jira-timesheet` in the terminal.
 
-### Manual Installation
+### Manual Installation (from source)
 
+Running from source needs [uv](https://docs.astral.sh/uv/) - it fetches a
+matching Python and every dependency. Install it once:
+
+**Windows (PowerShell):**
+```powershell
+irm https://astral.sh/uv/install.ps1 | iex
+```
+
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Close and reopen the terminal afterwards, then:
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/michaelblaess/jira-timesheet.git
+cd jira-timesheet
+./bootstrap.ps1
+./run.ps1
+```
+
+**Linux/macOS:**
 ```bash
 git clone https://github.com/michaelblaess/jira-timesheet.git
 cd jira-timesheet
-setup.bat
-run.bat
+./bootstrap.sh
+./run.sh
 ```
+
+`bootstrap` sets up the environment once, `run` starts the program - that is
+the command you use from then on.
+
+This route also works on **Intel Macs**: the released binary is built for Apple
+Silicon and refuses to start there with `bad CPU type in executable`, while the
+source build picks the Python matching your processor.
 
 ## Usage
 
@@ -294,6 +325,46 @@ On Windows, prefer starting the program via `run.ps1`: the script restores the
 terminal even when the program crashes hard and can no longer do so itself.
 Otherwise mouse tracking stays on and every mouse move spills control
 characters into your prompt.
+
+### If the interface stops responding
+
+A hang leaves no crash report - nothing crashed. Open a **second** terminal
+window (macOS: Cmd+N) and collect the evidence there:
+
+**macOS:**
+```bash
+pgrep -fl jira_timesheet
+top -l 2 -pid $(pgrep -f jira_timesheet | head -1) | grep -E "^PID|python"
+```
+
+**Linux:**
+```bash
+pgrep -fl jira_timesheet
+top -b -n 2 -p $(pgrep -f jira_timesheet | head -1) | grep -E "^ *PID|python"
+```
+
+**Windows (PowerShell, second window):**
+```powershell
+$p = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*jira_timesheet*' }
+Get-Process -Id $p.ProcessId | Select-Object Id, CPU
+Start-Sleep 3
+Get-Process -Id $p.ProcessId | Select-Object Id, CPU
+```
+
+`CPU` counts processor seconds. Identical in both readings means the program is
+waiting; a climbing value means a busy loop. End it with
+`Stop-Process -Id $p.ProcessId -Force`.
+
+The CPU column tells the cases apart:
+
+| Reading | What it means |
+| --- | --- |
+| CPU near 0 %, state `S` | waiting for a network reply - a slow or dropped connection |
+| CPU near 100 %, state `R` | busy loop - please report it with the last log lines |
+| state `U` (macOS) / `D` (Linux) | stuck in file system access, cannot be killed. Cloud-synced folders (Dropbox, iCloud Drive) are the usual cause - keep the working copy outside of them |
+
+To get out of the hang: `kill <PID>` from the second window, or "Force Quit"
+from the Apple menu. Nothing is lost, the settings are written on change.
 
 ## License
 

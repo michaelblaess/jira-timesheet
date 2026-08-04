@@ -11,8 +11,15 @@ permissions:
 jobs:
   build:
     strategy:
+      # Ein scheiterndes Ziel darf die uebrigen nicht abwuergen - sonst bleibt
+      # unbekannt, ob die anderen Plattformen gebaut haetten.
+      fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04, macos-latest]
+        # macos-latest ist Apple Silicon (arm64). macos-15-intel liefert den
+        # x86_64-Build fuer aeltere Intel-Macs - ohne ihn scheitert der Start
+        # dort mit "bad CPU type in executable". Das Label ist laut GitHub bis
+        # August 2027 verfuegbar, danach gibt es bei Actions kein x86_64 mehr.
+        os: [windows-latest, ubuntu-22.04, macos-latest, macos-15-intel]
 
     runs-on: ${{ matrix.os }}
 
@@ -60,6 +67,9 @@ jobs:
 
   release:
     needs: build
+    # Auch veroeffentlichen, wenn einzelne Plattformen scheitern - die
+    # erfolgreichen Artefakte sollen die Anwender trotzdem erreichen.
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
