@@ -37,6 +37,7 @@ from jira_timesheet import __author__, __version__, __year__
 from jira_timesheet.i18n import current_language, format_number, t
 from jira_timesheet.models.export_column import parse_columns
 from jira_timesheet.models.settings import Settings, normalize_color
+from jira_timesheet.models.ticket_lifecycle import TicketLifecycleData
 from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
 from jira_timesheet.screens.manual_entry_screen import ManualEntryResult
 from jira_timesheet.services.anonymizer import FAKE_EMAIL, FAKE_HOST
@@ -108,6 +109,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._manual_entries = ManualEntryService()
         # Id des Eintrags, fuer den gerade die Loesch-Rueckfrage offen ist.
         self._pending_delete_id = 0
+        # Zwischenspeicher zwischen Abruf und Speichern-Dialog der Ticket-Analyse.
+        self._ticket_data: TicketLifecycleData | None = None
         # Kontext der Zeile, auf der das Kontextmenue geoeffnet wurde.
         self._menu_entry: WorklogEntry | None = None
         self._menu_date: date | None = None
@@ -129,6 +132,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # (Konvention: / fokussiert den Filter, die Lupe macht ihn sichtbar).
         self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
         self._bindings.bind("j,J", "show_year", t("binding.year"), key_display="j")
+        self._bindings.bind("b,B", "ticket_report", t("binding.ticket_report"), key_display="b")
         self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
         self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
@@ -507,6 +511,79 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             if run_id == self._generate_run:
                 self._generating = False
                 self.refresh_bindings()
+
+    def action_ticket_report(self) -> None:
+        """Oeffnet die Ticket-Analyse.
+
+        Der Screen fragt nur das Ticket ab - Abruf und Speichern laufen
+        danach hier, damit der vorhandene Speichern-Dialog wiederverwendet
+        werden kann.
+        """
+        from jira_timesheet.screens.ticket_analysis_screen import TicketAnalysisScreen
+
+        if not self._settings.jira_host or not self._settings.jira_token:
+            self.notify(t("ticket_report.settings_missing"), severity="warning")
+            return
+        self.push_screen(TicketAnalysisScreen(), callback=self._on_ticket_chosen)
+
+    def _on_ticket_chosen(self, key: str | None) -> None:
+        """Startet den Abruf, sobald ein Ticket gewaehlt wurde."""
+        if key:
+            self._fetch_ticket_report(key)
+
+    @work(exclusive=True, group="ticket-report")
+    async def _fetch_ticket_report(self, key: str) -> None:
+        """Holt die Ticketdaten und fragt danach nach dem Speicherort."""
+        from jira_timesheet.services.jira_client import JiraClient, JiraClientError
+
+        self._write_log(t("ticket_report.progress_fetch", ticket=key))
+        client = JiraClient(
+            host=self._settings.jira_host,
+            email=self._settings.email,
+            token=self._settings.jira_token,
+            legacy=self._settings.use_legacy_api,
+            proxy=self._settings.proxy_url,
+            on_log=self._write_log,
+        )
+        try:
+            data = await client.get_ticket_lifecycle(key)
+        except JiraClientError as exc:
+            self._write_log(f"[red]{exc}[/red]")
+            self.notify(str(exc), severity="error")
+            return
+
+        self._ticket_data = data
+        self._open_save_dialog(
+            f"{data.key or key}.html",
+            (t("ticket_report.filter_html"), lambda p: p.suffix.lower() == ".html"),
+            self._do_write_ticket_report,
+        )
+
+    def _do_write_ticket_report(self, target: Path | None) -> None:
+        """Callback des Speichern-Dialogs: schreibt den Bericht."""
+        data = self._ticket_data
+        self._ticket_data = None
+        if target is None or data is None:
+            return
+
+        from jira_timesheet.services.ticket_report import build_report, write_report
+
+        try:
+            report = build_report(
+                data.issue,
+                data.changelog,
+                data.comments,
+                f"{self._settings.jira_host.rstrip('/')}/browse",
+            )
+            path = write_report(report, target)
+        except Exception as exc:  # noqa: BLE001 - der Lauf darf nie unbemerkt scheitern
+            self._write_log(f"[red]{type(exc).__name__}: {exc}[/red]")
+            self.notify(f"{type(exc).__name__}: {exc}", severity="error")
+            return
+
+        self._last_export_dir = str(path.parent)
+        self._write_log(t("ticket_report.written", path=self.link_markup(str(path), str(path))))
+        self.notify(t("ticket_report.done", ticket=report.key))
 
     def action_export_excel(self) -> None:
         """Oeffnet den Speichern-Dialog und exportiert als Excel-Datei."""
