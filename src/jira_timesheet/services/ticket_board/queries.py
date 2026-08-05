@@ -32,7 +32,9 @@ FIELDS = (
 )
 
 # Felder fuer die Auswertung - schlanker, weil nur Zeitpunkte gebraucht werden.
-STATS_FIELDS = "created,statuscategorychangedate,status,issuetype"
+# "updated" gehoert dazu: ohne das Feld bleibt die Altersverteilung der
+# offenen Tickets leer, und zwar lautlos. Genau so aufgefallen.
+STATS_FIELDS = "created,updated,statuscategorychangedate,status,issuetype"
 
 # Jira-accountIds bestehen aus Ziffern, Buchstaben, Doppelpunkt und
 # Bindestrich. Alles andere wird abgelehnt, statt es in eine Abfrage zu
