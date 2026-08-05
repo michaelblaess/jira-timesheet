@@ -146,6 +146,15 @@ def to_ticket(
     reporter_id = str(reporter_field.get("accountId", "")) if isinstance(reporter_field, dict) else ""
     foreign = bool(account_id) and bool(reporter_id) and reporter_id != account_id
 
+    role = config.role_of(status, category)
+    if role is Role.HANDBACK and account_id and not foreign:
+        # Ein Rueckgabe-Status mit EIGENEM Autor heisst: ich bin selbst der
+        # Adressat der Bewertung. Es gibt niemanden, dem man das Ticket
+        # zurueckgeben koennte - der Ball liegt bei mir. Ohne diese
+        # Unterscheidung verschwinden solche Tickets in einer Gruppe, die
+        # "nicht bearbeiten" heisst, und liegen dort ewig.
+        role = Role.ACTIVE
+
     return Ticket(
         key=key,
         summary=str(fields.get("summary", "")),
@@ -160,7 +169,7 @@ def to_ticket(
         foreign_reporter=foreign,
         created=parse_ts(str(fields.get("created", ""))),
         updated=updated,
-        role=config.role_of(status, category),
+        role=role,
         idle_workdays=workdays_between(updated, now),
         idle_days=(now - updated).days if updated is not None else 0,
         url=f"{browse_base.rstrip('/')}/browse/{key}" if browse_base and key else "",
