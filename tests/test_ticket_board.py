@@ -228,6 +228,20 @@ class TestMarker:
         assert ticket.has(Marker.STALE)
         assert ticket.has(Marker.HIGH_PRIORITY)
 
+    def test_rueckgabe_status_mit_eigenem_autor_bleibt_bei_mir(self) -> None:
+        # Am echten Bestand aufgefallen: Tickets in einem Rueckgabe-Status,
+        # deren Autor man selbst ist, landeten in einer Gruppe namens "nicht
+        # bearbeiten" und lagen dort ewig. Es gibt aber niemanden, dem man
+        # sie zurueckgeben koennte - der Ball liegt bei einem selbst.
+        eigen = build_board(
+            [issue("A-1", "Bewertung", reporter=ACCOUNT)], CONFIG, NOW, account_id=ACCOUNT
+        )
+        fremd = build_board(
+            [issue("A-2", "Bewertung", reporter=OTHER)], CONFIG, NOW, account_id=ACCOUNT
+        )
+        assert eigen.tickets[0].role is Role.ACTIVE
+        assert fremd.tickets[0].role is Role.HANDBACK
+
     def test_ohne_eigene_kennung_gibt_es_keinen_rueckgabe_marker(self) -> None:
         # Beim Bauen aufgefallen und deshalb festgehalten: wer build_board
         # ohne account_id ruft, bekommt eine dauerhaft leere Rueckgabe-Gruppe
