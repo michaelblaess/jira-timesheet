@@ -55,7 +55,11 @@ where = ["src"]
 jira_timesheet = ["locale/*.json"]
 
 [tool.mypy]
-python_version = "3.10"
+# Muss zu requires-python passen. Stand hier laenger auf "3.10", waehrend das
+# Projekt >=3.12 verlangt - mypy pruefte damit gegen eine Version, die es gar
+# nicht unterstuetzt, und kannte weder enum.StrEnum noch datetime.UTC (beide
+# ab 3.11). Das erzeugte Fehler in fehlerfreiem Code.
+python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
