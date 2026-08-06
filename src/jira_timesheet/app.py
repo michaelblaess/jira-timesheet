@@ -1528,13 +1528,27 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if event.ticket is None:
             return
         self._menu_ticket = event.ticket
+        # Reihenfolge: erst der Schluessel, dann die Beschriftung - und die
+        # Position kommt als Schluesselwort. Beides andersherum kostet die
+        # ganze Anwendung, siehe den Test zu diesem Pfad.
+        has_access = bool(self._settings.jira_host and self._settings.jira_token)
         items = [
-            ContextMenuItem(t("menu.open_ticket"), "open_ticket"),
-            ContextMenuItem(t("menu.ticket_report"), "ticket_report"),
+            ContextMenuItem(
+                "open_ticket",
+                t("menu.open_ticket"),
+                enabled=bool(event.ticket.url) and not self._anonymized,
+            ),
+            ContextMenuItem(
+                "ticket_report",
+                t("menu.ticket_report"),
+                # Anonymisierte Schluessel sind erfunden - ein Abruf ginge
+                # ins Leere.
+                enabled=has_access and not self._anonymized,
+            ),
         ]
         self.push_screen(
-            ContextMenuScreen(items, event.screen_x, event.screen_y),
-            self._on_board_menu,
+            ContextMenuScreen(items, at=(event.screen_x, event.screen_y)),
+            callback=self._on_board_menu,
         )
 
     def _on_board_menu(self, action: str | None) -> None:
