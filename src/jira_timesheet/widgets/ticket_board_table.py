@@ -38,6 +38,16 @@ _COLUMNS: tuple[tuple[str, str], ...] = (
 # Der Titel fuellt die restliche Breite, bis der Benutzer ihn selbst zieht.
 _MIN_SUMMARY_WIDTH = 20
 
+# Zeichen vor einer Gruppenueberschrift. Es steht fuer eine aufgeklappte
+# Gruppe wie im Baum der Qt-Fassung - hier ist nichts zuklappbar, aber das
+# Zeichen macht die Ueberschrift auf einen Blick als solche erkennbar.
+_GROUP_MARK = "▼"
+
+# Einrueckung der Ticketzeilen unter ihrer Gruppe. Ohne sie stehen
+# Ueberschrift und Tickets buendig untereinander, und die Gliederung ist
+# nur noch an der Schriftstaerke zu erkennen.
+_TICKET_INDENT = "  "
+
 # Ueberschriften der Gruppen. Bewusst kurz: der Titel steht in der ersten
 # Spalte und bestimmt damit deren Breite - eine ausgeschriebene Anweisung wie
 # "zurueckgeben, nicht bearbeiten" haette die Ticket-Spalte auf das Dreifache
@@ -304,17 +314,47 @@ class TicketBoardTable(Vertical):
 
         groups = self._visible_groups()
         row_index = 0
-        for group in groups:
-            row_index = self._render_group(table, group, row_index)
+        for position, group in enumerate(groups):
+            row_index = self._render_group(table, group, row_index, first=position == 0)
         self._set_hint(self._hint_text(groups))
 
-    def _render_group(self, table: DataTable[Any], group: Group, row_index: int) -> int:
-        """Schreibt eine Gruppenzeile und ihre Tickets."""
-        title = f"{t(_GROUP_KEYS[group.role])} ({group.count})"
+    def _render_group(
+        self,
+        table: DataTable[Any],
+        group: Group,
+        row_index: int,
+        first: bool,
+    ) -> int:
+        """Schreibt eine Gruppenzeile und ihre Tickets.
+
+        Args:
+            table:
+                Die zu fuellende Tabelle.
+            group:
+                Die Gruppe mit ihren bereits gefilterten Tickets.
+            row_index:
+                Fortlaufender Zeilenzaehler, dient als Zeilenschluessel.
+            first:
+                True fuer die erste Gruppe - sie bekommt keine Leerzeile
+                davor, sonst begaenne die Tabelle mit einer Luecke.
+
+        Returns:
+            Der naechste freie Zeilenzaehler.
+        """
+        # Eine Leerzeile trennt die Gruppen. Ohne sie laufen zwanzig Zeilen
+        # Tickets und die naechste Ueberschrift ineinander - im Terminal gibt
+        # es keine Linien und keine Einrueckung, die das sonst leisten.
+        if not first:
+            table.add_row(*(Text("") for _ in _COLUMNS), key=str(row_index))
+            row_index += 1
+
+        title = f"{_GROUP_MARK} {t(_GROUP_KEYS[group.role])} ({group.count})"
         hint = t(f"{_GROUP_KEYS[group.role]}_hint")
         cells: list[Any] = [Text(title, style="bold")]
         cells.extend(Text("") for _ in _COLUMNS[1:-1])
-        cells.append(Text(hint, style="dim"))
+        # Ohne no_wrap bricht der Hinweis um und macht die Ueberschrift
+        # zweizeilig - dann steht er unter der Gruppe statt neben ihr.
+        cells.append(Text(hint, style="dim", no_wrap=True, overflow="ellipsis", end=""))
         table.add_row(*cells, key=str(row_index))
         row_index += 1
 
@@ -330,13 +370,16 @@ class TicketBoardTable(Vertical):
         urgent = any(ticket.has(marker) for marker in _URGENT_MARKERS)
         style = "red" if urgent else ""
 
+        # Die Einrueckung gehoert zum Text und nicht zum Stil: eine DataTable
+        # kennt keine Ebenen, nur Zellen.
+        key_text = Text(_TICKET_INDENT, style=style)
         if self._jira_host and ticket.key:
-            key_text = Text(
+            key_text.append(
                 ticket.key,
                 style=f"{style} link {self._jira_host}/browse/{ticket.key}".strip(),
             )
         else:
-            key_text = Text(ticket.key, style=style)
+            key_text.append(ticket.key, style=style)
 
         return [
             key_text,
