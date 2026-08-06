@@ -21,6 +21,10 @@ dependencies = [
     "textual-themes @ git+https://github.com/michaelblaess/textual-themes.git",
     "textual-widgets @ git+https://github.com/michaelblaess/textual-widgets.git",
     "textual-fspicker>=0.4.0",
+    # Diagramme der Ticket-Auswertung. MIT, wie plotext darunter - passt zu
+    # Apache 2.0. Blockzeichen von Hand reichten dafuer nicht: zwoelf Monate
+    # auf zwoelf Zeichen ergeben keinen erkennbaren Verlauf.
+    "textual-plotext>=1.0",
 ]
 
 [project.optional-dependencies]
