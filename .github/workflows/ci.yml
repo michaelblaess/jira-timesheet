@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Von Hand ausloesbar. Am 06.08.2026 hat GitHub zu einem Push gar keinen
+  # CI-Lauf gestartet (der Pages-Job desselben Commits meldete "The job was
+  # not acquired by Runner of type hosted"). Ohne diesen Eintrag bleibt als
+  # Ausweg nur ein Leer-Commit.
+  workflow_dispatch:
 
 jobs:
   build:
