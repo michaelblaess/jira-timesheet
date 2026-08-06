@@ -60,6 +60,26 @@ class SummaryPanel(StatusBar):  # type: ignore[misc]
         self._anonymized = value
         self._aktualisieren()
 
+    def show_items(self, items: list[StatusItem]) -> None:
+        """Zeigt fremde Kennzahlen statt der Stundenzettel-Werte.
+
+        Gedacht fuer die Ticket-Ansichten, die eigene Zahlen mitbringen. Der
+        Stundenzettel bleibt gespeichert - ein Wechsel zurueck in die Liste
+        stellt ihn ueber ``refresh_timesheet`` wieder her.
+
+        Args:
+            items:
+                Die anzuzeigenden Eintraege. Leer zeigt den Hinweistext.
+        """
+        if not items:
+            super().clear()
+            return
+        self.set_items(items)
+
+    def refresh_timesheet(self) -> None:
+        """Zeigt wieder die Kennzahlen des zuletzt geladenen Stundenzettels."""
+        self._aktualisieren()
+
     def clear(self) -> None:
         """Setzt die Anzeige zurueck (zeigt den Generate-Hinweis)."""
         self._timesheet = None

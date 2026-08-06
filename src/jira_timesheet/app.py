@@ -31,6 +31,7 @@ from textual_widgets import (
     HorizontalSplitter,
     LogPanel,
     LogRouter,
+    StatusItem,
 )
 
 from jira_timesheet import __author__, __version__, __year__
@@ -45,10 +46,21 @@ from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
+from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role
+from jira_timesheet.services.ticket_board import Ticket as BoardTicket
+from jira_timesheet.services.ticket_board_loader import (
+    MODE_ASSIGNED,
+    MODE_RELEVANT,
+    config_from,
+    load_board,
+    load_statistics,
+)
 from jira_timesheet.services.timesheet_service import TimesheetService
 from jira_timesheet.widgets.calendar_view import CalendarView
 from jira_timesheet.widgets.config_panel import ConfigPanel
 from jira_timesheet.widgets.summary_panel import SummaryPanel
+from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
+from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel
 from jira_timesheet.widgets.timesheet_table import TimesheetTable
 
 try:
@@ -64,6 +76,13 @@ _REPO_URL = "https://github.com/michaelblaess/jira-timesheet"
 # Wartezeit nach einem Monatswechsel, bevor abgerufen wird. Blaettert der
 # Anwender mehrere Monate weiter, startet nur der letzte Stand einen Abruf.
 _MONTH_DEBOUNCE_SECONDS = 0.35
+
+# Reiter-Kennung je Ticket-Ansicht. Ausserhalb dieser beiden Reiter gibt es
+# kein Board, und die zugehoerigen Tastenkuerzel bleiben stumm.
+_BOARD_TABS: dict[str, str] = {
+    "tab-assigned": MODE_ASSIGNED,
+    "tab-relevant": MODE_RELEVANT,
+}
 
 
 class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
@@ -114,6 +133,20 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Kontext der Zeile, auf der das Kontextmenue geoeffnet wurde.
         self._menu_entry: WorklogEntry | None = None
         self._menu_date: date | None = None
+        # Ticket-Ansichten: je Ansicht ein Lade-Merker, damit ein Reiter beim
+        # ersten Ansehen genau einmal abruft. Ein Abruf kostet Minuten - beim
+        # Hin- und Herwechseln darf er nicht jedes Mal neu starten.
+        self._board_loaded: dict[str, bool] = {MODE_ASSIGNED: False, MODE_RELEVANT: False}
+        self._stats_loaded = False
+        # Die echten Ansichten. Angezeigt wird je nach Modus eine
+        # anonymisierte Kopie - das Original bleibt hier, damit sich der
+        # Screenshot-Modus verlustfrei zurueckschalten laesst.
+        self._real_boards: dict[str, Board | None] = {
+            MODE_ASSIGNED: None,
+            MODE_RELEVANT: None,
+        }
+        # Ticket der Zeile, auf der das Kontextmenue der Ansicht steht.
+        self._menu_ticket: BoardTicket | None = None
 
         # Runtime-Bindings mit uebersetzten Labels - class-level BINDINGS
         # koennen kein t() nutzen. Buchstaben-Bindings case-insensitive.
@@ -133,6 +166,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
         self._bindings.bind("j,J", "show_year", t("binding.year"), key_display="j")
         self._bindings.bind("b,B", "ticket_report", t("binding.ticket_report"), key_display="b")
+        # Bewusst F5 statt eines Buchstabens: die Ticket-Ansichten laden beim
+        # ersten Ansehen von selbst, die Taste ist nur das Neuladen - und die
+        # Buchstaben sind ohnehin durchgehend belegt.
+        self._bindings.bind("f5", "reload_board", t("binding.tickets"), key_display="F5")
         self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
         self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
@@ -172,6 +209,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             "cycle_theme": t("tooltip.theme"),
             "manual_entry": t("tooltip.manual_entry"),
             "delete_manual": t("tooltip.delete_manual"),
+            "reload_board": t("tooltip.tickets"),
         }
         for key, bindings_list in self._bindings.key_to_bindings.items():
             for i, binding in enumerate(bindings_list):
@@ -222,6 +260,21 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     hours_per_day=self._settings.hours_per_day,
                     jira_host=self._settings.jira_host,
                     id="calendar-view",
+                )
+            with TabPane(t("tab.tickets_assigned"), id="tab-assigned"):
+                yield TicketBoardTable(
+                    MODE_ASSIGNED,
+                    jira_host=self._settings.jira_host,
+                    id="board-assigned",
+                )
+                # Die Auswertung gibt es nur zu den eigenen Tickets: die
+                # Historie fremder Tickets sagt nichts ueber die eigene Lage.
+                yield TicketStatsPanel(MODE_ASSIGNED, id="board-stats")
+            with TabPane(t("tab.tickets_relevant"), id="tab-relevant"):
+                yield TicketBoardTable(
+                    MODE_RELEVANT,
+                    jira_host=self._settings.jira_host,
+                    id="board-relevant",
                 )
         yield SummaryPanel(id="summary-panel")
         yield HorizontalSplitter(target_id="view-tabs", min_size=10, id="log-splitter")
@@ -739,6 +792,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if new_settings is None:
             return
 
+        # Vorher merken: aendert sich die Zuordnung der Ticket-Ansichten,
+        # muessen die geladenen Boards weg. Sie zeigen sonst Gruppen und
+        # Merkmale nach der alten Regel - falsch, ohne dass man es sieht.
+        board_before = self._board_fingerprint()
+
         for key, value in new_settings.items():
             if not hasattr(self._settings, key):
                 continue
@@ -755,6 +813,33 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         config = self.query_one("#config-panel", ConfigPanel)
         config.refresh_display()
         self._apply_manual_marking()
+        if self._board_fingerprint() != board_before:
+            self._invalidate_boards()
+
+    def _board_fingerprint(self) -> tuple[object, ...]:
+        """Alle Werte, die das Ergebnis der Ticket-Ansichten beeinflussen.
+
+        Returns:
+            Ein Vergleichswert. Aendert er sich, ist ein geladenes Board
+            veraltet und muss neu geholt werden.
+        """
+        settings = self._settings
+        return (
+            tuple(settings.board_active_status),
+            tuple(settings.board_backlog_status),
+            tuple(settings.board_handback_status),
+            tuple(settings.board_acceptance_status),
+            tuple(settings.board_closing_status),
+            tuple(settings.board_priorities),
+            settings.board_window_days,
+            settings.board_stale_days,
+            settings.board_threshold_active,
+            settings.board_threshold_acceptance,
+            settings.board_threshold_closing,
+            settings.jira_host,
+            settings.email,
+            settings.use_legacy_api,
+        )
 
     def _apply_manual_marking(self) -> None:
         """Uebernimmt geaenderte Anzeige-Einstellungen in Tabelle und Kennzahlen."""
@@ -1157,11 +1242,23 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
     def action_toggle_anon(self) -> None:
         """Anonymisiert/de-anonymisiert die Daten fuer Screenshots."""
-        if self._timesheet is None:
+        # Auch eine geladene Ticket-Ansicht zaehlt: wer nur sie geoeffnet hat,
+        # muss sie fuer einen Screenshot ebenso zensieren koennen.
+        if self._timesheet is None and not any(self._real_boards.values()):
             self.notify(t("notify.generate_first"), severity="warning")
             return
 
         self._anonymized = not self._anonymized
+        self._refresh_boards_anonymization()
+
+        if self._timesheet is None:
+            # Nur Ticket-Ansichten geladen - fuer den Stundenzettel gibt es
+            # nichts umzuschalten.
+            self.sub_title = t("subtitle.anonymized") if self._anonymized else ""
+            self._rerender_log()
+            self.query_one("#config-panel", ConfigPanel).set_anonymized(self._anonymized)
+            self.notify(t("notify.anonymized" if self._anonymized else "notify.deanonymized"))
+            return
 
         table = self.query_one("#timesheet-table", TimesheetTable)
         cal = self.query_one("#calendar-view", CalendarView)
@@ -1189,6 +1286,17 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.sub_title = ""
             self.notify(t("notify.deanonymized"))
 
+    def _refresh_boards_anonymization(self) -> None:
+        """Zeichnet die geladenen Ticket-Ansichten im aktuellen Modus neu."""
+        for mode, board in self._real_boards.items():
+            if board is None:
+                continue
+            with contextlib.suppress(Exception):
+                self._board_widget(mode).set_board(self._display_board(board))
+        active = self._board_mode()
+        if active is not None:
+            self._show_board_summary(active)
+
     def action_reset_cache(self) -> None:
         """Loescht den Worklog-Cache."""
         import shutil
@@ -1204,13 +1312,262 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._write_log(t("log.cache_empty"))
             self.notify(t("notify.cache_empty"))
 
+    # --- Ticket-Ansichten ---------------------------------------------
+
+    def _board_widget(self, mode: str) -> TicketBoardTable:
+        """Liefert die Tabelle einer Ansicht."""
+        return self.query_one(f"#board-{mode}", TicketBoardTable)
+
+    def _board_mode(self) -> str | None:
+        """Ansicht des aktiven Reiters, None ausserhalb der Ticket-Reiter."""
+        return _BOARD_TABS.get(self._active_tab())
+
+    def action_reload_board(self) -> None:
+        """Laedt die Ticket-Ansicht des aktuellen Reiters neu."""
+        mode = self._board_mode()
+        if mode is None:
+            return
+        self._board_loaded[mode] = False
+        if mode == MODE_ASSIGNED:
+            self._stats_loaded = False
+        self._ensure_board(mode)
+
+    def _ensure_board(self, mode: str) -> None:
+        """Startet den Abruf, wenn diese Ansicht noch nichts geladen hat."""
+        if self._board_loaded.get(mode):
+            return
+        if not self._settings_complete():
+            self._board_widget(mode).show_message(t("board.needs_settings"))
+            return
+        self._board_loaded[mode] = True
+        self._board_widget(mode).show_message(t("board.loading"))
+        # Eigene Gruppe je Ansicht: ein Wechsel des Reiters darf den Abruf
+        # der anderen Ansicht nicht abwuergen.
+        self.run_worker(
+            self._load_board_view(mode),
+            group=f"board-{mode}",
+            exclusive=True,
+        )
+
+    def on_ticket_stats_panel_requested(self, event: TicketStatsPanel.Requested) -> None:
+        """Der Auswertungs-Bereich wurde aufgeklappt und will Zahlen sehen."""
+        event.stop()
+        if self._stats_loaded or not self._settings_complete():
+            return
+        self._stats_loaded = True
+        self.query_one("#board-stats", TicketStatsPanel).show_message(t("board.stats.loading"))
+        self.run_worker(self._load_board_stats(), group="board-stats", exclusive=True)
+
+    async def _load_board_view(self, mode: str) -> None:
+        """Holt eine Ticket-Ansicht und uebergibt sie an die Tabelle."""
+        widget = self._board_widget(mode)
+        try:
+            board = await load_board(
+                self._settings,
+                config_from(self._settings),
+                mode,
+                on_worklog_check=lambda count: self._write_log(
+                    t("board.worklog_check", count=count)
+                ),
+                on_log=self._write_log,
+            )
+        except AccountIdError:
+            # Ohne eigene Kennung sind die Quellen "bearbeitet" und
+            # "erwaehnt" nicht abfragbar. Das betrifft nur den Legacy-Modus.
+            self._board_failed(widget, t("board.needs_account"))
+            return
+        except JiraClientError as exc:
+            self._board_failed(widget, t("board.failed", error=str(exc)))
+            return
+        except Exception as exc:  # noqa: BLE001 - ein Abruf darf nie unbemerkt sterben
+            self._board_failed(widget, t("board.failed", error=f"{type(exc).__name__}: {exc}"))
+            return
+
+        self._real_boards[mode] = board
+        widget.set_board(self._display_board(board))
+        self._write_log(t("board.loaded", count=board.count))
+        if board.unknown_status:
+            # Nicht verschweigen: was hier auftaucht, gehoert in die
+            # Einstellungen - sonst ordnet Jira den Status grob selbst zu.
+            self._write_log(
+                t(
+                    "board.unknown_status",
+                    count=len(board.unknown_status),
+                    names=", ".join(board.unknown_status),
+                )
+            )
+        if self._board_mode() == mode:
+            self._show_board_summary(mode)
+
+    def _display_board(self, board: Board) -> Board:
+        """Liefert die anzuzeigende Fassung einer Ansicht.
+
+        Im Screenshot-Modus eine anonymisierte Kopie: Ticketnummern, Titel
+        und Statusnamen sind Betriebsinterna und haben in einem Bild nichts
+        verloren. Liegezeiten, Merkmale und die Gruppierung bleiben - sie
+        verraten nichts und tragen die Aussage.
+        """
+        if not self._anonymized:
+            return board
+        from jira_timesheet.services.anonymizer import anonymize_board
+
+        return anonymize_board(board)
+
+    def _board_failed(self, widget: TicketBoardTable, message: str) -> None:
+        """Meldet einen gescheiterten Abruf und gibt die Ansicht wieder frei."""
+        widget.show_message(message)
+        self._write_log(f"[red]{message}[/red]")
+        self.notify(message, severity="error")
+        # Ein gescheiterter Abruf darf nicht als geladen gelten, sonst laesst
+        # sich die Ansicht nur noch ueber die Taste wiederholen.
+        self._board_loaded[self._mode_of(widget)] = False
+
+    @staticmethod
+    def _mode_of(widget: TicketBoardTable) -> str:
+        """Ansicht eines Tabellen-Widgets, abgeleitet aus seiner Kennung."""
+        return MODE_RELEVANT if widget.id == f"board-{MODE_RELEVANT}" else MODE_ASSIGNED
+
+    async def _load_board_stats(self) -> None:
+        """Holt die Ticket-Historie fuer die Auswertung."""
+        panel = self.query_one("#board-stats", TicketStatsPanel)
+        try:
+            stats = await load_statistics(self._settings, on_log=self._write_log)
+        except Exception as exc:  # noqa: BLE001 - die Auswertung ist Beiwerk
+            panel.show_message(t("board.stats.failed", error=f"{type(exc).__name__}: {exc}"))
+            self._stats_loaded = False
+            return
+        panel.set_statistics(stats)
+
+    def _show_board_summary(self, mode: str) -> None:
+        """Traegt die Kennzahlen einer Ansicht in die Zusammenfassung ein."""
+        board = self._board_widget(mode).board
+        summary = self.query_one("#summary-panel", SummaryPanel)
+        if board is None:
+            summary.show_items([])
+            return
+        summary.show_items(self._board_items(board, mode))
+
+    def _board_items(self, board: Board, mode: str) -> list[StatusItem]:
+        """Baut die Kennzahlen einer Ticket-Ansicht.
+
+        Gezeigt wird nur, was auch vorkommt: eine Leiste voller Nullen sagt
+        nichts und verdeckt die Zahl, auf die es ankommt.
+        """
+        items = [StatusItem(t("board.summary.tickets"), str(board.count))]
+
+        for marker, label, style in (
+            (Marker.PILE_OF_SHAME, "board.summary.pile_of_shame", "bold red"),
+            (Marker.HANDBACK, "board.summary.handback", "bold"),
+            (Marker.ACCEPTANCE, "board.summary.acceptance", "bold"),
+        ):
+            count = len(board.with_marker(marker))
+            if count:
+                items.append(StatusItem(t(label), str(count), value_style=style))
+
+        backlog = sum(group.count for group in board.groups if group.role is Role.BACKLOG)
+        if backlog:
+            items.append(StatusItem(t("board.summary.backlog"), str(backlog)))
+
+        oldest = max((ticket.idle_workdays for ticket in board.tickets), default=0.0)
+        if oldest > 0:
+            items.append(
+                StatusItem(
+                    t("board.summary.oldest"),
+                    t("board.stats.workdays", value=format_number(oldest, decimals=0)),
+                )
+            )
+
+        if mode == MODE_RELEVANT and self._settings.board_window_days > 0:
+            items.append(
+                StatusItem(
+                    t("board.summary.window"),
+                    t("board.summary.window_value", days=self._settings.board_window_days),
+                )
+            )
+
+        if board.unknown_status:
+            items.append(
+                StatusItem(
+                    t("board.summary.unassigned"),
+                    str(len(board.unknown_status)),
+                    value_style="bold yellow",
+                )
+            )
+        return items
+
+    def _invalidate_boards(self) -> None:
+        """Verwirft die geladenen Ansichten nach einer Aenderung der Zuordnung.
+
+        Die Statuszuordnung veraendert jede Gruppe und jedes Merkmal - ein
+        weiterhin angezeigtes altes Board waere schlicht falsch.
+        """
+        self._board_loaded = {MODE_ASSIGNED: False, MODE_RELEVANT: False}
+        self._stats_loaded = False
+        for mode in (MODE_ASSIGNED, MODE_RELEVANT):
+            with contextlib.suppress(Exception):
+                widget = self._board_widget(mode)
+                widget.set_jira_host(self._settings.jira_host)
+                widget.show_message(t("board.loading"))
+        active = self._board_mode()
+        if active is not None:
+            self._ensure_board(active)
+
+    def on_ticket_board_table_ticket_selected(
+        self, event: TicketBoardTable.TicketSelected
+    ) -> None:
+        """Enter auf einem Ticket oeffnet es im Browser."""
+        event.stop()
+        if event.ticket is not None and event.ticket.url:
+            webbrowser.open(event.ticket.url)
+
+    def on_ticket_board_table_ticket_right_clicked(
+        self, event: TicketBoardTable.TicketRightClicked
+    ) -> None:
+        """Oeffnet das Kontextmenue einer Ticketzeile."""
+        event.stop()
+        if event.ticket is None:
+            return
+        self._menu_ticket = event.ticket
+        items = [
+            ContextMenuItem(t("menu.open_ticket"), "open_ticket"),
+            ContextMenuItem(t("menu.ticket_report"), "ticket_report"),
+        ]
+        self.push_screen(
+            ContextMenuScreen(items, event.screen_x, event.screen_y),
+            self._on_board_menu,
+        )
+
+    def _on_board_menu(self, action: str | None) -> None:
+        """Fuehrt die im Kontextmenue der Ansicht gewaehlte Aktion aus."""
+        ticket = self._menu_ticket
+        self._menu_ticket = None
+        if ticket is None or action is None:
+            return
+        if action == "open_ticket" and ticket.url:
+            webbrowser.open(ticket.url)
+        elif action == "ticket_report":
+            self._fetch_ticket_report(ticket.key)
+
     def action_next_tab(self) -> None:
-        """Wechselt zum naechsten Tab."""
+        """Wechselt zum naechsten Tab (im Kreis)."""
         tabs = self.query_one("#view-tabs", TabbedContent)
-        tabs.active = "tab-calendar" if tabs.active == "tab-list" else "tab-list"
+        order = ["tab-list", "tab-calendar", "tab-assigned", "tab-relevant"]
+        try:
+            index = order.index(tabs.active)
+        except ValueError:
+            index = 0
+        tabs.active = order[(index + 1) % len(order)]
 
     def action_focus_filter(self) -> None:
-        """Fokussiert das Suchfeld der Liste (wechselt ggf. in den Listen-Tab)."""
+        """Fokussiert das Suchfeld des aktiven Reiters.
+
+        In den Ticket-Ansichten ist das ihr eigenes Feld - ausserhalb wird in
+        die Liste gewechselt, weil / dort seit jeher den Filter oeffnet.
+        """
+        mode = self._board_mode()
+        if mode is not None:
+            self._board_widget(mode).focus_search()
+            return
         tabs = self.query_one("#view-tabs", TabbedContent)
         if tabs.active != "tab-list":
             tabs.active = "tab-list"
@@ -1282,14 +1639,23 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return None
         if action in ("export_excel", "export_pdf") and self._timesheet is None:
             return None
+        # Das Neuladen der Ticket-Ansicht gibt es nur in ihren beiden Reitern.
+        board_mode = self._board_mode()
+        if action == "reload_board":
+            return None if board_mode is None else True
         # Loeschen nur anbieten, wenn der Cursor wirklich auf einem manuellen
         # Eintrag steht - sonst laeuft die Taste ins Leere.
         if action == "delete_manual":
+            if board_mode is not None:
+                return None
             entry = self._cursor_entry()
             return None if entry is None or not entry.manual else True
         # "Details" und die manuelle Erfassung gibt es nur in der Listenansicht -
-        # im Kalender kann keine Ticket-Zeile markiert werden.
-        return not (action in ("show_details", "manual_entry") and self._active_tab() == "tab-calendar")
+        # weder im Kalender noch in den Ticket-Ansichten laesst sich eine Zeile
+        # des Stundenzettels markieren.
+        if action in ("show_details", "manual_entry"):
+            return not (board_mode is not None or self._active_tab() == "tab-calendar")
+        return True
 
     def _active_tab(self) -> str:
         """Liefert die id des aktiven View-Tabs (oder '' wenn nicht ermittelbar)."""
@@ -1298,8 +1664,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         return ""
 
     def on_tabbed_content_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        """Footer neu bewerten - 'Details' ist nur in der Listenansicht aktiv."""
+        """Reiter gewechselt: Footer neu bewerten, Ansicht bei Bedarf laden.
+
+        Die Ticket-Ansichten laden beim ersten Ansehen und nicht beim Start -
+        ein Abruf kostet Minuten, und wer nur seinen Stundenzettel will, soll
+        nicht darauf warten.
+        """
         self.refresh_bindings()
+        mode = self._board_mode()
+        if mode is None:
+            self.query_one("#summary-panel", SummaryPanel).refresh_timesheet()
+            return
+        self._ensure_board(mode)
+        self._show_board_summary(mode)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Footer neu bewerten - DEL gilt nur auf manuellen Zeilen."""
