@@ -126,6 +126,29 @@ class Settings:
     # Auswahlliste fuer das Kunden-Feld im Dialog fuer manuelle Zeiten.
     customers: list[str] = field(default_factory=lambda: list(DEFAULT_CUSTOMERS))
 
+    # --- Ticket-Ansichten ---------------------------------------------
+    # Welcher Status welche Rolle hat, ist bewusst Konfiguration und keine
+    # Konstante: jede Jira-Instanz fuehrt eigene Workflows. Ohne Zuordnung
+    # faellt der Kern auf die Jira-Statuskategorie zurueck - groeber, aber
+    # sofort brauchbar.
+    board_active_status: list[str] = field(default_factory=list)
+    board_backlog_status: list[str] = field(default_factory=list)
+    board_handback_status: list[str] = field(default_factory=list)
+    board_acceptance_status: list[str] = field(default_factory=list)
+    board_closing_status: list[str] = field(default_factory=list)
+    # Rangfolge der Prioritaeten, dringendstes zuerst. Leer = die Vorgabe
+    # des Kerns, die mehrere gaengige Jira-Schemata abdeckt.
+    board_priorities: list[str] = field(default_factory=list)
+    # Zeitfenster der Ansicht "Relevante Tickets" in Kalendertagen.
+    board_window_days: int = 90
+    # Ab so vielen Kalendertagen ohne Aenderung gilt ein Ticket als verwaist.
+    board_stale_days: int = 180
+    # Schwellen in ARBEITSTAGEN je Rolle, 0 schaltet die Rolle ab. Das sind
+    # Setzungen, keine Messungen - deshalb stehen sie in der Oberflaeche.
+    board_threshold_active: float = 20.0
+    board_threshold_acceptance: float = 10.0
+    board_threshold_closing: float = 0.0
+
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
 
@@ -159,6 +182,17 @@ class Settings:
         "manual_entry_color",
         "default_customer",
         "customers",
+        "board_active_status",
+        "board_backlog_status",
+        "board_handback_status",
+        "board_acceptance_status",
+        "board_closing_status",
+        "board_priorities",
+        "board_window_days",
+        "board_stale_days",
+        "board_threshold_active",
+        "board_threshold_acceptance",
+        "board_threshold_closing",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -214,6 +248,25 @@ class Settings:
                 manual_entry_color=normalize_color(str(data.get("manual_entry_color", DEFAULT_MANUAL_COLOR))),
                 default_customer=str(data.get("default_customer", "Vertrieb")),
                 customers=Settings._parse_customers(data.get("customers")),
+                board_active_status=Settings._parse_str_list(data.get("board_active_status")),
+                board_backlog_status=Settings._parse_str_list(data.get("board_backlog_status")),
+                board_handback_status=Settings._parse_str_list(data.get("board_handback_status")),
+                board_acceptance_status=Settings._parse_str_list(
+                    data.get("board_acceptance_status")
+                ),
+                board_closing_status=Settings._parse_str_list(data.get("board_closing_status")),
+                board_priorities=Settings._parse_str_list(data.get("board_priorities")),
+                board_window_days=Settings._parse_int(data.get("board_window_days"), 90),
+                board_stale_days=Settings._parse_int(data.get("board_stale_days"), 180),
+                board_threshold_active=Settings._parse_float(
+                    data.get("board_threshold_active"), 20.0
+                ),
+                board_threshold_acceptance=Settings._parse_float(
+                    data.get("board_threshold_acceptance"), 10.0
+                ),
+                board_threshold_closing=Settings._parse_float(
+                    data.get("board_threshold_closing"), 0.0
+                ),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
@@ -233,6 +286,43 @@ class Settings:
             return list(DEFAULT_CUSTOMERS)
         names = [str(item).strip() for item in raw if str(item).strip()]
         return names or list(DEFAULT_CUSTOMERS)
+
+    @staticmethod
+    def _parse_str_list(raw: object) -> list[str]:
+        """Liest eine Liste von Zeichenketten defensiv aus dem JSON.
+
+        Args:
+            raw:
+                Der rohe Wert aus der Datei.
+
+        Returns:
+            Die bereinigten Eintraege, leere fliegen raus. Kein Rueckfall auf
+            eine Vorgabe: eine leere Statusliste ist eine gueltige Angabe
+            (dann greift die Statuskategorie), keine fehlende.
+        """
+        if not isinstance(raw, list):
+            return []
+        return [str(item).strip() for item in raw if str(item).strip()]
+
+    @staticmethod
+    def _parse_int(raw: object, fallback: int) -> int:
+        """Liest eine ganze Zahl defensiv, mit Rueckfall auf die Vorgabe."""
+        if isinstance(raw, bool) or not isinstance(raw, int | float | str):
+            return fallback
+        try:
+            return int(raw)
+        except ValueError:
+            return fallback
+
+    @staticmethod
+    def _parse_float(raw: object, fallback: float) -> float:
+        """Liest eine Kommazahl defensiv, mit Rueckfall auf die Vorgabe."""
+        if isinstance(raw, bool) or not isinstance(raw, int | float | str):
+            return fallback
+        try:
+            return float(raw)
+        except ValueError:
+            return fallback
 
     @staticmethod
     def _parse_column_widths(raw: object) -> dict[str, int]:

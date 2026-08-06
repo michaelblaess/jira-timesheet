@@ -104,6 +104,9 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Manuelle Zeiterfassung** — Zeiten, die nicht in Jira gebucht sind, per Dialog erfassen (`m`), bearbeiten und löschen (`ENTF`); gespeichert in SQLite, farblich markiert in Liste, Excel und PDF
 - **Konfigurierbare Export-Spalten** — jede Spalte an-/abwählbar und frei benennbar (Settings-Tab "Spalten"), inklusive Kunden-Spalte
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
+- **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
+- **Relevante Tickets** — Tickets, die dir nicht zugewiesen sind, dich aber betreffen: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
+- **Auswertung** — Zulauf gegen Abgang je Monat, Bestand kumuliert und die Altersverteilung der offenen Tickets, als Balken direkt im Terminal (zuklappbar)
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
 - **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
@@ -240,6 +243,58 @@ Das Textfeld daneben ist die Überschrift **im Export**; die Liste behält ihre
 Beschreibung ist die flexible Spalte: sie bekommt die Breite, die die übrigen
 sichtbaren Spalten übrig lassen.
 
+### Ticket-Ansichten einrichten
+
+Die beiden Reiter **Meine Tickets** und **Relevante Tickets** gruppieren deine
+Tickets danach, wer gerade am Zug ist. Welcher Status zu welcher Gruppe gehört,
+weiß nur deine Jira-Instanz - jeder Workflow heißt anders. Deshalb trägst du die
+Zuordnung einmalig im Settings-Tab **Tickets** ein, je Gruppe eine Kommaliste.
+
+| Gruppe | Was gehört hinein | Beispiel |
+|--------|-------------------|----------|
+| Ich bin dran | Status, in denen du selbst arbeitest | `In Bearbeitung, Im Review` |
+| Backlog | Bereit zum Ziehen, noch nicht begonnen | `Bereit, Eingeplant` |
+| Andere sind dran | Wartet auf Freigabe durch jemand anderen | `Wartet auf Freigabe` |
+| Rückläufer | Ausgeliefert, zur Bewertung beim Autor | `Ausgeliefert` |
+| Abschluss offen | Von Jira als fertig gezählt, mit Restarbeit | `Zur Abnahme, Doku offen` |
+
+**"Abschluss offen" ist das wichtigste Feld.** Jira sortiert diese Status in die
+Kategorie *Fertig* ein - eine Abfrage über `statusCategory != Done` findet sie
+also nicht, und sie tauchen in keiner Liste auf. Bei einer vermessenen Instanz
+waren das 24 von 93 zugewiesenen Tickets, die lautlos fehlten. Nur wenn du sie
+hier einträgst, holt die Anwendung sie mit einer zweiten Abfrage dazu.
+
+Was du nicht einträgst, ordnet Jira selbst grob nach seiner Statuskategorie zu.
+Das funktioniert sofort, ist aber deutlich gröber - Rückläufer und wartende
+Freigaben lassen sich so nicht auseinanderhalten.
+
+Die Spalte **Merkmale** zeigt, warum ein Ticket auffällt:
+
+| Merkmal | Bedeutung |
+|---------|-----------|
+| Pile of Shame | Der Status behauptet Aktivität, aber seit der Schwelle gab es weder eine Änderung noch eine gebuchte Stunde |
+| verwaist | Seit sehr langer Zeit unverändert (Vorgabe: 180 Tage) |
+| Priorität | Prioritätsstufe in der oberen Gruppe deiner Rangfolge |
+| nachhaken | Wartet auf Freigabe durch jemand anderen |
+| Rückgabe | Ausgeliefert, fremder Autor - gehört zurückgegeben, nicht bearbeitet |
+| blockiert | Ein Vorgänger ist noch offen |
+
+Die **Liegezeit (AT)** rechnet in Arbeitstagen, Montag bis Freitag zwischen 8 und
+18 Uhr. Ein Ticket, das Freitagnachmittag liegen bleibt und Montagvormittag
+wieder angefasst wird, hat einen Arbeitstag gelegen und nicht drei. Feiertage
+kennt die Rechnung nicht.
+
+Die drei **Schwellen** bestimmen, ab wann ein Ticket den Pile-of-Shame-Marker
+bekommt - je Gruppe getrennt, weil ein liegendes Backlog-Ticket normal ist und
+ein liegendes Ticket in Arbeit nicht. `0` schaltet die Prüfung für eine Gruppe
+ab. Die Vorgabewerte sind Setzungen aus der Praxis, keine Messungen: wenn deine
+Tickets üblicherweise länger liegen, dreh sie hoch, statt die Marker zu ignorieren.
+
+Beide Ansichten laden beim ersten Ansehen und danach nur noch auf `F5` - ein
+Abruf über alle Tickets kostet je nach Instanz eine Minute. Die **Auswertung**
+unter der Tabelle ist zugeklappt und holt ihre Zahlen erst beim Aufklappen: sie
+braucht eine eigene Abfrage über die gesamte Historie.
+
 ## Tastenkürzel
 
 | Taste | Aktion |
@@ -251,8 +306,9 @@ sichtbaren Spalten übrig lassen.
 | B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Liste / Kalender) |
-| / | Suchfeld fokussieren (Listenansicht) |
+| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Relevante Tickets) |
+| F5 | Ticket-Ansicht des aktuellen Reiters neu laden |
+| / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
 | J | Jahresansicht mit Forecast |
 | A | Daten anonymisieren |
@@ -290,6 +346,17 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Markierungsfarbe | `#RRGGBB`, `RRGGBB`, `#RGB` oder `255,0,0` | FF0000 |
 | Spalten | Pro Spalte Anzeige, Export und Bezeichnung | alle aktiv |
 | Sprache | Oberflächensprache (de / en) | de |
+| Ich bin dran | Status, in denen du selbst arbeitest | (leer) |
+| Backlog | Status "bereit zum Ziehen" | (leer) |
+| Andere sind dran | Status, die auf fremde Freigabe warten | (leer) |
+| Rückläufer | Status "ausgeliefert, zur Bewertung beim Autor" | (leer) |
+| Abschluss offen | Status, die Jira als fertig zählt, obwohl Arbeit bleibt | (leer) |
+| Prioritäten | Rangfolge der Prioritätsstufen, dringendstes zuerst | (eingebaut) |
+| Zeitfenster | Tage, die "Relevante Tickets" zurückblickt (0 = alle) | 90 |
+| Verwaist ab | Tage ohne Änderung bis zur Markierung "verwaist" | 180 |
+| Schwelle aktiv | Arbeitstage ohne Regung in "Ich bin dran" (0 = aus) | 20 |
+| Schwelle Freigabe | Arbeitstage ohne Regung in "Andere sind dran" (0 = aus) | 10 |
+| Schwelle Abschluss | Arbeitstage ohne Regung in "Abschluss offen" (0 = aus) | 0 |
 
 ## Tech Stack
 
