@@ -120,10 +120,17 @@ class TicketStatsPanel(Vertical):
             yield Static("", id=f"stats-body-{self._mode}")
             yield Static(t("board.stats.footnote"), classes="stats-footnote")
 
-    def on_collapsible_toggled(self, event: Collapsible.Toggled) -> None:
-        """Fordert die Zahlen an, sobald der Bereich zum ersten Mal aufgeht."""
+    def on_collapsible_expanded(self, event: Collapsible.Expanded) -> None:
+        """Fordert die Zahlen an, sobald der Bereich zum ersten Mal aufgeht.
+
+        NICHT ``on_collapsible_toggled``: Textual postet ausschliesslich die
+        Unterklassen ``Expanded`` und ``Collapsed``. Ein Handler auf die
+        gemeinsame Oberklasse ``Toggled`` wird nie gerufen - der Bereich ging
+        auf und blieb leer (belegt am 06.08.2026, textual 8.2.8,
+        _collapsible.py:218).
+        """
         event.stop()
-        if not event.collapsible.collapsed and self._stats is None:
+        if self._stats is None:
             self.post_message(self.Requested())
 
     def set_statistics(self, stats: Statistics | None) -> None:
