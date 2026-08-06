@@ -21,14 +21,20 @@ from pathlib import Path
 PAKET = "jira_timesheet"
 
 
-def test_programmstart_ueber_python_m() -> None:
+def test_programmstart_ueber_python_m(tmp_path: Path) -> None:
     """``python -m <paket>`` muss sauber hochkommen.
 
     ``--help`` reicht als Probe: argparse laeuft erst, nachdem ``main()`` seine
     Startroutinen durch hat - genau die Stelle, an der ein falsch platzierter
     Startblock zuschlaegt.
+
+    Das Benutzerverzeichnis wird umgebogen wie im Test darunter. Ohne das
+    erbte der Unterprozess das echte Home und schrieb bei jedem Testlauf eine
+    Sitzungsklammer in Michaels ``fault.log`` - aufgefallen am 06.08.2026 beim
+    Pruefsummen-Vergleich der echten Ablage. Ein monkeypatch hilft hier nicht:
+    der Prozess laeuft ausserhalb.
     """
-    ergebnis = _starten()
+    ergebnis = _starten(_wegwerf_home(tmp_path))
     assert ergebnis.returncode == 0, (
         f"Programmstart fehlgeschlagen (Exit {ergebnis.returncode}). "
         f"Fehlerausgabe: {ergebnis.stderr}"
@@ -47,11 +53,7 @@ def test_sitzungsklammer_wird_geschlossen(tmp_path: Path) -> None:
     Das Benutzerverzeichnis wird umgebogen, damit der Test weder die echte
     fault.log liest noch beschreibt.
     """
-    umgebung = {k: v for k, v in os.environ.items() if k not in ("USERPROFILE", "HOME")}
-    umgebung["USERPROFILE"] = str(tmp_path)
-    umgebung["HOME"] = str(tmp_path)
-
-    _starten(umgebung)
+    _starten(_wegwerf_home(tmp_path))
 
     treffer = list(tmp_path.rglob("fault.log"))
     assert treffer, "fault.log wurde nicht angelegt"
@@ -60,6 +62,27 @@ def test_sitzungsklammer_wird_geschlossen(tmp_path: Path) -> None:
     assert "===== Ende" in inhalt, (
         f"Ende-Zeile fehlt - die Sitzungsklammer bleibt offen. Inhalt: {inhalt}"
     )
+
+
+def _wegwerf_home(ziel: Path) -> dict[str, str]:
+    """Baut eine Umgebung, deren Benutzerverzeichnis auf ``ziel`` zeigt.
+
+    Ein Unterprozess erbt die echte Umgebung und damit das echte Home. Der
+    Startvorgang legt dort ``fault.log`` an und haengt eine Sitzungsklammer
+    an - in Michaels echte Datei. Ein monkeypatch greift nicht, der Prozess
+    laeuft ausserhalb.
+
+    Args:
+        ziel:
+            Das Wegwerf-Verzeichnis, ueblicherweise ``tmp_path``.
+
+    Returns:
+        Die vollstaendige Umgebung mit umgebogenem HOME und USERPROFILE.
+    """
+    umgebung = {k: v for k, v in os.environ.items() if k not in ("USERPROFILE", "HOME")}
+    umgebung["USERPROFILE"] = str(ziel)
+    umgebung["HOME"] = str(ziel)
+    return umgebung
 
 
 def _starten(umgebung: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
