@@ -573,6 +573,68 @@ class TestVerdrahtung:
             assert app.check_action("delete_manual", ()) is None
 
 
+class TestKontextmenue:
+    """Der Rechtsklick-Pfad, an dem die Anwendung still ausgestiegen ist.
+
+    Belegt am 06.08.2026: ``ContextMenuItem`` nimmt erst den Schluessel und
+    dann die Beschriftung, ``ContextMenuScreen`` die Position als
+    Schluesselwort ``at``. Beides war vertauscht - der Rechtsklick hat die
+    Anwendung ohne jede Meldung beendet. Kein Test hatte den Pfad je
+    ausgeloest.
+    """
+
+    async def _menu_screen(self, pilot: Any, app: Any) -> Any:
+        """Loest den Rechtsklick auf der ersten Ticketzeile aus."""
+        widget = app.query_one("#board-assigned", TicketBoardTable)
+        widget.set_board(_board())
+        await pilot.pause()
+        ticket = _board().groups[0].tickets[0]
+        widget.post_message(TicketBoardTable.TicketRightClicked(10, 5, ticket))
+        await pilot.pause()
+        await pilot.pause()
+        return app.screen
+
+    async def test_rechtsklick_oeffnet_das_menue_statt_zu_beenden(self) -> None:
+        from jira_timesheet.app import JiraTimesheetApp
+
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await _settle(pilot)
+            app._board_loaded[MODE_ASSIGNED] = True
+            app.query_one("#view-tabs").active = "tab-assigned"
+            await pilot.pause()
+            screen = await self._menu_screen(pilot, app)
+
+            # Die Anwendung laeuft noch, und das Menue liegt obenauf.
+            assert app.is_running
+            assert len(app.screen_stack) > 1
+            assert type(screen).__name__ == "ContextMenuScreen"
+
+    async def test_gewaehlte_aktion_kennt_ihr_ticket(self) -> None:
+        from jira_timesheet.app import JiraTimesheetApp
+
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await _settle(pilot)
+            app._board_loaded[MODE_ASSIGNED] = True
+            app.query_one("#view-tabs").active = "tab-assigned"
+            await pilot.pause()
+            await self._menu_screen(pilot, app)
+
+            geoeffnet: list[str] = []
+            app._menu_ticket = _board().groups[0].tickets[0]
+            import jira_timesheet.app as app_modul
+
+            original = app_modul.webbrowser.open
+            app_modul.webbrowser.open = lambda url, *a, **k: geoeffnet.append(str(url))
+            try:
+                app._on_board_menu("open_ticket")
+            finally:
+                app_modul.webbrowser.open = original
+
+        assert geoeffnet and "beispiel.atlassian.net/browse/" in geoeffnet[0]
+
+
 class TestAnonymisierung:
     """Fuer Screenshots duerfen keine echten Ticketdaten stehenbleiben."""
 
