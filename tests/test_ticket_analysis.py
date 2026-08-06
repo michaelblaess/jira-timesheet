@@ -168,7 +168,9 @@ class TestVerdrahtung:
             await pilot.pause()
             assert gemeldet and "Zugangsdaten" in gemeldet[0]
 
-    async def test_schreibt_die_datei(self, tmp_path: Path) -> None:
+    async def test_schreibt_die_datei(
+        self, tmp_path: Path, blockierte_browser_aufrufe: list[str]
+    ) -> None:
         ziel = tmp_path / "ABC-1.html"
         app = JiraTimesheetApp()
         async with app.run_test() as pilot:
@@ -183,6 +185,9 @@ class TestVerdrahtung:
             assert "Testticket" in inhalt
             # Der naechste Speichern-Dialog soll hier starten.
             assert app._last_export_dir == str(ziel.parent)
+            # Der Bericht wird zum Ansehen geoeffnet - im Test aber nur
+            # vorgemerkt, nie wirklich (Fixture blockierte_browser_aufrufe).
+            assert blockierte_browser_aufrufe == [ziel.resolve().as_uri()]
 
     async def test_abbruch_schreibt_nichts(self, tmp_path: Path) -> None:
         app = JiraTimesheetApp()
