@@ -189,10 +189,42 @@ class TestTabellenaufbau:
             rows = _rows(app.query_one(DataTable))
 
         titles = [row[0] for row in rows]
-        assert f"{t('board.group.active')} (2)" in titles
-        assert f"{t('board.group.backlog')} (1)" in titles
-        # Fuenf Tickets plus vier Gruppenzeilen.
-        assert len(rows) == 9
+        assert any(f"{t('board.group.active')} (2)" in title for title in titles)
+        assert any(f"{t('board.group.backlog')} (1)" in title for title in titles)
+        # Fuenf Tickets, vier Gruppenzeilen und drei Leerzeilen dazwischen.
+        assert len(rows) == 12
+
+    async def test_gruppen_sind_durch_eine_leerzeile_getrennt(self) -> None:
+        """Im Terminal gibt es keine Linien - der Abstand macht die Gliederung."""
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            rows = _rows(app.query_one(DataTable))
+
+        leer = [index for index, row in enumerate(rows) if not any(cell.strip() for cell in row)]
+        # Genau eine Leerzeile vor jeder Gruppe ausser der ersten.
+        assert len(leer) == 3
+        # Nie zu Beginn - sonst faengt die Tabelle mit einer Luecke an.
+        assert 0 not in leer
+        for index in leer:
+            assert rows[index + 1][0].startswith("▼")
+
+    async def test_tickets_stehen_eingerueckt_unter_ihrer_gruppe(self) -> None:
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            rows = _rows(app.query_one(DataTable))
+
+        gruppen = [row[0] for row in rows if row[0].startswith("▼")]
+        tickets = [row[0] for row in rows if "PROJ-" in row[0]]
+        assert gruppen and tickets
+        # Die Ueberschrift steht am linken Rand, die Tickets eingerueckt.
+        assert all(not title.startswith(" ") for title in gruppen)
+        assert all(key.startswith("  PROJ-") for key in tickets)
 
     async def test_gruppenzeile_traegt_die_handlungsanweisung(self) -> None:
         """Der Kurztitel allein sagt nicht, was zu tun ist."""
@@ -203,7 +235,7 @@ class TestTabellenaufbau:
             await pilot.pause()
             rows = _rows(app.query_one(DataTable))
 
-        gruppe = next(row for row in rows if row[0].startswith(t("board.group.handback")))
+        gruppe = next(row for row in rows if t("board.group.handback") in row[0])
         assert gruppe[-1] == t("board.group.handback_hint")
 
     async def test_merkmale_stehen_in_der_zeile(self) -> None:
@@ -214,7 +246,7 @@ class TestTabellenaufbau:
             await pilot.pause()
             rows = _rows(app.query_one(DataTable))
 
-        verwaist = next(row for row in rows if row[0] == "PROJ-2")
+        verwaist = next(row for row in rows if row[0].strip() == "PROJ-2")
         assert t("board.marker.stale") in verwaist[5]
 
     async def test_zeilenzeiger_liefert_das_ticket_der_zeile(self) -> None:
@@ -246,8 +278,8 @@ class TestFilter:
             await pilot.pause()
             rows = _rows(app.query_one(DataTable))
 
-        tickets = [row for row in rows if row[0].startswith("PROJ-")]
-        assert [row[0] for row in tickets] == ["PROJ-3"]
+        tickets = [row for row in rows if "PROJ-" in row[0]]
+        assert [row[0].strip() for row in tickets] == ["PROJ-3"]
         # Die leeren Gruppen fallen weg, statt als Ueberschrift ohne Inhalt
         # stehen zu bleiben.
         assert len(rows) == 2
@@ -276,7 +308,7 @@ class TestFilter:
             await pilot.pause()
             rows = _rows(app.query_one(DataTable))
 
-        keys = {row[0] for row in rows if row[0].startswith("PROJ-")}
+        keys = {row[0].strip() for row in rows if "PROJ-" in row[0]}
         # PROJ-3 (Backlog, frisch, ohne Merkmal) muss verschwinden.
         assert "PROJ-3" not in keys
         assert "PROJ-2" in keys
@@ -291,7 +323,7 @@ class TestFilter:
             await pilot.pause()
             rows = _rows(app.query_one(DataTable))
 
-        assert [row[0] for row in rows if row[0].startswith("PROJ-")] == ["PROJ-4"]
+        assert [row[0].strip() for row in rows if "PROJ-" in row[0]] == ["PROJ-4"]
 
     async def test_hinweiszeile_nennt_gezeigte_und_gesamte_anzahl(self) -> None:
         app = _BoardApp()
@@ -324,6 +356,68 @@ class TestAuswertung:
     def test_balken_waechst_mit_dem_wert(self) -> None:
         assert len(bar(10, 10)) > len(bar(1, 10))
         assert bar(0, 10) == ""
+
+    async def test_aufklappen_fordert_die_zahlen_an(self) -> None:
+        """Der Bereich ging auf und blieb leer - belegt am 06.08.2026.
+
+        Textual postet ausschliesslich ``Collapsible.Expanded`` und
+        ``Collapsible.Collapsed``. Ein Handler auf die gemeinsame Oberklasse
+        ``Toggled`` wird nie gerufen (textual 8.2.8, _collapsible.py:218).
+        """
+        from textual.widgets import Collapsible
+
+        class _StatsApp(App[None]):
+            def __init__(self) -> None:
+                super().__init__()
+                self.angefragt = 0
+
+            def compose(self) -> ComposeResult:
+                yield TicketStatsPanel(MODE_ASSIGNED, id="board-stats")
+
+            def on_ticket_stats_panel_requested(
+                self, event: TicketStatsPanel.Requested
+            ) -> None:
+                self.angefragt += 1
+
+        app = _StatsApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.angefragt == 0, "Zugeklappt darf nichts abgerufen werden."
+            app.query_one(Collapsible).collapsed = False
+            await pilot.pause()
+            await pilot.pause()
+            assert app.angefragt == 1
+
+    async def test_vorhandene_zahlen_loesen_keinen_zweiten_abruf_aus(self) -> None:
+        from textual.widgets import Collapsible
+
+        class _StatsApp(App[None]):
+            def __init__(self) -> None:
+                super().__init__()
+                self.angefragt = 0
+
+            def compose(self) -> ComposeResult:
+                yield TicketStatsPanel(MODE_ASSIGNED, id="board-stats")
+
+            def on_ticket_stats_panel_requested(
+                self, event: TicketStatsPanel.Requested
+            ) -> None:
+                self.angefragt += 1
+
+        app = _StatsApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one(TicketStatsPanel).set_statistics(Statistics(open_count=3))
+            collapsible = app.query_one(Collapsible)
+            collapsible.collapsed = False
+            await pilot.pause()
+            collapsible.collapsed = True
+            collapsible.collapsed = False
+            await pilot.pause()
+
+        # Ein Abruf ueber die gesamte Historie kostet Zeit - zweimal
+        # Auf- und Zuklappen darf ihn nicht wiederholen.
+        assert app.angefragt == 0
 
     def test_darstellung_nennt_die_kennzahlen(self) -> None:
         stats = Statistics(
@@ -462,7 +556,7 @@ class TestTicketVerweis:
             table = app.query_one(DataTable)
             zelle = table.get_cell_at((1, 0))
 
-        assert "link https://beispiel.atlassian.net/browse/" in str(zelle.style)
+        assert any("link https://beispiel.atlassian.net/browse/" in str(span.style) for span in zelle.spans)
 
     async def test_ohne_host_kein_verweis(self) -> None:
         class _HostlessApp(App[None]):
@@ -476,7 +570,7 @@ class TestTicketVerweis:
             await pilot.pause()
             zelle = app.query_one(DataTable).get_cell_at((1, 0))
 
-        assert "link" not in str(zelle.style)
+        assert not any("link" in str(span.style) for span in zelle.spans)
 
 
 async def _settle(pilot: Any) -> None:
