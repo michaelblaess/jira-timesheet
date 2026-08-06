@@ -106,7 +106,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
 - **Relevante Tickets** — Tickets, die dir nicht zugewiesen sind, dich aber betreffen: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
-- **Auswertung** — Zulauf gegen Abgang je Monat, Bestand kumuliert und die Altersverteilung der offenen Tickets, als Balken direkt im Terminal (zuklappbar)
+- **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
 - **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
@@ -293,7 +293,10 @@ Tickets üblicherweise länger liegen, dreh sie hoch, statt die Marker zu ignori
 Beide Ansichten laden beim ersten Ansehen und danach nur noch auf `F5` - ein
 Abruf über alle Tickets kostet je nach Instanz eine Minute. Die **Auswertung**
 unter der Tabelle ist zugeklappt und holt ihre Zahlen erst beim Aufklappen: sie
-braucht eine eigene Abfrage über die gesamte Historie.
+braucht eine eigene Abfrage über die gesamte Historie. Sie zeigt Zulauf gegen
+Abgang je Monat und die Altersverteilung der offenen Tickets, dazu eine Zeile
+mit Bestand, Durchsatz und Saldo. Den kumulierten Bestandsverlauf zeigt nur die
+Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 
 ## Tastenkürzel
 
