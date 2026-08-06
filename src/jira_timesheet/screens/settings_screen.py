@@ -254,6 +254,57 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 yield Input(value=year_str, placeholder=str(date.today().year), id="set-year")
             yield from self._text_row("settings.vacation_days", "set-vacation-days", "vacation_days", "30")
 
+        with TabPane(t("settings.tab_tickets"), id="settings-tab-tickets"), VerticalScroll():
+            # Ohne diesen Satz versteht die Seite niemand: die Felder heissen
+            # nach Gruppen, nicht nach dem, was sie bewirken.
+            yield Static(t("settings.board_intro"), classes="hint")
+            for label, widget_id, settings_key in (
+                ("active", "set-board-active", "board_active_status"),
+                ("backlog", "set-board-backlog", "board_backlog_status"),
+                ("acceptance", "set-board-acceptance", "board_acceptance_status"),
+                ("handback", "set-board-handback", "board_handback_status"),
+                ("closing", "set-board-closing", "board_closing_status"),
+                ("priorities", "set-board-priorities", "board_priorities"),
+            ):
+                yield from self._list_row(
+                    f"settings.board_{label}",
+                    widget_id,
+                    settings_key,
+                    f"settings.board_{label}_ph",
+                    f"settings.board_{label}_tip",
+                )
+            yield from self._text_row(
+                "settings.board_window_days",
+                "set-board-window-days",
+                "board_window_days",
+                "90",
+                tooltip_key="settings.board_window_days_tip",
+            )
+            yield from self._text_row(
+                "settings.board_stale_days",
+                "set-board-stale-days",
+                "board_stale_days",
+                "180",
+                tooltip_key="settings.board_stale_days_tip",
+            )
+            for label, widget_id, settings_key, default in (
+                ("active", "set-board-threshold-active", "board_threshold_active", "20"),
+                (
+                    "acceptance",
+                    "set-board-threshold-acceptance",
+                    "board_threshold_acceptance",
+                    "10",
+                ),
+                ("closing", "set-board-threshold-closing", "board_threshold_closing", "0"),
+            ):
+                yield from self._text_row(
+                    f"settings.board_threshold_{label}",
+                    widget_id,
+                    settings_key,
+                    default,
+                    tooltip_key="settings.board_threshold_tip",
+                )
+
     @on(Checkbox.Changed, "#set-use-legacy-api")
     def _on_legacy_changed(self, event: Checkbox.Changed) -> None:
         """Deaktiviert die Budget-Autoerkennung im Legacy-Modus."""
@@ -340,6 +391,37 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 yield Label(t(label_key))
             yield Input(value=value, placeholder=placeholder, password=password, id=widget_id)
 
+    def _list_row(
+        self,
+        label_key: str,
+        widget_id: str,
+        settings_key: str,
+        placeholder_key: str,
+        tooltip_key: str,
+    ) -> ComposeResult:
+        """Baut eine Zeile fuer eine kommagetrennte Liste.
+
+        Die Platzhalter sind bewusst erfundene Statusnamen: sie zeigen die
+        Schreibweise, ohne die Namen einer fremden Jira-Instanz zu verraten.
+
+        Args:
+            label_key:
+                i18n-Key der Beschriftung.
+            widget_id:
+                DOM-Id des Eingabefelds.
+            settings_key:
+                Schluessel im Settings-Dict, erwartet eine Liste.
+            placeholder_key:
+                i18n-Key des Platzhalters.
+            tooltip_key:
+                i18n-Key der Erklaerung am (?)-Symbol.
+        """
+        raw = self._settings.get(settings_key)
+        values = [str(item).strip() for item in raw if str(item).strip()] if isinstance(raw, list) else []
+        with Horizontal(classes="settings-row"):
+            yield from self._label_with_icon(t(label_key), t(tooltip_key))
+            yield Input(value=", ".join(values), placeholder=t(placeholder_key), id=widget_id)
+
     def _label_with_icon(self, label_text: str, tip: str) -> ComposeResult:
         """Erzeugt Label + (?)-Hover-Tooltip-Icon in der Label-Spalte.
 
@@ -416,6 +498,50 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
         with contextlib.suppress(ValueError):
             settings["vacation_days"] = int(self.query_one("#set-vacation-days", Input).value.strip())
+
+        self._collect_board_settings(settings)
+
+    def _collect_board_settings(self, settings: dict[str, object]) -> None:
+        """Liest die Seite "Tickets" ins Ergebnis-Dict.
+
+        Eine leere Liste ist hier eine gueltige Angabe und kein fehlender
+        Wert: ohne Zuordnung ordnet der Kern nach der Jira-Statuskategorie
+        zu. Deshalb faellt nichts auf eine Vorgabe zurueck.
+        """
+        for key, widget_id in (
+            ("board_active_status", "set-board-active"),
+            ("board_backlog_status", "set-board-backlog"),
+            ("board_acceptance_status", "set-board-acceptance"),
+            ("board_handback_status", "set-board-handback"),
+            ("board_closing_status", "set-board-closing"),
+            ("board_priorities", "set-board-priorities"),
+        ):
+            settings[key] = self._split_list(widget_id)
+
+        for key, widget_id, tage in (
+            ("board_window_days", "set-board-window-days", 90),
+            ("board_stale_days", "set-board-stale-days", 180),
+        ):
+            raw = self.query_one(f"#{widget_id}", Input).value.strip()
+            settings[key] = int(raw) if raw.isdigit() else tage
+
+        for key, widget_id, arbeitstage in (
+            ("board_threshold_active", "set-board-threshold-active", 20.0),
+            ("board_threshold_acceptance", "set-board-threshold-acceptance", 10.0),
+            ("board_threshold_closing", "set-board-threshold-closing", 0.0),
+        ):
+            # Komma als Dezimaltrenner tolerieren - deutsche Eingabe.
+            wert = self.query_one(f"#{widget_id}", Input).value.strip().replace(",", ".")
+            settings[key] = float(wert) if self._is_float(wert) else arbeitstage
+
+    def _split_list(self, widget_id: str) -> list[str]:
+        """Zerlegt eine kommagetrennte Eingabe; Duplikate und Leeres fliegen raus."""
+        values: list[str] = []
+        for part in self.query_one(f"#{widget_id}", Input).value.split(","):
+            name = part.strip()
+            if name and name not in values:
+                values.append(name)
+        return values
 
     def _customer_list(self) -> list[str]:
         """Kundenliste aus dem Settings-Dict, defensiv gelesen."""
