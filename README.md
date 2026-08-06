@@ -104,6 +104,9 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Manual time tracking** — Record time that is not booked in Jira via a dialog (`m`), edit and delete it (`DEL`); stored in SQLite, colour-marked in the list, Excel and PDF
 - **Configurable export columns** — Every column can be toggled and renamed (settings tab "Columns"), including a customer column
 - **Calendar view** — Monthly calendar with color-coded day tiles
+- **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
+- **Relevant tickets** — Tickets not assigned to you that still concern you: reported, watched, worked on, updated or mentioned by name
+- **Analysis** — Inflow versus outflow per month, cumulative backlog and the age distribution of open tickets, drawn as bars right in the terminal (collapsible)
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — 12 monthly tiles with progress bar and forecast (J)
 - **Excel export** — Formatted timesheet with logo and signature line
@@ -236,6 +239,57 @@ The text field next to them is the heading **in the export**; the list keeps its
 translated headings so it follows a language change. The description is the
 flexible column: it takes whatever width the other visible columns leave.
 
+### Setting up the ticket views
+
+The two tabs **My tickets** and **Relevant tickets** group your tickets by whose
+turn it is. Which status belongs to which group is something only your Jira
+instance knows - every workflow uses different names. You therefore enter the
+mapping once in the settings tab **Tickets**, one comma-separated list per group.
+
+| Group | What belongs there | Example |
+|-------|--------------------|---------|
+| My turn | Status values you are actively working in | `In progress, In review` |
+| Backlog | Ready to pull, not started yet | `Ready, Scheduled` |
+| Someone else's turn | Waiting for approval by someone else | `Awaiting approval` |
+| Hand back | Delivered, waiting for the reporter's assessment | `Delivered` |
+| Closing open | Counted as done by Jira, work remains | `For acceptance, Docs open` |
+
+**"Closing open" is the most important field.** Jira files these status values
+under the *Done* category - a query on `statusCategory != Done` will not find
+them, and they show up in no list at all. On one measured instance that was 24
+out of 93 assigned tickets, missing silently. Only if you enter them here does
+the application fetch them with a second query.
+
+Anything you leave out is mapped roughly by Jira itself, using its status
+category. That works right away but is much coarser - hand-backs and pending
+approvals cannot be told apart that way.
+
+The **Flags** column shows why a ticket stands out:
+
+| Flag | Meaning |
+|------|---------|
+| Pile of shame | The status claims activity, but since the threshold there was neither a change nor a logged hour |
+| stale | Unchanged for a very long time (default: 180 days) |
+| priority | Priority level in the upper group of your order |
+| follow up | Waiting for approval by someone else |
+| hand back | Delivered, foreign reporter - return it instead of working on it |
+| blocked | A predecessor is still open |
+
+**Idle (WD)** counts working days, Monday to Friday between 8 am and 6 pm. A
+ticket left on Friday afternoon and picked up on Monday morning has been idle
+for one working day, not three. Public holidays are not taken into account.
+
+The three **thresholds** decide when a ticket earns the pile-of-shame flag -
+separately per group, because a backlog ticket sitting still is normal while a
+ticket in progress sitting still is not. `0` disables the check for a group. The
+defaults are settings taken from practice, not measurements: if your tickets
+usually rest longer, raise them instead of ignoring the flags.
+
+Both views load when first opened and after that only on `F5` - a query across
+all tickets takes about a minute depending on the instance. The **Analysis**
+below the table starts collapsed and only fetches its numbers when opened: it
+needs a query of its own across the entire history.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -247,8 +301,9 @@ flexible column: it takes whatever width the other visible columns leave.
 | B | Ticket analysis (interactive report as an HTML file) |
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
-| TAB | Switch tab (list / calendar) |
-| / | Focus search field (list view) |
+| TAB | Switch tab (list / calendar / my tickets / relevant tickets) |
+| F5 | Reload the ticket view of the current tab |
+| / | Focus the search field of the current tab |
 | R | Reset cache |
 | J | Year view with forecast |
 | A | Anonymize data |
@@ -286,6 +341,17 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Highlight colour | `#RRGGBB`, `RRGGBB`, `#RGB` or `255,0,0` | FF0000 |
 | Columns | Per column display, export and label | all enabled |
 | Language | UI language (de / en) | de |
+| My turn | Status values you are actively working in | (empty) |
+| Backlog | Status values ready to pull | (empty) |
+| Someone else's turn | Status values waiting for external approval | (empty) |
+| Hand back | Status "delivered, waiting for the reporter" | (empty) |
+| Closing open | Status Jira counts as done although work remains | (empty) |
+| Priorities | Order of priority levels, most urgent first | (built-in) |
+| Time window | Days that "relevant tickets" looks back (0 = all) | 90 |
+| Stale after | Days without a change until the "stale" flag | 180 |
+| Threshold active | Working days without motion in "my turn" (0 = off) | 20 |
+| Threshold approval | Working days without motion in "someone else's turn" (0 = off) | 10 |
+| Threshold closing | Working days without motion in "closing open" (0 = off) | 0 |
 
 ## Tech Stack
 
