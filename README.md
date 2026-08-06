@@ -106,7 +106,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Calendar view** — Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
 - **Relevant tickets** — Tickets not assigned to you that still concern you: reported, watched, worked on, updated or mentioned by name
-- **Analysis** — Inflow versus outflow per month, cumulative backlog and the age distribution of open tickets, drawn as bars right in the terminal (collapsible)
+- **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — 12 monthly tiles with progress bar and forecast (J)
 - **Excel export** — Formatted timesheet with logo and signature line
@@ -288,7 +288,10 @@ usually rest longer, raise them instead of ignoring the flags.
 Both views load when first opened and after that only on `F5` - a query across
 all tickets takes about a minute depending on the instance. The **Analysis**
 below the table starts collapsed and only fetches its numbers when opened: it
-needs a query of its own across the entire history.
+needs a query of its own across the entire history. It shows inflow versus
+outflow per month and the age distribution of open tickets, plus a line with
+backlog, throughput and balance. The cumulative backlog curve exists only in the
+Qt edition - the terminal is not wide enough for a third chart.
 
 ## Keyboard Shortcuts
 

@@ -16,6 +16,7 @@ from typing import Any
 import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Checkbox, DataTable, Input, Select
+from textual_plotext import PlotextPlot
 
 from jira_timesheet.i18n import load_locale, t
 from jira_timesheet.models.settings import Settings
@@ -39,7 +40,7 @@ from jira_timesheet.services.ticket_board_loader import (
     jqls_for,
 )
 from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
-from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel, bar, sparkline
+from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel
 
 TZ = dt.timezone(dt.timedelta(hours=2))
 NOW = dt.datetime(2026, 8, 5, 12, 0, tzinfo=TZ)
@@ -338,24 +339,65 @@ class TestFilter:
         assert hint == t("board.hint.filtered", shown=1, total=5)
 
 
+def _statistik() -> Statistics:
+    """Eine Auswertung mit Zulauf, Abgang und Altersverteilung."""
+    return Statistics(
+        months=[
+            MonthValue(month="2026-07", inflow=4, outflow=1, cumulative=3),
+            MonthValue(month="2026-08", inflow=2, outflow=5, cumulative=0),
+        ],
+        buckets=[AgeBucket(label="0-5", count=2), AgeBucket(label="> 60", count=1)],
+        open_count=7,
+        resolved_recent=3,
+        lead_time_median=12.0,
+    )
+
+
+class _StatsHost(App[None]):
+    """Minimal-App, die nur die Auswertung zeigt."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.angefragt = 0
+
+    def compose(self) -> ComposeResult:
+        yield TicketStatsPanel(MODE_ASSIGNED, id="board-stats")
+
+    def on_ticket_stats_panel_requested(self, event: TicketStatsPanel.Requested) -> None:
+        self.angefragt += 1
+
+
 class TestAuswertung:
-    """Die Balken duerfen nicht mehr behaupten, als die Zahlen hergeben."""
+    """Die Diagramme duerfen nicht mehr behaupten, als die Zahlen hergeben."""
 
-    def test_zulauf_und_abgang_teilen_sich_den_bezugswert(self) -> None:
-        """Sonst sehen drei und dreissig gleich hoch aus."""
-        klein = sparkline([3.0], scale=30.0)
-        gross = sparkline([30.0], scale=30.0)
-        assert klein != gross
-        # Ohne gemeinsamen Bezug waeren beide Zeilen voll ausgeschlagen.
-        assert sparkline([3.0]) == sparkline([30.0])
+    async def test_diagramme_zeigen_die_reihen_mit_beschriftung(self) -> None:
+        """Belegt am gebauten Diagramm, nicht an der Datenstruktur davor."""
+        app = _StatsHost()
+        async with app.run_test(size=(140, 34)) as pilot:
+            await pilot.pause()
+            app.query_one(TicketStatsPanel).set_statistics(_statistik())
+            await pilot.pause()
+            flow = app.query_one(f"#stats-flow-{MODE_ASSIGNED}", PlotextPlot).plt.build()
+            ages = app.query_one(f"#stats-age-{MODE_ASSIGNED}", PlotextPlot).plt.build()
 
-    def test_echte_null_bleibt_leer(self) -> None:
-        # Ein Monat ohne Bewegung darf nicht wie ein kleiner Wert aussehen.
-        assert sparkline([0.0, 5.0], scale=5.0)[0] == " "
+        # Die Legende benennt beide Reihen - sonst ist nicht zu erkennen,
+        # welcher Balken welcher ist.
+        assert t("board.stats.inflow") in flow
+        assert t("board.stats.outflow") in flow
+        # Die Zeitachse traegt die Monate, gekuerzt auf JJ-MM.
+        assert "26-08" in flow
+        assert "> 60" in ages
 
-    def test_balken_waechst_mit_dem_wert(self) -> None:
-        assert len(bar(10, 10)) > len(bar(1, 10))
-        assert bar(0, 10) == ""
+    async def test_ohne_monate_bricht_nichts(self) -> None:
+        app = _StatsHost()
+        async with app.run_test(size=(140, 34)) as pilot:
+            await pilot.pause()
+            app.query_one(TicketStatsPanel).set_statistics(Statistics(open_count=0))
+            await pilot.pause()
+            gebaut = app.query_one(f"#stats-flow-{MODE_ASSIGNED}", PlotextPlot).plt.build()
+
+        # Kein Absturz, und die Ueberschrift steht trotzdem da.
+        assert t("board.stats.flow") in gebaut
 
     async def test_aufklappen_fordert_die_zahlen_an(self) -> None:
         """Der Bereich ging auf und blieb leer - belegt am 06.08.2026.
@@ -419,23 +461,14 @@ class TestAuswertung:
         # Auf- und Zuklappen darf ihn nicht wiederholen.
         assert app.angefragt == 0
 
-    def test_darstellung_nennt_die_kennzahlen(self) -> None:
-        stats = Statistics(
-            months=[
-                MonthValue(month="2026-07", inflow=4, outflow=1, cumulative=3),
-                MonthValue(month="2026-08", inflow=2, outflow=5, cumulative=0),
-            ],
-            buckets=[AgeBucket(label="0-5", count=2), AgeBucket(label="> 60", count=1)],
-            open_count=7,
-            resolved_recent=3,
-            lead_time_median=12.0,
-        )
-        text = TicketStatsPanel.render_text(stats).plain
+    def test_kennzahlen_nennen_bestand_durchsatz_und_saldo(self) -> None:
+        text = TicketStatsPanel.head_text(_statistik()).plain
         assert f"7 {t('board.stats.open')}" in text
-        assert t("board.stats.ages") in text
-        # Der ausgewertete Zeitraum gehoert dazu, sonst steht die Reihe ohne
-        # jede Zeitangabe da.
-        assert "2026-07 - 2026-08" in text
+        assert t("board.stats.lead_time") in text
+        # Zulauf, Abgang und das Vorzeichen des Saldos - die eine Zahl, an
+        # der man sieht, ob der Bestand waechst oder schrumpft.
+        assert "6 / 6" in text
+        assert "(+0)" in text
 
 
 class TestEinstellungsseite:
