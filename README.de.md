@@ -106,6 +106,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
 - **Relevante Tickets** — Tickets, die dir nicht zugewiesen sind, dich aber betreffen: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
+- **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
@@ -245,7 +246,7 @@ sichtbaren Spalten übrig lassen.
 
 ### Ticket-Ansichten einrichten
 
-Die beiden Reiter **Meine Tickets** und **Relevante Tickets** gruppieren deine
+Die Reiter **Meine Tickets**, **Relevante Tickets** und **Mein Team** gruppieren die
 Tickets danach, wer gerade am Zug ist. Welcher Status zu welcher Gruppe gehört,
 weiß nur deine Jira-Instanz - jeder Workflow heißt anders. Deshalb trägst du die
 Zuordnung einmalig im Settings-Tab **Tickets** ein, je Gruppe eine Kommaliste.
@@ -257,6 +258,32 @@ Zuordnung einmalig im Settings-Tab **Tickets** ein, je Gruppe eine Kommaliste.
 | Andere sind dran | Wartet auf Freigabe durch jemand anderen | `Wartet auf Freigabe` |
 | Rückläufer | Ausgeliefert, zur Bewertung beim Autor | `Ausgeliefert` |
 | Abschluss offen | Von Jira als fertig gezählt, mit Restarbeit | `Zur Abnahme, Doku offen` |
+
+### Mein Team einrichten
+
+Im Settings-Tab **Mein Team** hinterlegst du die Kolleginnen und Kollegen, deren
+Ticketstand du sehen willst. Gesucht wird über den **Namen**, nicht über die
+Mailadresse - und das hat einen handfesten Grund:
+
+- Ein Jira-Konto gibt seine Mailadresse nur heraus, wenn das Profil es zulässt.
+  In einer vermessenen Instanz war sie bei jeder vierten Person unsichtbar.
+- Ein Mensch kann mehrere Konten führen. Welches davon die Arbeit trägt, lässt
+  sich aus der Adresse nicht ablesen: mal ist es das mit Adresse, mal das ohne.
+
+Die Trefferliste zeigt deshalb neben Name und Adresse die Zahl der offenen
+Tickets und den Zeitpunkt der **jüngsten Änderung**, sortiert nach Aktualität.
+Bei mehreren Konten ist das aktuelle nicht zwingend das größte - genau
+deswegen steht die Spalte da.
+
+Ein Treffer wird entweder als neue Person übernommen oder einer vorhandenen als
+weiteres Konto zugeordnet. Der Anzeigename ist frei wählbar und überschreibt den
+aus Jira, das ist bei drei verschiedenen Schreibweisen derselben Person hilfreich.
+
+**Was die Ansicht bewusst nicht zeigt:** keine Zeitbuchungen, keinen "Pile of
+Shame", keine Auswertung. Das Jira-Board zeigt jedem im Team die Tickets der
+anderen, aber weder Buchungen noch Durchsatz - daran hält sich diese Ansicht.
+Sie ist eine schnellere Linse auf das, was im Board ohnehin steht, und kein
+Werkzeug zur Leistungsmessung.
 
 **"Abschluss offen" ist das wichtigste Feld.** Jira sortiert diese Status in die
 Kategorie *Fertig* ein - eine Abfrage über `statusCategory != Done` findet sie
@@ -309,7 +336,7 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 | B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Relevante Tickets) |
+| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Relevante Tickets / Mein Team) |
 | F5 | Ticket-Ansicht des aktuellen Reiters neu laden |
 | / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
