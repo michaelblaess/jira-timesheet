@@ -10,6 +10,11 @@ from __future__ import annotations
 import datetime as dt
 import unittest
 
+from textual.app import App
+from textual.widgets import Button, DataTable, Input, Select
+
+from jira_timesheet.models.settings import Settings
+from jira_timesheet.screens.settings_screen import SettingsScreen
 from jira_timesheet.services.team import (
     Roster,
     TeamMember,
@@ -37,6 +42,7 @@ from jira_timesheet.services.ticket_board_loader import (
     MODE_TEAM,
     jqls_for,
 )
+from jira_timesheet.widgets.team_roster_panel import TeamRosterPanel
 
 # Kennungen im Format der vermessenen Instanz: 24 Zeichen alt, 43 Zeichen neu.
 ID_A = "5cf79d64eba18b0ea85a7b53"
@@ -341,6 +347,120 @@ class VerdrahtungTest(unittest.TestCase):
         config = BoardConfig(closing_status=("Schliessen",))
         for ausdruck in jqls_for(MODE_ASSIGNED, config)("eigene-kennung"):
             self.assertIn("currentUser()", ausdruck)
+
+
+class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
+    """Der Reiter "Mein Team" - Anzeige, Uebernahme, Speichern."""
+
+    async def test_merkliste_wird_geladen_und_wieder_eingesammelt(self) -> None:
+        vorhanden = [
+            {"display_name": "Reiner Beispiel", "account_ids": [ID_A, ID_B]},
+            {"display_name": "Anna Muster", "account_ids": [ID_C]},
+        ]
+        werte = Settings().to_dict()
+        werte["team_members"] = vorhanden
+        screen = SettingsScreen(werte, lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            tabelle = screen.query_one("#team-roster", DataTable)
+            self.assertEqual(2, tabelle.row_count)
+            ergebnis: dict[str, object] = {}
+            screen.collect_app_settings(ergebnis)
+
+        gespeichert = ergebnis["team_members"]
+        assert isinstance(gespeichert, list)
+        # Alphabetisch, nicht in Eingabereihenfolge.
+        self.assertEqual(
+            ["Anna Muster", "Reiner Beispiel"], [m["display_name"] for m in gespeichert]
+        )
+        self.assertEqual([ID_A, ID_B], gespeichert[1]["account_ids"])
+
+    async def test_treffer_wird_als_neue_person_uebernommen(self) -> None:
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            panel = screen.query_one(TeamRosterPanel)
+            # Die Suche selbst braucht das Netz - hier wird nur ihr Ergebnis
+            # eingesetzt, damit die Uebernahme fuer sich pruefbar bleibt.
+            panel._hits = parse_search([_user(ID_A, "Beispiel, Reinhold")])
+            panel._refresh_hits()
+            await pilot.pause()
+            screen.query_one("#team-name", Input).value = "Reiner Beispiel"
+            screen.query_one("#team-btn-add", Button).press()
+            await pilot.pause()
+
+            self.assertEqual(1, screen.query_one("#team-roster", DataTable).row_count)
+            ergebnis: dict[str, object] = {}
+            screen.collect_app_settings(ergebnis)
+
+        gespeichert = ergebnis["team_members"]
+        assert isinstance(gespeichert, list)
+        self.assertEqual("Reiner Beispiel", gespeichert[0]["display_name"])
+        self.assertEqual([ID_A], gespeichert[0]["account_ids"])
+
+    async def test_zweites_konto_landet_bei_derselben_person(self) -> None:
+        werte = Settings().to_dict()
+        werte["team_members"] = [{"display_name": "Reiner Beispiel", "account_ids": [ID_A]}]
+        screen = SettingsScreen(werte, lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            panel = screen.query_one(TeamRosterPanel)
+            panel._hits = parse_search([_user(ID_B, "Beispiel, Reinhold")])
+            panel._refresh_hits()
+            await pilot.pause()
+            screen.query_one("#team-target", Select).value = "Reiner Beispiel"
+            screen.query_one("#team-btn-add", Button).press()
+            await pilot.pause()
+
+            # Eine Zeile, aber zwei Konten - nicht zwei Personen.
+            self.assertEqual(1, screen.query_one("#team-roster", DataTable).row_count)
+            ergebnis: dict[str, object] = {}
+            screen.collect_app_settings(ergebnis)
+
+        gespeichert = ergebnis["team_members"]
+        assert isinstance(gespeichert, list)
+        self.assertEqual(1, len(gespeichert))
+        self.assertEqual({ID_A, ID_B}, set(gespeichert[0]["account_ids"]))
+
+    async def test_dasselbe_konto_kommt_nicht_zweimal_hinein(self) -> None:
+        werte = Settings().to_dict()
+        werte["team_members"] = [{"display_name": "Reiner Beispiel", "account_ids": [ID_A]}]
+        screen = SettingsScreen(werte, lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            panel = screen.query_one(TeamRosterPanel)
+            panel._hits = parse_search([_user(ID_A, "Beispiel, Reinhold")])
+            panel._refresh_hits()
+            await pilot.pause()
+            screen.query_one("#team-btn-add", Button).press()
+            await pilot.pause()
+            ergebnis: dict[str, object] = {}
+            screen.collect_app_settings(ergebnis)
+
+        gespeichert = ergebnis["team_members"]
+        assert isinstance(gespeichert, list)
+        self.assertEqual(1, len(gespeichert))
+        self.assertEqual([ID_A], gespeichert[0]["account_ids"])
 
 
 if __name__ == "__main__":
