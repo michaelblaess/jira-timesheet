@@ -46,11 +46,13 @@ from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
+from jira_timesheet.services.team import Roster, TeamMember, from_storage
 from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role
 from jira_timesheet.services.ticket_board import Ticket as BoardTicket
 from jira_timesheet.services.ticket_board_loader import (
     MODE_ASSIGNED,
     MODE_RELEVANT,
+    MODE_TEAM,
     config_from,
     load_board,
     load_statistics,
@@ -82,6 +84,7 @@ _MONTH_DEBOUNCE_SECONDS = 0.35
 _BOARD_TABS: dict[str, str] = {
     "tab-assigned": MODE_ASSIGNED,
     "tab-relevant": MODE_RELEVANT,
+    "tab-team": MODE_TEAM,
 }
 
 
@@ -136,15 +139,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Ticket-Ansichten: je Ansicht ein Lade-Merker, damit ein Reiter beim
         # ersten Ansehen genau einmal abruft. Ein Abruf kostet Minuten - beim
         # Hin- und Herwechseln darf er nicht jedes Mal neu starten.
-        self._board_loaded: dict[str, bool] = {MODE_ASSIGNED: False, MODE_RELEVANT: False}
+        self._board_loaded: dict[str, bool] = dict.fromkeys(_BOARD_TABS.values(), False)
         self._stats_loaded = False
         # Die echten Ansichten. Angezeigt wird je nach Modus eine
         # anonymisierte Kopie - das Original bleibt hier, damit sich der
         # Screenshot-Modus verlustfrei zurueckschalten laesst.
-        self._real_boards: dict[str, Board | None] = {
-            MODE_ASSIGNED: None,
-            MODE_RELEVANT: None,
-        }
+        self._real_boards: dict[str, Board | None] = dict.fromkeys(_BOARD_TABS.values())
         # Ticket der Zeile, auf der das Kontextmenue der Ansicht steht.
         self._menu_ticket: BoardTicket | None = None
 
@@ -275,6 +275,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     MODE_RELEVANT,
                     jira_host=self._settings.jira_host,
                     id="board-relevant",
+                )
+            with TabPane(t("tab.tickets_team"), id="tab-team"):
+                # Ohne Auswertung und ohne Pile of Shame: was das Jira-Board
+                # zeigt, zeigt diese Ansicht auch, mehr nicht.
+                yield TicketBoardTable(
+                    MODE_TEAM,
+                    jira_host=self._settings.jira_host,
+                    members=self._member_names(),
+                    id="board-team",
                 )
         yield SummaryPanel(id="summary-panel")
         yield HorizontalSplitter(target_id="view-tabs", min_size=10, id="log-splitter")
@@ -1318,6 +1327,36 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """Liefert die Tabelle einer Ansicht."""
         return self.query_one(f"#board-{mode}", TicketBoardTable)
 
+    def _members(self) -> Roster:
+        """Die Merkliste "Mein Team" aus den Einstellungen."""
+        return from_storage(self._settings.team_members)
+
+    def _member_names(self) -> list[str]:
+        """Namen der Merkliste, in der Reihenfolge der Anzeige."""
+        return [member.display_name for member in self._members().members]
+
+    def _current_member(self) -> TeamMember | None:
+        """Die im Reiter "Mein Team" gewaehlte Person, oder None."""
+        with contextlib.suppress(Exception):
+            name = self._board_widget(MODE_TEAM).member
+            if name:
+                return self._members().find(name)
+        return None
+
+    def on_ticket_board_table_member_changed(
+        self, event: TicketBoardTable.MemberChanged
+    ) -> None:
+        """Eine andere Person wurde gewaehlt - die Ansicht wird neu geholt.
+
+        Ein Personenwechsel ist kein Filter auf denselben Bestand, sondern
+        ein anderer Bestand. Die alte Liste stehen zu lassen, waehrend oben
+        schon der neue Name steht, waere die gefaehrlichste Variante.
+        """
+        event.stop()
+        self._board_loaded[MODE_TEAM] = False
+        self._real_boards[MODE_TEAM] = None
+        self._ensure_board(MODE_TEAM)
+
     def _board_mode(self) -> str | None:
         """Ansicht des aktiven Reiters, None ausserhalb der Ticket-Reiter."""
         return _BOARD_TABS.get(self._active_tab())
@@ -1338,6 +1377,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return
         if not self._settings_complete():
             self._board_widget(mode).show_message(t("board.needs_settings"))
+            return
+        if mode == MODE_TEAM and self._current_member() is None:
+            self._board_widget(mode).show_message(t("board.needs_team"))
             return
         self._board_loaded[mode] = True
         self._board_widget(mode).show_message(t("board.loading"))
@@ -1370,6 +1412,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     t("board.worklog_check", count=count)
                 ),
                 on_log=self._write_log,
+                member=self._current_member() if mode == MODE_TEAM else None,
             )
         except AccountIdError:
             # Ohne eigene Kennung sind die Quellen "bearbeitet" und
@@ -1425,7 +1468,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
     @staticmethod
     def _mode_of(widget: TicketBoardTable) -> str:
         """Ansicht eines Tabellen-Widgets, abgeleitet aus seiner Kennung."""
-        return MODE_RELEVANT if widget.id == f"board-{MODE_RELEVANT}" else MODE_ASSIGNED
+        for mode in _BOARD_TABS.values():
+            if widget.id == f"board-{mode}":
+                return mode
+        return MODE_ASSIGNED
 
     async def _load_board_stats(self) -> None:
         """Holt die Ticket-Historie fuer die Auswertung."""
@@ -1453,7 +1499,20 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         Gezeigt wird nur, was auch vorkommt: eine Leiste voller Nullen sagt
         nichts und verdeckt die Zahl, auf die es ankommt.
         """
-        items = [StatusItem(t("board.summary.tickets"), str(board.count))]
+        items: list[StatusItem] = []
+        if mode == MODE_TEAM:
+            # Wessen Bestand hier steht, gehoert neben die Zahl. Eine nackte
+            # Anzahl liest sich in einer Fremdsicht wie die eigene.
+            member = self._current_member()
+            if member is not None:
+                items.append(
+                    StatusItem(
+                        t("board.summary.member"),
+                        member.display_name,
+                        value_style="bold",
+                    )
+                )
+        items.append(StatusItem(t("board.summary.tickets"), str(board.count)))
 
         for marker, label, style in (
             (Marker.PILE_OF_SHAME, "board.summary.pile_of_shame", "bold red"),
@@ -1501,9 +1560,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         Die Statuszuordnung veraendert jede Gruppe und jedes Merkmal - ein
         weiterhin angezeigtes altes Board waere schlicht falsch.
         """
-        self._board_loaded = {MODE_ASSIGNED: False, MODE_RELEVANT: False}
+        self._board_loaded = dict.fromkeys(_BOARD_TABS.values(), False)
         self._stats_loaded = False
-        for mode in (MODE_ASSIGNED, MODE_RELEVANT):
+        for mode in _BOARD_TABS.values():
             with contextlib.suppress(Exception):
                 widget = self._board_widget(mode)
                 widget.set_jira_host(self._settings.jira_host)
