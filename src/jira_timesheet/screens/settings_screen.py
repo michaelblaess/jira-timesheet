@@ -147,20 +147,17 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         height: 1;
     }
 
-    SettingsScreen .team-heading {
-        text-style: bold;
-        height: 1;
-    }
-
     /* Feste Hoehen: ohne sie waechst die Trefferliste bei jeder Suche und
        schiebt alles darunter weg. Die Merkliste darf kleiner sein, sie ist
        Kontrolle und kein Arbeitsbereich. */
+    /* Sieben Zeilen: Kopfzeile plus sechs Treffer. Acht waeren eine zu
+       viel - dann rutscht die Entfernen-Zeile aus dem Bild. Gemessen. */
     SettingsScreen #team-hits {
-        height: 8;
+        height: 7;
     }
 
-    SettingsScreen #team-roster {
-        height: 5;
+    SettingsScreen #team-remove-target {
+        width: 30;
     }
     """
 

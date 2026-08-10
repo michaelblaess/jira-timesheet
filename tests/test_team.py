@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import unittest
 
+import pytest
 from textual.app import App
 from textual.widgets import Button, DataTable, Input, Select, Static, TabbedContent
 
@@ -47,6 +48,20 @@ from jira_timesheet.services.ticket_board_loader import (
 )
 from jira_timesheet.widgets.team_roster_panel import TeamRosterPanel
 from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
+
+
+@pytest.fixture(autouse=True)
+def _german_labels() -> None:
+    """Echte Beschriftungen laden - sonst stehen die i18n-Schluessel im Kopf.
+
+    Fuer Tests, die Groessen messen, ist das kein Schoenheitsfehler: der
+    Schluessel "settings.team_intro" ist einzeilig, der echte Satz dreizeilig.
+    Ohne diese Fixture misst ein Sichtbarkeitstest ein Layout, das es im
+    Betrieb nicht gibt. Dasselbe Muster steht in test_ticket_board_ui und
+    test_widgets - beim Anlegen dieser Datei war es uebersehen worden.
+    """
+    load_locale("de")
+
 
 # Kennungen im Format der vermessenen Instanz: 24 Zeichen alt, 43 Zeichen neu.
 ID_A = "5cf79d64eba18b0ea85a7b53"
@@ -371,8 +386,12 @@ class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
 
         async with _App().run_test() as pilot:
             await pilot.pause()
-            tabelle = screen.query_one("#team-roster", DataTable)
-            self.assertEqual(2, tabelle.row_count)
+            # Die Merkliste steht im Entfernen-Auswahlfeld, nicht mehr in
+            # einer eigenen Tabelle - die lag ausserhalb des Bildes. Geprueft
+            # wird ueber den Wert und nicht ueber Select._options: private
+            # Attribute in Tests brechen beim naechsten Textual-Update.
+            auswahl = screen.query_one("#team-remove-target", Select)
+            self.assertEqual("Anna Muster", str(auswahl.value))
             ergebnis: dict[str, object] = {}
             screen.collect_app_settings(ergebnis)
 
@@ -403,7 +422,10 @@ class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
             screen.query_one("#team-btn-add", Button).press()
             await pilot.pause()
 
-            self.assertEqual(1, screen.query_one("#team-roster", DataTable).row_count)
+            self.assertEqual(
+                "Reiner Beispiel",
+                str(screen.query_one("#team-remove-target", Select).value),
+            )
             ergebnis: dict[str, object] = {}
             screen.collect_app_settings(ergebnis)
 
@@ -432,7 +454,10 @@ class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
 
             # Eine Zeile, aber zwei Konten - nicht zwei Personen.
-            self.assertEqual(1, screen.query_one("#team-roster", DataTable).row_count)
+            self.assertEqual(
+                "Reiner Beispiel",
+                str(screen.query_one("#team-remove-target", Select).value),
+            )
             ergebnis: dict[str, object] = {}
             screen.collect_app_settings(ergebnis)
 
@@ -632,11 +657,14 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
     """
 
     async def test_kernbedienung_passt_auf_dreissig_zeilen(self) -> None:
-        # Ohne load_locale liefert t() den SCHLUESSEL statt des Textes. Der
-        # Test wuerde dann ein Layout messen, das es im Betrieb nicht gibt -
-        # "settings.team_intro" ist eine Zeile, der echte Satz drei.
-        load_locale("de")
-        screen = SettingsScreen(Settings().to_dict(), lang="de")
+        # Mit gefuellter Merkliste: bei leerer Liste ist die Seite kuerzer
+        # als im Betrieb, und der Test wuerde zu frueh gruen.
+        werte = Settings().to_dict()
+        werte["team_members"] = [
+            {"display_name": f"Person {i}", "account_ids": [f"kennung{i}"]}
+            for i in range(5)
+        ]
+        screen = SettingsScreen(werte, lang="de")
 
         class _App(App[None]):
             def on_mount(self) -> None:
@@ -656,6 +684,8 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
                 "team-state",
                 "team-target",
                 "team-btn-add",
+                "team-remove-target",
+                "team-btn-remove",
             ):
                 bereich = screen.query_one(f"#{wid}").region
                 passt = (
@@ -669,7 +699,6 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], unsichtbar, "nicht ohne Blaettern erreichbar")
 
     async def test_auswahlfeld_wird_nicht_plattgequetscht(self) -> None:
-        load_locale("de")
         # Ohne feste Breite drueckten Eingabefeld und Knopf daneben das
         # Auswahlfeld auf genau eine Spalte - vorhanden, aber unbenutzbar.
         screen = SettingsScreen(Settings().to_dict(), lang="de")
@@ -691,7 +720,6 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
         # Der eigentliche Bedienfehler vom 10.08.2026: der Uebernahme-Knopf
         # stand unterhalb des Sichtbaren. Wer einen Treffer markiert und
         # speichert, erwartet ohnehin, dass er damit drin ist.
-        load_locale("de")
         screen = SettingsScreen(Settings().to_dict(), lang="de")
 
         class _App(App[None]):
@@ -724,7 +752,6 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
     async def test_der_stand_der_merkliste_steht_ueber_dem_falz(self) -> None:
         # Die Merkliste selbst liegt weiter unten. Ohne diese Zeile bleibt
         # nach dem Uebernehmen offen, ob ueberhaupt etwas passiert ist.
-        load_locale("de")
         werte = Settings().to_dict()
         werte["team_members"] = [{"display_name": "Anna Muster", "account_ids": [ID_A]}]
         screen = SettingsScreen(werte, lang="de")
