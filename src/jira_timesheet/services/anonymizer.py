@@ -51,7 +51,7 @@ _FAKE_SUMMARIES = [
 _FAKE_AUTHORS = [
     "Mueller, Thomas",
     "Schmidt, Anna",
-    "Mustermann, Max",
+    "Hoffmann, Peter",
     "Fischer, Laura",
     "Wagner, Stefan",
 ]
