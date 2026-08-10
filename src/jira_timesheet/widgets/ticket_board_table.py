@@ -23,6 +23,7 @@ from textual.widgets import Checkbox, DataTable, Input, Select, Static
 
 from jira_timesheet.i18n import format_number, t
 from jira_timesheet.services.ticket_board import Board, Group, Marker, Role, Ticket
+from jira_timesheet.services.ticket_board_loader import MODE_TEAM
 from jira_timesheet.widgets.resizable_data_table import ResizableDataTable
 
 # Reihenfolge und i18n-Schluessel der Spalten.
@@ -81,6 +82,11 @@ _URGENT_MARKERS = (Marker.PILE_OF_SHAME, Marker.STALE, Marker.HIGH_PRIORITY)
 # Wert des Statusfilters fuer "alle". Leer waere mehrdeutig, weil ein Ticket
 # tatsaechlich einen leeren Status haben kann.
 _ALL_STATUS = "\x00alle"
+
+# Platzhalter im Personenfilter, solange die Merkliste leer ist. Textual lehnt
+# ein Auswahlfeld ohne Optionen ab, wenn es keinen Leerwert haben darf - und das
+# Feld muss auch leer schon existieren, damit es sich spaeter fuellen laesst.
+_NO_MEMBER = "\x00niemand"
 
 
 class TicketBoardTable(Vertical):
@@ -169,6 +175,10 @@ class TicketBoardTable(Vertical):
         super().__init__(**kwargs)
         self._mode = mode
         self._members = list(members)
+        # Ob es ueberhaupt einen Personenfilter gibt, entscheidet die Ansicht
+        # und nicht der Inhalt der Merkliste - sonst fehlt das Feld genau
+        # dann, wenn die Liste erst noch gefuellt wird.
+        self._has_member_filter = mode == MODE_TEAM
         # Zuletzt gemeldete Person. Trennt die Erstbelegung des Auswahlfelds
         # von einer echten Auswahl durch den Benutzer.
         self._selected_member = self._members[0] if self._members else ""
@@ -186,13 +196,19 @@ class TicketBoardTable(Vertical):
     def compose(self) -> ComposeResult:
         """Filterleiste, Hinweiszeile und Tabelle."""
         with Horizontal(classes="board-filter-bar"):
-            if self._members:
+            if self._has_member_filter:
                 # Vor dem Statusfilter: die Person bestimmt, WAS gefiltert
                 # wird - der Status nur, wie daraus ausgewaehlt wird.
+                #
+                # Das Feld entsteht IMMER, auch bei leerer Merkliste. Es nur
+                # bei vorhandenen Namen zu bauen war ein Fehler: wer die
+                # Merkliste erst in den Einstellungen anlegt, bekaeme es bis
+                # zum naechsten Programmstart nicht zu sehen - ein spaeteres
+                # set_members findet dann nichts vor, das es fuellen koennte.
                 yield Static(t("board.filter.member"), classes="board-filter-label")
                 yield Select[str](
-                    [(name, name) for name in self._members],
-                    value=self._members[0],
+                    self._member_options(),
+                    value=self._members[0] if self._members else _NO_MEMBER,
                     allow_blank=False,
                     id=f"board-member-{self._mode}",
                 )
@@ -305,7 +321,7 @@ class TicketBoardTable(Vertical):
         """Status- oder Personenfilter geaendert."""
         if event.select.id == f"board-member-{self._mode}":
             event.stop()
-            name = str(event.value)
+            name = "" if str(event.value) == _NO_MEMBER else str(event.value)
             # Textual meldet auch die Erstbelegung beim Aufbau als Aenderung.
             # Ungefiltert wuerde das beim ersten Oeffnen des Reiters einen
             # zweiten Abruf ausloesen - und einer kostet Minuten.
@@ -322,15 +338,22 @@ class TicketBoardTable(Vertical):
         self._status = str(event.value)
         self._refresh()
 
+    def _member_options(self) -> list[tuple[str, str]]:
+        """Optionen des Personenfilters, mit Platzhalter bei leerer Liste."""
+        if not self._members:
+            return [(t("board.filter.no_member"), _NO_MEMBER)]
+        return [(name, name) for name in self._members]
+
     @property
     def member(self) -> str:
-        """Name der gewaehlten Person, leer ohne Auswahlfeld."""
+        """Name der gewaehlten Person, leer ohne Auswahl."""
         if not self._members:
             return ""
         try:
-            return str(self.query_one(f"#board-member-{self._mode}", Select).value)
+            gewaehlt = str(self.query_one(f"#board-member-{self._mode}", Select).value)
         except Exception:  # noqa: BLE001 - vor dem Aufbau gibt es das Feld nicht
             return self._members[0]
+        return "" if gewaehlt == _NO_MEMBER else gewaehlt
 
     def set_members(self, members: Sequence[str]) -> None:
         """Uebernimmt eine geaenderte Merkliste ins Auswahlfeld.
@@ -341,13 +364,15 @@ class TicketBoardTable(Vertical):
         """
         vorher = self.member
         self._members = list(members)
-        if not self._members:
-            return
         try:
             select = self.query_one(f"#board-member-{self._mode}", Select)
-        except Exception:  # noqa: BLE001 - Auswahlfeld noch nicht gebaut
+        except Exception:  # noqa: BLE001 - diese Ansicht hat keinen Filter
             return
-        select.set_options((name, name) for name in self._members)
+        select.set_options(self._member_options())
+        if not self._members:
+            self._selected_member = ""
+            select.value = _NO_MEMBER
+            return
         gewaehlt = vorher if vorher in self._members else self._members[0]
         self._selected_member = gewaehlt
         select.value = gewaehlt
