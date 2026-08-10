@@ -12,9 +12,10 @@ import json
 import unittest
 
 from textual.app import App
-from textual.widgets import Button, DataTable, Input, Select, TabbedContent
+from textual.widgets import Button, DataTable, Input, Select, Static, TabbedContent
 
 from jira_timesheet.app import JiraTimesheetApp
+from jira_timesheet.i18n import load_locale
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.screens.settings_screen import SettingsScreen
 from jira_timesheet.services.team import (
@@ -581,6 +582,130 @@ class AnwendungTest(unittest.IsolatedAsyncioTestCase):
             await pilot.pause()
             self.assertEqual(0, len(app.query(f"#board-member-{MODE_TEAM}")))
             self.assertIsNone(app._current_member())
+
+
+class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
+    """Die Bedienelemente muessen ohne Blaettern erreichbar sein.
+
+    Am 10.08.2026 lagen Trefferliste, Uebernahme und Merkliste komplett
+    unterhalb des sichtbaren Bereichs - Michael hat einen Treffer markiert,
+    gespeichert, und nichts kam an. Ein Widget, das man nicht sieht, gibt es
+    fuer den Benutzer nicht.
+    """
+
+    async def test_kernbedienung_passt_auf_dreissig_zeilen(self) -> None:
+        # Ohne load_locale liefert t() den SCHLUESSEL statt des Textes. Der
+        # Test wuerde dann ein Layout messen, das es im Betrieb nicht gibt -
+        # "settings.team_intro" ist eine Zeile, der echte Satz drei.
+        load_locale("de")
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        # Die kleinste Groesse, die im Alltag vorkommt.
+        async with _App().run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen.query_one(TabbedContent).active = "settings-tab-team"
+            await pilot.pause()
+            hoehe = screen.size.height
+            unsichtbar = []
+            for wid in (
+                "team-search",
+                "team-btn-search",
+                "team-hits",
+                "team-state",
+                "team-target",
+                "team-btn-add",
+            ):
+                bereich = screen.query_one(f"#{wid}").region
+                passt = (
+                    bereich.y >= 0
+                    and bereich.y + bereich.height <= hoehe
+                    and bereich.width > 1
+                )
+                if not passt:
+                    unsichtbar.append(f"{wid} (y={bereich.y}, b={bereich.width})")
+
+        self.assertEqual([], unsichtbar, "nicht ohne Blaettern erreichbar")
+
+    async def test_auswahlfeld_wird_nicht_plattgequetscht(self) -> None:
+        load_locale("de")
+        # Ohne feste Breite drueckten Eingabefeld und Knopf daneben das
+        # Auswahlfeld auf genau eine Spalte - vorhanden, aber unbenutzbar.
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen.query_one(TabbedContent).active = "settings-tab-team"
+            await pilot.pause()
+            breite = screen.query_one("#team-target", Select).region.width
+
+        self.assertGreaterEqual(breite, 20)
+
+
+    async def test_enter_auf_einem_treffer_uebernimmt_ihn(self) -> None:
+        # Der eigentliche Bedienfehler vom 10.08.2026: der Uebernahme-Knopf
+        # stand unterhalb des Sichtbaren. Wer einen Treffer markiert und
+        # speichert, erwartet ohnehin, dass er damit drin ist.
+        load_locale("de")
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen.query_one(TabbedContent).active = "settings-tab-team"
+            await pilot.pause()
+            panel = screen.query_one(TeamRosterPanel)
+            panel._hits = parse_search([_user(ID_A, "Beispiel, Reinhold")])
+            panel._refresh_hits()
+            await pilot.pause()
+
+            tabelle = screen.query_one("#team-hits", DataTable)
+            tabelle.focus()
+            tabelle.move_cursor(row=0)
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+
+            ergebnis: dict[str, object] = {}
+            screen.collect_app_settings(ergebnis)
+
+        gespeichert = ergebnis["team_members"]
+        assert isinstance(gespeichert, list)
+        self.assertEqual([ID_A], gespeichert[0]["account_ids"])
+
+    async def test_der_stand_der_merkliste_steht_ueber_dem_falz(self) -> None:
+        # Die Merkliste selbst liegt weiter unten. Ohne diese Zeile bleibt
+        # nach dem Uebernehmen offen, ob ueberhaupt etwas passiert ist.
+        load_locale("de")
+        werte = Settings().to_dict()
+        werte["team_members"] = [{"display_name": "Anna Muster", "account_ids": [ID_A]}]
+        screen = SettingsScreen(werte, lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen.query_one(TabbedContent).active = "settings-tab-team"
+            await pilot.pause()
+            zeile = screen.query_one("#team-state", Static)
+            text = str(zeile.render())
+            hoehe = screen.size.height
+            sichtbar = zeile.region.y + zeile.region.height <= hoehe
+
+        self.assertIn("Anna Muster", text)
+        self.assertTrue(sichtbar, "die Rueckmeldung selbst liegt ausserhalb des Bildes")
 
 
 if __name__ == "__main__":

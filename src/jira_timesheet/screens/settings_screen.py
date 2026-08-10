@@ -110,9 +110,16 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         margin-right: 2;
     }
 
+    /* Die Seite muss auf ein 30-Zeilen-Terminal passen. Jede Zeile, die
+       hier zugegeben wird, schiebt die Merkliste aus dem Bild - genau das
+       ist am 10.08.2026 passiert. Deshalb ueberall margin 0. */
+    SettingsScreen .team-intro {
+        color: $text-muted;
+        height: auto;
+    }
+
     SettingsScreen .team-row {
         height: auto;
-        margin-top: 1;
     }
 
     SettingsScreen .team-row Button {
@@ -125,17 +132,35 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         padding: 1 1 0 0;
     }
 
-    SettingsScreen .team-heading {
-        text-style: bold;
-        margin-top: 1;
+    /* Ohne feste Breite quetschen Eingabefeld und Knopf daneben das
+       Auswahlfeld auf eine einzige Spalte zusammen - gemessen: Breite 1. */
+    SettingsScreen #team-target {
+        width: 26;
     }
 
-    /* Beide Tabellen bekommen eine feste Hoehe: ohne sie waechst die
-       Trefferliste bei jeder Suche und schiebt die Merkliste aus dem Bild. */
-    SettingsScreen #team-hits,
+    SettingsScreen #team-name {
+        width: 1fr;
+    }
+
+    SettingsScreen .team-state {
+        color: $text-muted;
+        height: 1;
+    }
+
+    SettingsScreen .team-heading {
+        text-style: bold;
+        height: 1;
+    }
+
+    /* Feste Hoehen: ohne sie waechst die Trefferliste bei jeder Suche und
+       schiebt alles darunter weg. Die Merkliste darf kleiner sein, sie ist
+       Kontrolle und kein Arbeitsbereich. */
+    SettingsScreen #team-hits {
+        height: 8;
+    }
+
     SettingsScreen #team-roster {
-        height: 9;
-        margin-top: 1;
+        height: 5;
     }
     """
 

@@ -61,15 +61,24 @@ class TeamRosterPanel(Vertical):
         self._hits: list[AccountCandidate] = []
 
     def compose(self):  # type: ignore[no-untyped-def] # Textual-Signatur
-        """Baut die Oberflaeche des Panels."""
-        yield Static(t("settings.team_intro"), classes="hint")
+        """Baut die Oberflaeche des Panels.
+
+        Bewusst knapp: die Seite steckt in einem Dialog, der auf einem
+        30-Zeilen-Terminal nur rund ein Dutzend Zeilen fuer den Inhalt uebrig
+        laesst. Ein ausfuehrlicher Erklaerkasten hat hier am 10.08.2026 dafuer
+        gesorgt, dass Trefferliste, Uebernahme und Merkliste komplett
+        unterhalb des Sichtbaren lagen. Die Begruendung, warum ueber den
+        Namen gesucht wird, steht in der README - im Dialog steht nur, was
+        man zum Bedienen wissen muss.
+        """
+        yield Static(t("settings.team_intro"), classes="team-intro")
 
         with Horizontal(classes="team-row"):
             yield Input(placeholder=t("settings.team_search_ph"), id="team-search")
             yield Button(t("settings.team_search"), id="team-btn-search")
 
         yield DataTable(id="team-hits", cursor_type="row")
-        yield Static(t("settings.team_hits_empty"), id="team-hits-note", classes="hint")
+        yield Static("", id="team-state", classes="team-state")
 
         with Horizontal(classes="team-row"):
             yield Label(t("settings.team_add_as"))
@@ -197,8 +206,24 @@ class TeamRosterPanel(Vertical):
 
     # --- Uebernehmen und Entfernen -------------------------------------
 
+    @on(DataTable.RowSelected, "#team-hits")
+    def _on_hit_selected(self, event: DataTable.RowSelected) -> None:
+        """Enter auf einem Treffer uebernimmt ihn sofort.
+
+        Der Knopf allein reichte nicht: er stand unterhalb des sichtbaren
+        Bereichs, und wer einen Treffer markiert und speichert, erwartet
+        ohnehin, dass er damit uebernommen ist. Der Knopf bleibt fuer die
+        Maus und fuer den Fall, dass eine Zuordnung eingestellt werden soll.
+        """
+        event.stop()
+        self._add_selected()
+
     @on(Button.Pressed, "#team-btn-add")
     def _on_add_pressed(self) -> None:
+        """Uebernimmt das gewaehlte Konto ueber den Knopf."""
+        self._add_selected()
+
+    def _add_selected(self) -> None:
         """Uebernimmt das gewaehlte Konto in die Merkliste."""
         kandidat = self._selected_hit()
         if kandidat is None:
@@ -296,8 +321,20 @@ class TeamRosterPanel(Vertical):
                 "-" if kandidat.open_count is None else str(kandidat.open_count),
                 self._datum(kandidat.last_touch),
             )
-        note = self.query_one("#team-hits-note", Static)
-        note.display = not self._hits
+    def _refresh_state(self) -> None:
+        """Schreibt den Stand der Merkliste direkt unter die Trefferliste.
+
+        Diese Zeile ist die einzige Rueckmeldung, die ohne Blaettern zu sehen
+        ist. Ohne sie bleibt nach dem Uebernehmen offen, ob etwas passiert
+        ist - die Merkliste selbst steht weiter unten.
+        """
+        namen = [m.display_name for m in self._roster.members]
+        text = (
+            t("settings.team_state", count=len(namen), names=", ".join(namen))
+            if namen
+            else t("settings.team_state_empty")
+        )
+        self.query_one("#team-state", Static).update(text)
 
     def _refresh_roster(self) -> None:
         """Zeichnet die Merkliste neu und fuellt das Auswahlfeld."""
@@ -319,6 +356,7 @@ class TeamRosterPanel(Vertical):
             ]
         )
         auswahl.value = NEW_PERSON
+        self._refresh_state()
 
     @staticmethod
     def _datum(stamp: dt.datetime | None) -> str:
