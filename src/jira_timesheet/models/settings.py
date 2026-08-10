@@ -149,6 +149,14 @@ class Settings:
     board_threshold_acceptance: float = 10.0
     board_threshold_closing: float = 0.0
 
+    # --- Mein Team ----------------------------------------------------
+    # Die Merkliste in ihrer Speicherform, so wie services.team sie liest.
+    # Bewusst als rohe Abbildungen und nicht als TeamMember: die
+    # Einstellungen sollen den Kern nicht kennen und der Kern nicht die
+    # Einstellungen. Je Eintrag stehen darin display_name und account_ids,
+    # letzteres als LISTE - eine Person kann mehrere Konten fuehren.
+    team_members: list[dict[str, object]] = field(default_factory=list)
+
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
 
@@ -193,6 +201,7 @@ class Settings:
         "board_threshold_active",
         "board_threshold_acceptance",
         "board_threshold_closing",
+        "team_members",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -267,6 +276,7 @@ class Settings:
                 board_threshold_closing=Settings._parse_float(
                     data.get("board_threshold_closing"), 0.0
                 ),
+                team_members=Settings._parse_team(data.get("team_members")),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
@@ -303,6 +313,47 @@ class Settings:
         if not isinstance(raw, list):
             return []
         return [str(item).strip() for item in raw if str(item).strip()]
+
+    @staticmethod
+    def _parse_team(raw: object) -> list[dict[str, object]]:
+        """Liest die Merkliste "Mein Team" defensiv aus dem JSON.
+
+        Geprueft wird hier nur die Form, nicht der Inhalt: ob eine Kennung
+        brauchbar ist, entscheidet services.team beim Aufbau der Liste. Was
+        hier durchkommt, ist eine Abbildung mit Namen und mindestens einer
+        Kennung - alles andere waere ein Eintrag, der spaeter als leere
+        Ansicht erscheint und wie "nichts zu tun" aussieht.
+
+        Args:
+            raw:
+                Der rohe Wert aus der Datei.
+
+        Returns:
+            Die brauchbaren Eintraege in der Speicherform.
+        """
+        if not isinstance(raw, list):
+            return []
+        members: list[dict[str, object]] = []
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("display_name") or "").strip()
+            ids = [
+                str(value).strip()
+                for value in (entry.get("account_ids") or [])
+                if str(value).strip()
+            ]
+            if not name or not ids:
+                continue
+            members.append(
+                {
+                    "display_name": name,
+                    "account_ids": ids,
+                    "email": str(entry.get("email") or ""),
+                    "avatar_url": str(entry.get("avatar_url") or ""),
+                }
+            )
+        return members
 
     @staticmethod
     def _parse_int(raw: object, fallback: int) -> int:
