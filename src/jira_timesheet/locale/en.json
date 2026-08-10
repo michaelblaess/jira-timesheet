@@ -32,6 +32,7 @@
   "board.filter.actionable": "only needing action",
   "board.filter.all": "all",
   "board.filter.member": "Team member:",
+  "board.filter.no_member": "nobody added yet",
   "board.filter.search": "Search ticket or title ...",
   "board.filter.status": "Status:",
   "board.group.acceptance": "Someone else",

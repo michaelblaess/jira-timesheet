@@ -32,6 +32,7 @@
   "board.filter.actionable": "nur mit Handlungsbedarf",
   "board.filter.all": "alle",
   "board.filter.member": "Team-Mitglied:",
+  "board.filter.no_member": "noch niemand hinterlegt",
   "board.filter.search": "Nach Ticket oder Titel suchen ...",
   "board.filter.status": "Status:",
   "board.group.acceptance": "Andere sind dran",
