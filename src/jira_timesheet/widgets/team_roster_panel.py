@@ -37,6 +37,10 @@ from jira_timesheet.services.ticket_board import assigned_jql, last_touch_jql
 # Wert des Auswahlfelds fuer "als neue Person uebernehmen".
 NEW_PERSON = "__neu__"
 
+# Platzhalter im Entfernen-Feld, solange die Merkliste leer ist. Textual lehnt
+# ein Auswahlfeld ohne Optionen ab, wenn es keinen Leerwert haben darf.
+NO_MEMBER = "__niemand__"
+
 # Liefert Host, Mailadresse, Token und Proxy aus den aktuellen Eingabefeldern.
 # Als Rueckruf, damit das Panel den Einstellungs-Bildschirm nicht kennen muss
 # und frisch eingetippte Zugangsdaten sofort greifen.
@@ -93,9 +97,20 @@ class TeamRosterPanel(Vertical):
             yield Input(placeholder=t("settings.team_name_ph"), id="team-name")
             yield Button(t("settings.team_add"), id="team-btn-add", variant="primary")
 
-        yield Static(t("settings.team_roster"), classes="team-heading")
-        yield DataTable(id="team-roster", cursor_type="row")
-        yield Button(t("settings.team_remove"), id="team-btn-remove")
+        with Horizontal(classes="team-row"):
+            # Entfernt wird ueber ein Auswahlfeld statt ueber eine zweite
+            # Tabelle. Die Tabelle lag auf einem 30-Zeilen-Terminal ausserhalb
+            # des Bildes, und von ihr war nur die Ueberschrift zu sehen - eine
+            # Beschriftung ohne Inhalt. Das Auswahlfeld fuehrt dieselbe Liste
+            # vollstaendig und braucht eine Zeile statt sieben.
+            yield Label(t("settings.team_remove_who"))
+            yield Select(
+                [(t("settings.team_nobody"), NO_MEMBER)],
+                value=NO_MEMBER,
+                id="team-remove-target",
+                allow_blank=False,
+            )
+            yield Button(t("settings.team_remove"), id="team-btn-remove")
 
     def on_mount(self) -> None:
         """Setzt die Spaltenkoepfe und zeigt den gespeicherten Stand."""
@@ -105,12 +120,6 @@ class TeamRosterPanel(Vertical):
             t("settings.team_col_mail"),
             t("settings.team_col_open"),
             t("settings.team_col_last"),
-        )
-        roster = self.query_one("#team-roster", DataTable)
-        roster.add_columns(
-            t("settings.team_col_name"),
-            t("settings.team_col_accounts"),
-            t("settings.team_col_mail"),
         )
         self._refresh_roster()
 
@@ -271,14 +280,14 @@ class TeamRosterPanel(Vertical):
 
     @on(Button.Pressed, "#team-btn-remove")
     def _on_remove_pressed(self) -> None:
-        """Nimmt die gewaehlte Person aus der Merkliste."""
-        tabelle = self.query_one("#team-roster", DataTable)
-        zeile = tabelle.cursor_row
-        if zeile is None or not (0 <= zeile < len(self._roster.members)):
+        """Nimmt die im Auswahlfeld genannte Person aus der Merkliste."""
+        name = str(self.query_one("#team-remove-target", Select).value)
+        gewaehlt = self._roster.find(name) if name != NO_MEMBER else None
+        if gewaehlt is None:
             self.notify(t("settings.team_pick_member"), severity="warning")
             return
-        entfernt = self._roster.members.pop(zeile)
-        self.notify(t("settings.team_removed", name=entfernt.display_name))
+        self._roster.members.remove(gewaehlt)
+        self.notify(t("settings.team_removed", name=gewaehlt.display_name))
         self._refresh_roster()
 
     # --- Innere Helfer --------------------------------------------------
@@ -340,25 +349,18 @@ class TeamRosterPanel(Vertical):
         self.query_one("#team-state", Static).update(text)
 
     def _refresh_roster(self) -> None:
-        """Zeichnet die Merkliste neu und fuellt das Auswahlfeld."""
+        """Sortiert die Merkliste und fuellt die beiden Auswahlfelder."""
         self._roster.members.sort(key=lambda m: m.display_name.casefold())
-        tabelle = self.query_one("#team-roster", DataTable)
-        tabelle.clear()
-        for mitglied in self._roster.members:
-            tabelle.add_row(
-                mitglied.display_name,
-                str(len(mitglied.account_ids)),
-                mitglied.email or t("settings.team_no_mail"),
-            )
+        namen = [(m.display_name, m.display_name) for m in self._roster.members]
 
-        auswahl = self.query_one("#team-target", Select)
-        auswahl.set_options(
-            [
-                (t("settings.team_new_person"), NEW_PERSON),
-                *((m.display_name, m.display_name) for m in self._roster.members),
-            ]
-        )
-        auswahl.value = NEW_PERSON
+        ziel = self.query_one("#team-target", Select)
+        ziel.set_options([(t("settings.team_new_person"), NEW_PERSON), *namen])
+        ziel.value = NEW_PERSON
+
+        entfernen = self.query_one("#team-remove-target", Select)
+        entfernen.set_options(namen or [(t("settings.team_nobody"), NO_MEMBER)])
+        entfernen.value = namen[0][1] if namen else NO_MEMBER
+
         self._refresh_state()
 
     @staticmethod
