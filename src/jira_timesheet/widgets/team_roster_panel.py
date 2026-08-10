@@ -330,7 +330,10 @@ class TeamRosterPanel(Vertical):
         """
         namen = [m.display_name for m in self._roster.members]
         text = (
-            t("settings.team_state", count=len(namen), names=", ".join(namen))
+            # Getrennt mit senkrechtem Strich, nicht mit Komma: die Namen
+            # selbst enthalten eines ("Nachname, Vorname"), und zwei Eintraege
+            # lesen sich sonst wie vier.
+            t("settings.team_state", count=len(namen), names=" | ".join(namen))
             if namen
             else t("settings.team_state_empty")
         )

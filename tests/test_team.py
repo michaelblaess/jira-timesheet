@@ -580,8 +580,46 @@ class AnwendungTest(unittest.IsolatedAsyncioTestCase):
         app = JiraTimesheetApp()
         async with app.run_test() as pilot:
             await pilot.pause()
-            self.assertEqual(0, len(app.query(f"#board-member-{MODE_TEAM}")))
+            # Das Auswahlfeld ist trotzdem da - nur ohne waehlbare Person.
+            # Es erst bei gefuellter Merkliste zu bauen war der Fehler vom
+            # 10.08.2026: wer die Liste im laufenden Programm anlegt, saehe
+            # das Feld sonst bis zum Neustart nicht.
+            self.assertEqual(1, len(app.query(f"#board-member-{MODE_TEAM}")))
+            self.assertEqual("", app._board_widget(MODE_TEAM).member)
             self.assertIsNone(app._current_member())
+
+    async def test_merkliste_aus_den_einstellungen_kommt_im_reiter_an(self) -> None:
+        # Der zweite Fehler vom 10.08.2026: die gepflegte Merkliste blieb im
+        # Einstellungsdialog haengen. Das Widget erfuhr nie davon.
+        Settings.SETTINGS_FILE.write_text(json.dumps({}), encoding="utf-8")
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            self.assertIsNone(app._current_member())
+
+            app._on_settings_closed(
+                {
+                    "team_members": [
+                        {"display_name": "Reiner Beispiel", "account_ids": [ID_A]}
+                    ]
+                }
+            )
+            await pilot.pause()
+
+            # Nicht nur der gemeldete Name zaehlt: das Auswahlfeld muss
+            # tatsaechlich da sein und den Namen fuehren. Ohne diese Pruefung
+            # besteht der Test auch dann, wenn es das Feld gar nicht gibt -
+            # "member" faellt in dem Fall auf den ersten Namen zurueck.
+            felder = app.query(f"#board-member-{MODE_TEAM}")
+            self.assertEqual(1, len(felder))
+            self.assertEqual(
+                "Reiner Beispiel",
+                str(app.query_one(f"#board-member-{MODE_TEAM}", Select).value),
+            )
+            self.assertEqual("Reiner Beispiel", app._board_widget(MODE_TEAM).member)
+            mitglied = app._current_member()
+            self.assertIsNotNone(mitglied)
+            self.assertEqual((ID_A,), mitglied.account_ids)  # type: ignore[union-attr]
 
 
 class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):

@@ -822,6 +822,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         config = self.query_one("#config-panel", ConfigPanel)
         config.refresh_display()
         self._apply_manual_marking()
+        # Erst die Merkliste ins Widget, dann pruefen: _invalidate_boards
+        # loest den Neu-Abruf aus und braucht die gewaehlte Person.
+        with contextlib.suppress(Exception):
+            self._board_widget(MODE_TEAM).set_members(self._member_names())
         if self._board_fingerprint() != board_before:
             self._invalidate_boards()
 
@@ -848,6 +852,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             settings.jira_host,
             settings.email,
             settings.use_legacy_api,
+            # Die Merkliste gehoert dazu: wer eine Person hinzufuegt oder
+            # entfernt, aendert damit den Inhalt der Ansicht "Mein Team".
+            tuple(
+                (
+                    str(member.get("display_name", "")),
+                    tuple(str(value) for value in (member.get("account_ids") or [])),  # type: ignore[attr-defined]
+                )
+                for member in settings.team_members
+            ),
         )
 
     def _apply_manual_marking(self) -> None:
