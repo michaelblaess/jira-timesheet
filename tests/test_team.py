@@ -8,11 +8,13 @@ sie mitgetestet: eine Pruefung, die nicht scheitern kann, belegt nichts.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import unittest
 
 from textual.app import App
-from textual.widgets import Button, DataTable, Input, Select
+from textual.widgets import Button, DataTable, Input, Select, TabbedContent
 
+from jira_timesheet.app import JiraTimesheetApp
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.screens.settings_screen import SettingsScreen
 from jira_timesheet.services.team import (
@@ -43,6 +45,7 @@ from jira_timesheet.services.ticket_board_loader import (
     jqls_for,
 )
 from jira_timesheet.widgets.team_roster_panel import TeamRosterPanel
+from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
 
 # Kennungen im Format der vermessenen Instanz: 24 Zeichen alt, 43 Zeichen neu.
 ID_A = "5cf79d64eba18b0ea85a7b53"
@@ -461,6 +464,123 @@ class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
         assert isinstance(gespeichert, list)
         self.assertEqual(1, len(gespeichert))
         self.assertEqual([ID_A], gespeichert[0]["account_ids"])
+
+
+class TeamTabTest(unittest.IsolatedAsyncioTestCase):
+    """Das Auswahlfeld fuer die Person in der Ansicht "Mein Team"."""
+
+    def _app(self, tabelle: TicketBoardTable) -> App[None]:
+        class _App(App[None]):
+            def compose(self):  # type: ignore[no-untyped-def]
+                yield tabelle
+
+        return _App()
+
+    async def test_ohne_merkliste_kein_auswahlfeld(self) -> None:
+        # Die eigenen Ansichten duerfen kein Personenfeld bekommen - dort
+        # gibt es nichts auszuwaehlen.
+        tabelle = TicketBoardTable(MODE_ASSIGNED, id="board-assigned")
+        async with self._app(tabelle).run_test() as pilot:
+            await pilot.pause()
+            self.assertEqual(0, len(tabelle.query(f"#board-member-{MODE_ASSIGNED}")))
+            self.assertEqual("", tabelle.member)
+
+    async def test_auswahlfeld_zeigt_die_merkliste(self) -> None:
+        tabelle = TicketBoardTable(
+            MODE_TEAM, members=["Anna Muster", "Reiner Beispiel"], id="board-team"
+        )
+        async with self._app(tabelle).run_test() as pilot:
+            await pilot.pause()
+            self.assertEqual("Anna Muster", tabelle.member)
+
+    async def test_wechsel_meldet_sich_bei_der_anwendung(self) -> None:
+        # Eine andere Person ist ein anderer Bestand. Das Widget filtert
+        # deshalb nicht selbst, sondern bittet um einen neuen Abruf.
+        gemeldet: list[str] = []
+        tabelle = TicketBoardTable(
+            MODE_TEAM, members=["Anna Muster", "Reiner Beispiel"], id="board-team"
+        )
+
+        class _App(App[None]):
+            def compose(self):  # type: ignore[no-untyped-def]
+                yield tabelle
+
+            def on_ticket_board_table_member_changed(
+                self, event: TicketBoardTable.MemberChanged
+            ) -> None:
+                gemeldet.append(event.name)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            tabelle.query_one(f"#board-member-{MODE_TEAM}", Select).value = "Reiner Beispiel"
+            await pilot.pause()
+
+        self.assertEqual(["Reiner Beispiel"], gemeldet)
+
+    async def test_geaenderte_merkliste_haelt_die_gewaehlte_person(self) -> None:
+        tabelle = TicketBoardTable(
+            MODE_TEAM, members=["Anna Muster", "Reiner Beispiel"], id="board-team"
+        )
+        async with self._app(tabelle).run_test() as pilot:
+            await pilot.pause()
+            tabelle.query_one(f"#board-member-{MODE_TEAM}", Select).value = "Reiner Beispiel"
+            await pilot.pause()
+            tabelle.set_members(["Anna Muster", "Reiner Beispiel", "Neuer Kollege"])
+            await pilot.pause()
+            self.assertEqual("Reiner Beispiel", tabelle.member)
+
+    async def test_verschwundene_person_ruecken_nicht_still_auf_jemand_anderen(self) -> None:
+        # Wird die gewaehlte Person entfernt, faellt die Auswahl auf den
+        # ersten Eintrag - aber sichtbar, nicht unter Beibehaltung des alten
+        # Namens im Feld.
+        tabelle = TicketBoardTable(
+            MODE_TEAM, members=["Anna Muster", "Reiner Beispiel"], id="board-team"
+        )
+        async with self._app(tabelle).run_test() as pilot:
+            await pilot.pause()
+            tabelle.query_one(f"#board-member-{MODE_TEAM}", Select).value = "Reiner Beispiel"
+            await pilot.pause()
+            tabelle.set_members(["Anna Muster"])
+            await pilot.pause()
+            self.assertEqual("Anna Muster", tabelle.member)
+
+
+class AnwendungTest(unittest.IsolatedAsyncioTestCase):
+    """Die Anwendung mit dem neuen Reiter."""
+
+    async def test_reiter_ist_da_und_traegt_das_personenfeld(self) -> None:
+        # Der Beleg, dass die Ansicht wirklich in der Anwendung ankommt:
+        # dass ein Widget fuer sich funktioniert, sagt darueber nichts.
+        Settings.SETTINGS_FILE.write_text(
+            json.dumps(
+                {
+                    "team_members": [
+                        {"display_name": "Reiner Beispiel", "account_ids": [ID_A]}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            reiter = [
+                pane.id for pane in app.query_one("#view-tabs", TabbedContent).query("TabPane")
+            ]
+            self.assertIn("tab-team", reiter)
+            # Das Auswahlfeld gehoert genau in diesen einen Reiter.
+            self.assertEqual(1, len(app.query(f"#board-member-{MODE_TEAM}")))
+            self.assertEqual(0, len(app.query(f"#board-member-{MODE_ASSIGNED}")))
+
+    async def test_ohne_merkliste_wird_nichts_abgerufen(self) -> None:
+        # Ein Abruf ohne Person fiele auf currentUser() zurueck und zeigte
+        # die eigenen Tickets unter fremder Ueberschrift.
+        Settings.SETTINGS_FILE.write_text(json.dumps({}), encoding="utf-8")
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            self.assertEqual(0, len(app.query(f"#board-member-{MODE_TEAM}")))
+            self.assertIsNone(app._current_member())
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ ohne dass es auffaellt.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from rich.text import Text
@@ -101,6 +102,13 @@ class TicketBoardTable(Vertical):
             self.screen_y = screen_y
             self.ticket = ticket
 
+    class MemberChanged(Message):
+        """In der Ansicht "Mein Team" wurde eine andere Person gewaehlt."""
+
+        def __init__(self, name: str) -> None:
+            super().__init__()
+            self.name = name
+
     DEFAULT_CSS = """
     TicketBoardTable {
         height: 1fr;
@@ -139,7 +147,13 @@ class TicketBoardTable(Vertical):
     }
     """
 
-    def __init__(self, mode: str, jira_host: str = "", **kwargs: Any) -> None:
+    def __init__(
+        self,
+        mode: str,
+        jira_host: str = "",
+        members: Sequence[str] = (),
+        **kwargs: Any,
+    ) -> None:
         """Baut die Ansicht.
 
         Args:
@@ -147,9 +161,17 @@ class TicketBoardTable(Vertical):
                 Kennung der Ansicht, wandert in die Widget-Ids.
             jira_host:
                 Basis-URL fuer die Ticket-Verweise.
+            members:
+                Namen der Merkliste. Nur wenn hier etwas steht, erscheint das
+                Auswahlfeld fuer die Person - in den eigenen Ansichten gibt es
+                nichts auszuwaehlen.
         """
         super().__init__(**kwargs)
         self._mode = mode
+        self._members = list(members)
+        # Zuletzt gemeldete Person. Trennt die Erstbelegung des Auswahlfelds
+        # von einer echten Auswahl durch den Benutzer.
+        self._selected_member = self._members[0] if self._members else ""
         self._jira_host = jira_host.rstrip("/")
         self._board: Board | None = None
         self._status = _ALL_STATUS
@@ -164,6 +186,16 @@ class TicketBoardTable(Vertical):
     def compose(self) -> ComposeResult:
         """Filterleiste, Hinweiszeile und Tabelle."""
         with Horizontal(classes="board-filter-bar"):
+            if self._members:
+                # Vor dem Statusfilter: die Person bestimmt, WAS gefiltert
+                # wird - der Status nur, wie daraus ausgewaehlt wird.
+                yield Static(t("board.filter.member"), classes="board-filter-label")
+                yield Select[str](
+                    [(name, name) for name in self._members],
+                    value=self._members[0],
+                    allow_blank=False,
+                    id=f"board-member-{self._mode}",
+                )
             yield Static(t("board.filter.status"), classes="board-filter-label")
             yield Select[str](
                 [(t("board.filter.all"), _ALL_STATUS)],
@@ -270,12 +302,55 @@ class TicketBoardTable(Vertical):
         return not (needle and needle not in f"{ticket.key} {ticket.summary}".casefold())
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Statusfilter geaendert."""
+        """Status- oder Personenfilter geaendert."""
+        if event.select.id == f"board-member-{self._mode}":
+            event.stop()
+            name = str(event.value)
+            # Textual meldet auch die Erstbelegung beim Aufbau als Aenderung.
+            # Ungefiltert wuerde das beim ersten Oeffnen des Reiters einen
+            # zweiten Abruf ausloesen - und einer kostet Minuten.
+            if name == self._selected_member:
+                return
+            self._selected_member = name
+            # Eine andere Person heisst ein anderer Bestand, nicht eine
+            # andere Sicht auf denselben. Das Nachladen macht die Anwendung.
+            self.post_message(self.MemberChanged(name))
+            return
         if event.select.id != f"board-status-{self._mode}":
             return
         event.stop()
         self._status = str(event.value)
         self._refresh()
+
+    @property
+    def member(self) -> str:
+        """Name der gewaehlten Person, leer ohne Auswahlfeld."""
+        if not self._members:
+            return ""
+        try:
+            return str(self.query_one(f"#board-member-{self._mode}", Select).value)
+        except Exception:  # noqa: BLE001 - vor dem Aufbau gibt es das Feld nicht
+            return self._members[0]
+
+    def set_members(self, members: Sequence[str]) -> None:
+        """Uebernimmt eine geaenderte Merkliste ins Auswahlfeld.
+
+        Die zuvor gewaehlte Person bleibt stehen, solange es sie noch gibt -
+        sonst ruecken die Einstellungen den Blick unbemerkt auf jemand
+        anderen.
+        """
+        vorher = self.member
+        self._members = list(members)
+        if not self._members:
+            return
+        try:
+            select = self.query_one(f"#board-member-{self._mode}", Select)
+        except Exception:  # noqa: BLE001 - Auswahlfeld noch nicht gebaut
+            return
+        select.set_options((name, name) for name in self._members)
+        gewaehlt = vorher if vorher in self._members else self._members[0]
+        self._selected_member = gewaehlt
+        select.value = gewaehlt
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Schalter "nur mit Handlungsbedarf" geaendert."""
