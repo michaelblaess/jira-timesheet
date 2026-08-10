@@ -14,6 +14,7 @@ from collections.abc import Callable, Sequence
 
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.services.jira_client import JiraClient
+from jira_timesheet.services.team import TeamMember
 from jira_timesheet.services.ticket_board import (
     DEFAULT_PRIORITIES,
     FIELDS,
@@ -33,10 +34,11 @@ from jira_timesheet.services.ticket_board import (
     relevant_jql,
 )
 
-# Die beiden Ansichten. Der Wert wandert in Widget-Kennungen und Log-Zeilen,
+# Die Ansichten. Der Wert wandert in Widget-Kennungen und Log-Zeilen,
 # deshalb sind es Zeichenketten und keine Aufzaehlung.
 MODE_ASSIGNED = "assigned"
 MODE_RELEVANT = "relevant"
+MODE_TEAM = "team"
 
 # Ein Rueckruf fuer Log-Zeilen. Nichts tun ist der Normalfall im Test.
 Reporter = Callable[[str], None]
@@ -100,7 +102,11 @@ def build_client(settings: Settings, on_log: Reporter | None = None) -> JiraClie
     )
 
 
-def jqls_for(mode: str, config: BoardConfig) -> Callable[[str], Sequence[str]]:
+def jqls_for(
+    mode: str,
+    config: BoardConfig,
+    member: TeamMember | None = None,
+) -> Callable[[str], Sequence[str]]:
     """Liefert die Ausdruck-Fabrik einer Ansicht.
 
     Die Ausdruecke kommen als Fabrik statt als fertige Liste, weil der Teil
@@ -109,20 +115,32 @@ def jqls_for(mode: str, config: BoardConfig) -> Callable[[str], Sequence[str]]:
 
     Args:
         mode:
-            MODE_ASSIGNED oder MODE_RELEVANT.
+            MODE_ASSIGNED, MODE_RELEVANT oder MODE_TEAM.
         config:
             Die Konfiguration, liefert Zeitfenster und Abschluss-Status.
+        member:
+            Bei MODE_TEAM die gemeinte Person. Sonst ohne Bedeutung.
 
     Returns:
         Eine Funktion, die zur accountId die JQL-Ausdruecke baut.
+
+    Raises:
+        ValueError:
+            Bei MODE_TEAM ohne Person. Ohne Kennung faellt die Abfrage sonst
+            auf currentUser() zurueck und zeigte die eigenen Tickets unter
+            fremdem Namen an.
     """
+    if mode == MODE_TEAM and (member is None or not member.account_ids):
+        raise ValueError("MODE_TEAM braucht ein Mitglied mit mindestens einer Kennung")
+
+    ids: Sequence[str] = member.account_ids if mode == MODE_TEAM and member else ()
 
     def build(account_id: str) -> Sequence[str]:
         if mode == MODE_RELEVANT:
             return [relevant_jql(account_id, config.window_days)]
         # Die Abschluss-Status fallen durch "statusCategory != Done" hindurch
         # und brauchen deshalb eine zweite Abfrage.
-        return [assigned_jql(), closing_jql(config.closing_status)]
+        return [assigned_jql(ids), closing_jql(config.closing_status, ids)]
 
     return build
 
@@ -133,6 +151,7 @@ async def load_board(
     mode: str,
     on_worklog_check: CountReporter | None = None,
     on_log: Reporter | None = None,
+    member: TeamMember | None = None,
 ) -> Board:
     """Holt eine Ticket-Ansicht und baut sie ueber den Kern auf.
 
@@ -142,12 +161,14 @@ async def load_board(
         config:
             Die Kern-Konfiguration, ueblicherweise aus config_from.
         mode:
-            MODE_ASSIGNED oder MODE_RELEVANT.
+            MODE_ASSIGNED, MODE_RELEVANT oder MODE_TEAM.
         on_worklog_check:
             Rueckruf mit der Anzahl der Tickets, deren Buchungslage im
             zweiten Durchgang geprueft wird.
         on_log:
             Rueckruf fuer die ausfuehrliche Ausgabe, inklusive der Ausdruecke.
+        member:
+            Bei MODE_TEAM die gemeinte Person.
 
     Returns:
         Das fertige Board.
@@ -155,19 +176,32 @@ async def load_board(
     announce = on_worklog_check or (lambda _count: None)
     client = build_client(settings, on_log)
 
-    account_id, issues = await client.fetch_issues(jqls_for(mode, config), FIELDS)
+    account_id, issues = await client.fetch_issues(
+        jqls_for(mode, config, member), FIELDS
+    )
     now = dt.datetime.now(dt.UTC)
+
+    # In der Fremdsicht ist die gemeinte Person nicht der angemeldete
+    # Benutzer. Ohne diese Umstellung waeren die Autoren-Merkmale gegen die
+    # falsche Person gerechnet.
+    ids: Sequence[str] = member.account_ids if mode == MODE_TEAM and member else ()
+    own_id = ids[0] if ids else account_id
+
     board = build_board(
         issues,
         config,
         now,
-        account_id=account_id,
+        account_id=own_id,
         browse_base=settings.jira_host,
+        account_ids=ids,
     )
 
     if mode != MODE_ASSIGNED:
-        # Fremde Tickets gehoeren nicht in den eigenen Pile of Shame - der
-        # zweite, teure Durchgang entfaellt.
+        # Der Pile of Shame beruht auf Buchungszeiten. Ueber eine andere
+        # Person waere das eine Buchungskontrolle und keine Handlungshilfe -
+        # deshalb entfaellt der zweite, teure Durchgang hier ganz. Die
+        # Buchungsdaten werden also nicht etwa geholt und verworfen, sie
+        # werden gar nicht erst angefordert.
         return board
 
     keys = pending_worklog_keys(board, config)
