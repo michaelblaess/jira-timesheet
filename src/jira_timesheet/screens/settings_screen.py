@@ -24,6 +24,7 @@ from jira_timesheet.services.cache_service import CACHE_DIR
 from jira_timesheet.services.holiday_service import FEDERAL_STATES
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import DB_FILE
+from jira_timesheet.widgets.team_roster_panel import TeamRosterPanel
 
 # Bundesland-Auswahl, alphabetisch nach Anzeigename sortiert.
 _STATE_OPTIONS = [(f"{name} ({code})", code) for code, name in sorted(FEDERAL_STATES.items(), key=lambda x: x[1])]
@@ -107,6 +108,34 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         width: auto;
         margin-left: 1;
         margin-right: 2;
+    }
+
+    SettingsScreen .team-row {
+        height: auto;
+        margin-top: 1;
+    }
+
+    SettingsScreen .team-row Button {
+        width: auto;
+        margin-left: 1;
+    }
+
+    SettingsScreen .team-row Label {
+        width: auto;
+        padding: 1 1 0 0;
+    }
+
+    SettingsScreen .team-heading {
+        text-style: bold;
+        margin-top: 1;
+    }
+
+    /* Beide Tabellen bekommen eine feste Hoehe: ohne sie waechst die
+       Trefferliste bei jeder Suche und schiebt die Merkliste aus dem Bild. */
+    SettingsScreen #team-hits,
+    SettingsScreen #team-roster {
+        height: 9;
+        margin-top: 1;
     }
     """
 
@@ -305,6 +334,13 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                     tooltip_key="settings.board_threshold_tip",
                 )
 
+        with TabPane(t("settings.tab_team"), id="settings-tab-team"), VerticalScroll():
+            stored = self._settings.get("team_members") or []
+            yield TeamRosterPanel(
+                stored if isinstance(stored, list) else [],
+                self._current_credentials,
+            )
+
     @on(Checkbox.Changed, "#set-use-legacy-api")
     def _on_legacy_changed(self, event: Checkbox.Changed) -> None:
         """Deaktiviert die Budget-Autoerkennung im Legacy-Modus."""
@@ -500,6 +536,24 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             settings["vacation_days"] = int(self.query_one("#set-vacation-days", Input).value.strip())
 
         self._collect_board_settings(settings)
+        settings["team_members"] = self.query_one(TeamRosterPanel).storage()
+
+    def _current_credentials(self) -> tuple[str, str, str, str]:
+        """Liefert Host, Mailadresse, Token und Proxy aus den Eingabefeldern.
+
+        Bewusst aus den Feldern und nicht aus den gespeicherten Werten: wer
+        die Zugangsdaten gerade erst eingetippt hat, soll sofort suchen
+        koennen, ohne vorher zu speichern.
+
+        Returns:
+            Die vier Werte in dieser Reihenfolge, jeweils ohne Leerraum.
+        """
+        return (
+            self.query_one("#set-host", Input).value.strip(),
+            self.query_one("#set-email", Input).value.strip(),
+            self.query_one("#set-token", Input).value.strip(),
+            self.query_one("#set-proxy-url", Input).value.strip(),
+        )
 
     def _collect_board_settings(self, settings: dict[str, object]) -> None:
         """Liest die Seite "Tickets" ins Ergebnis-Dict.
