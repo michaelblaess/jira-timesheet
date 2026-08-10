@@ -106,6 +106,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Calendar view** — Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
 - **Relevant tickets** — Tickets not assigned to you that still concern you: reported, watched, worked on, updated or mentioned by name
+- **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — 12 monthly tiles with progress bar and forecast (J)
@@ -241,7 +242,7 @@ flexible column: it takes whatever width the other visible columns leave.
 
 ### Setting up the ticket views
 
-The two tabs **My tickets** and **Relevant tickets** group your tickets by whose
+The tabs **My tickets**, **Relevant tickets** and **My team** group the tickets by whose
 turn it is. Which status belongs to which group is something only your Jira
 instance knows - every workflow uses different names. You therefore enter the
 mapping once in the settings tab **Tickets**, one comma-separated list per group.
@@ -253,6 +254,32 @@ mapping once in the settings tab **Tickets**, one comma-separated list per group
 | Someone else's turn | Waiting for approval by someone else | `Awaiting approval` |
 | Hand back | Delivered, waiting for the reporter's assessment | `Delivered` |
 | Closing open | Counted as done by Jira, work remains | `For acceptance, Docs open` |
+
+### Setting up My team
+
+In the settings tab **My team** you add the colleagues whose ticket status you
+want to see. Search by **name**, not by email address - and there is a solid
+reason for that:
+
+- A Jira account only reveals its email address if the profile allows it. In one
+  measured instance it was invisible for every fourth person.
+- One person may run several accounts. Which one carries the work cannot be
+  derived from the address: sometimes it is the one with an address, sometimes
+  the one without.
+
+The hit list therefore shows, next to name and address, the number of open
+tickets and the timestamp of the **most recent change**, sorted by recency. With
+several accounts the current one is not necessarily the largest - which is
+exactly why that column is there.
+
+A hit is either added as a new person or attached to an existing one as a further
+account. The display name is free to choose and overrides the one from Jira,
+which helps when the same person appears under three different spellings.
+
+**What the view deliberately does not show:** no worklogs, no "pile of shame",
+no analysis. The Jira board shows everyone on the team the tickets of the others,
+but neither bookings nor throughput - and this view sticks to that. It is a
+faster lens on what the board already holds, not a productivity tool.
 
 **"Closing open" is the most important field.** Jira files these status values
 under the *Done* category - a query on `statusCategory != Done` will not find
