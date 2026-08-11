@@ -325,15 +325,14 @@ Qt edition - the terminal is not wide enough for a third chart.
 
 | Key | Action |
 |-------|--------|
-| G | Generate timesheet |
 | E | Excel export |
 | P | PDF export |
 | D | Show ticket details |
 | B | Ticket analysis (interactive report as an HTML file) |
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
-| TAB | Switch tab (list / calendar / my tickets / my activity / my team) |
-| F5 | Reload the ticket view of the current tab |
+| TAB | Switch tab (timesheet / calendar / my tickets / my activity / my team) |
+| F5 | Refreshes whatever is on screen - timesheet or ticket view, always fresh from Jira |
 | / | Focus the search field of the current tab |
 | R | Reset cache |
 | J | Year view with forecast |
