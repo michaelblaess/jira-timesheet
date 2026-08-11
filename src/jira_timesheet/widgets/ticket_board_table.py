@@ -1,4 +1,4 @@
-"""Tabelle der Ticket-Ansichten "Meine Tickets" und "Relevante Tickets".
+"""Tabelle der Ticket-Ansichten "Meine Tickets" und "Meine Aktivitaeten".
 
 Zeigt ein fertig aufbereitetes Board des Kerns an: Gruppen als Zwischen-
 ueberschriften, darunter die Tickets. Das Widget rechnet nichts - es stellt
