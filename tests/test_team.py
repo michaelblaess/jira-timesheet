@@ -860,6 +860,49 @@ class AbgeschlossenTest(unittest.TestCase):
         # Gegenprobe: in der Uebergabe-Gruppe greift dieselbe Schwelle sehr wohl.
         self.assertIn(Marker.PILE_OF_SHAME, marker["PROJ-2"])
 
+    def test_abgeschlossen_traegt_ueberhaupt_keine_merkmale(self) -> None:
+        # Michael am 11.08.2026: "Tickets im Status Abgeschlossen sind final,
+        # die koennen nicht mehr verwaisen." Das gilt fuer JEDES Merkmal -
+        # ein fertiges Ticket ist nicht blockiert, und seine Prioritaet
+        # fordert zu nichts mehr auf. Jedes Merkmal hier waere eine
+        # Aufforderung ohne Adressat, und die rote Einfaerbung stiehlt die
+        # Aufmerksamkeit den Gruppen, in denen wirklich etwas zu tun ist.
+        config = BoardConfig(
+            active_status=("In Arbeit",),
+            done_status=("Erledigt",),
+            priorities=("Blocker", "Medium"),
+            high_priority_ranks=1,
+            stale_days=30,
+        )
+        alt = self._issue("PROJ-1", "Erledigt")
+        alt["fields"]["priority"] = {"name": "Blocker"}
+        alt["fields"]["issuelinks"] = [
+            {
+                "type": {"inward": "is blocked by"},
+                "inwardIssue": {
+                    "fields": {"status": {"statusCategory": {"key": "indeterminate"}}}
+                },
+            }
+        ]
+        board = build_board([alt], config, account_id=ID_A)
+        ticket = [t for gruppe in board.groups for t in gruppe.tickets][0]
+        self.assertEqual((), ticket.markers)
+
+        # Gegenprobe: dasselbe Ticket in einer offenen Rolle traegt sehr wohl
+        # Merkmale - ohne sie belegte der Test oben nur, dass die Testdaten
+        # keine ausloesen.
+        offen = BoardConfig(
+            active_status=("Erledigt",),
+            priorities=("Blocker", "Medium"),
+            high_priority_ranks=1,
+            stale_days=30,
+        )
+        vergleich = build_board([alt], offen, account_id=ID_A)
+        andere = [t for gruppe in vergleich.groups for t in gruppe.tickets][0]
+        self.assertIn(Marker.STALE, andere.markers)
+        self.assertIn(Marker.BLOCKED, andere.markers)
+        self.assertIn(Marker.HIGH_PRIORITY, andere.markers)
+
     def test_die_abfrage_deckt_beide_listen_ab(self) -> None:
         # Jira zaehlt beide als "Done" - sie fallen also gemeinsam durch
         # statusCategory != Done und muessen zusammen abgefragt werden.
