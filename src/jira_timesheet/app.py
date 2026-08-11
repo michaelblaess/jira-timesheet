@@ -151,7 +151,6 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Runtime-Bindings mit uebersetzten Labels - class-level BINDINGS
         # koennen kein t() nutzen. Buchstaben-Bindings case-insensitive.
         self._bindings.bind("q,Q", "quit", t("binding.quit"), key_display="q")
-        self._bindings.bind("g,G", "generate", t("binding.generate"), key_display="g")
         self._bindings.bind("e,E", "export_excel", t("binding.excel"), key_display="e")
         self._bindings.bind("p,P", "export_pdf", t("binding.pdf"), key_display="p")
         self._bindings.bind("d,D", "show_details", t("binding.details"), key_display="d")
@@ -166,10 +165,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
         self._bindings.bind("j,J", "show_year", t("binding.year"), key_display="j")
         self._bindings.bind("b,B", "ticket_report", t("binding.ticket_report"), key_display="b")
-        # Bewusst F5 statt eines Buchstabens: die Ticket-Ansichten laden beim
-        # ersten Ansehen von selbst, die Taste ist nur das Neuladen - und die
-        # Buchstaben sind ohnehin durchgehend belegt.
-        self._bindings.bind("f5", "reload_board", t("binding.tickets"), key_display="F5")
+        # EINE Taste fuer alle Reiter. Vorher lud "g" den Stundenzettel und F5
+        # die Ticket-Ansichten - zwei Tasten fuer dieselbe Absicht, und welche
+        # gerade wirkte, musste man wissen. F5 ist in Oberflaechen die
+        # gelaeufige Taste dafuer.
+        self._bindings.bind("f5", "refresh", t("binding.refresh"), key_display="F5")
         self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
         self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
         self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
@@ -195,7 +195,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """
         binding_tooltips = {
             "quit": t("tooltip.quit"),
-            "generate": t("tooltip.generate"),
+            "refresh": t("tooltip.refresh"),
             "export_excel": t("tooltip.excel"),
             "export_pdf": t("tooltip.pdf"),
             "show_details": t("tooltip.details"),
@@ -302,12 +302,24 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._write_log(t("log.hint_settings"))
 
         # Blinkender Footer-Hinweis lenkt den Blick auf die naechste sinnvolle
-        # Aktion: fehlen Settings -> "s" blinkt; sind sie gepflegt, aber noch
-        # keine Daten geladen -> "g" blinkt. Manuelles Toggle per Timer statt
+        # Aktion: fehlen Settings, blinkt "s". Manuelles Toggle per Timer statt
         # ANSI-blink, damit es auch auf Windows Terminal funktioniert.
         self.set_interval(0.6, self._tick_attention)
 
         self._ask_disclaimer()
+
+        # Der Stundenzettel laedt von selbst, wie die Ticket-Ansichten auch.
+        # Zwei Bedingungen dafuer:
+        #
+        # * NUR mit vollstaendigem Zugang. Ohne Host, Mailadresse und Token
+        #   gibt es nichts zu holen, und ein Abruf endete in einer
+        #   Fehlermeldung, die niemand angefordert hat.
+        # * OHNE force_refresh, also aus dem Cache, wenn er den Zeitraum
+        #   kennt. Beim Start steht der zuletzt benutzte Zeitraum - der liegt
+        #   ueblicherweise vor, und dann kostet das Laden nichts. F5 erzwingt
+        #   den frischen Abruf, wenn er gebraucht wird.
+        if self._settings_complete():
+            self._generate(force_refresh=False)
 
     def _ask_disclaimer(self) -> None:
         """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
@@ -347,16 +359,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
     def _tick_attention(self) -> None:
         """Schaltet die Highlight-Klasse auf der jeweils naechsten Aktion an/aus."""
-        if not self._settings_complete():
-            target = "show_settings"
-        elif self._timesheet is None and not self._generating:
-            target = "generate"
-        else:
-            target = ""
+        # Nur noch ein Ziel: fehlende Zugangsdaten. Frueher blinkte danach
+        # "g", weil der Stundenzettel ohne Tastendruck leer blieb - seit er
+        # von selbst laedt, gibt es dafuer nichts mehr anzustossen.
+        target = "" if self._settings_complete() else "show_settings"
 
         # Nur bei vorhandenem Ziel blinken, sonst Highlight fest aus.
         self._attention_on = not self._attention_on if target else False
-        for action in ("show_settings", "generate"):
+        for action in ("show_settings",):
             key = self._footer_key(action)
             if key is not None:
                 key.set_class(action == target and self._attention_on, "-attention")
@@ -394,13 +404,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         display = THEME_DISPLAY_NAMES.get(next_theme, next_theme)
         self.notify(t("notify.theme", name=display))
 
-    def action_generate(self) -> None:
-        """g-Taste: explizit neu generieren.
+    def action_refresh(self) -> None:
+        """F5: aktualisiert, was gerade zu sehen ist.
 
-        Erzwingt einen frischen Abruf aus Jira (Cache wird ueberschrieben),
-        damit nachtraeglich in Jira eingetragene Worklogs sofort erscheinen -
-        auch fuer einen bereits abgeschlossenen Monat.
+        In den Ticket-Reitern die jeweilige Ansicht, sonst den Stundenzettel.
+        Beides erzwingt einen frischen Abruf: der Cache wird ueberschrieben,
+        damit nachtraeglich in Jira eingetragene Stunden sofort erscheinen -
+        auch fuer einen bereits abgeschlossenen Monat. Genau dafuer gab es
+        frueher die g-Taste.
         """
+        mode = self._board_mode()
+        if mode is not None:
+            self._reload_board(mode)
+            return
         self._generate(force_refresh=True)
 
     @work(exclusive=True)
@@ -1203,7 +1219,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     CacheService.save(year, month, self._settings.email, entries)
 
                 # Manuelle Zeiten erst nach dem Cache dazumischen (siehe
-                # action_generate) - sonst fehlen sie in der Jahressumme.
+                # action_refresh) - sonst fehlen sie in der Jahressumme.
                 entries = entries + self._manual_entries.worklogs_between(first, last)
 
                 actual = sum(e.hours for e in entries)
@@ -1375,11 +1391,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """Ansicht des aktiven Reiters, None ausserhalb der Ticket-Reiter."""
         return _BOARD_TABS.get(self._active_tab())
 
-    def action_reload_board(self) -> None:
-        """Laedt die Ticket-Ansicht des aktuellen Reiters neu."""
-        mode = self._board_mode()
-        if mode is None:
-            return
+    def _reload_board(self, mode: str) -> None:
+        """Laedt die Ticket-Ansicht eines Reiters neu."""
         self._board_loaded[mode] = False
         if mode == MODE_ASSIGNED:
             self._stats_loaded = False
@@ -1713,7 +1726,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if self._month_timer is not None:
             self._month_timer.stop()
         # Navigation darf den Cache nutzen (schnelles Blaettern) - nur die
-        # g-Taste (action_generate) erzwingt einen frischen Abruf.
+        # F5 (action_refresh) erzwingt einen frischen Abruf.
         self._month_timer = self.set_timer(
             _MONTH_DEBOUNCE_SECONDS,
             lambda: self._generate(force_refresh=False),
@@ -1728,8 +1741,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return None
         # Das Neuladen der Ticket-Ansicht gibt es nur in ihren beiden Reitern.
         board_mode = self._board_mode()
-        if action == "reload_board":
-            return None if board_mode is None else True
+        if action == "refresh":
+            # Ohne Zugangsdaten gibt es nichts zu holen - dann fuehrt die
+            # Taste in eine Fehlermeldung statt zu einem Ergebnis.
+            return True if self._settings_complete() else None
         # Loeschen nur anbieten, wenn der Cursor wirklich auf einem manuellen
         # Eintrag steht - sonst laeuft die Taste ins Leere.
         if action == "delete_manual":
