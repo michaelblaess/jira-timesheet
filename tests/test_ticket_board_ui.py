@@ -11,6 +11,7 @@ ist gruen bis zum naechsten Monatswechsel und danach ohne Code-Aenderung rot.
 from __future__ import annotations
 
 import datetime as dt
+import time
 from typing import Any
 
 import pytest
@@ -138,6 +139,43 @@ def _board() -> Board:
         account_id=ACCOUNT,
         browse_base="https://beispiel.atlassian.net",
     )
+
+
+async def _warte_auf_diagramm(pilot: Any, app: App[Any], widget_id: str) -> str:
+    """Wartet, bis ein Diagramm wirklich gezeichnet ist, und liefert es.
+
+    Ein einzelnes ``pilot.pause()`` reicht dafuer nicht: solange das Layout
+    nicht durch ist, liefert plotext nur einen leeren Rahmen ohne Titel. Unter
+    Last passiert genau das - am 11.08.2026 hat dieser Test deshalb einen Push
+    blockiert, obwohl am Code nichts falsch war. Gewartet wird deshalb auf den
+    ZUSTAND (der Titel steht im Bild) und nicht auf eine geschaetzte Frist.
+
+    Args:
+        pilot:
+            Der Textual-Pilot der laufenden App.
+        app:
+            Die App, in der das Diagramm haengt.
+        widget_id:
+            Kennung ohne Modus-Endung, etwa "stats-flow".
+
+    Returns:
+        Das gebaute Diagramm als Text.
+
+    Raises:
+        AssertionError:
+            Wenn binnen zehn Sekunden kein Titel erscheint. Dann ist es kein
+            Timing-Problem mehr, sondern ein echter Fehler.
+    """
+    grenze = time.monotonic() + 10.0
+    gebaut = ""
+    while time.monotonic() < grenze:
+        gebaut = app.query_one(f"#{widget_id}-{MODE_ASSIGNED}", PlotextPlot).plt.build()
+        # Ein leerer Rahmen enthaelt keinen Buchstaben - erst mit Beschriftung
+        # ist das Diagramm fertig gezeichnet.
+        if any(zeichen.isalpha() for zeichen in gebaut):
+            return gebaut
+        await pilot.pause()
+    raise AssertionError(f"{widget_id}: nach 10 s kein gezeichnetes Diagramm")
 
 
 class _BoardApp(App[None]):
@@ -438,8 +476,7 @@ class TestAuswertung:
         async with app.run_test(size=(140, 34)) as pilot:
             await pilot.pause()
             app.query_one(TicketStatsPanel).set_statistics(Statistics(open_count=0))
-            await pilot.pause()
-            gebaut = app.query_one(f"#stats-flow-{MODE_ASSIGNED}", PlotextPlot).plt.build()
+            gebaut = await _warte_auf_diagramm(pilot, app, "stats-flow")
 
         # Kein Absturz, und die Ueberschrift steht trotzdem da.
         assert t("board.stats.flow") in gebaut
