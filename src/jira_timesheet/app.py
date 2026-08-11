@@ -843,6 +843,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             tuple(settings.board_handback_status),
             tuple(settings.board_acceptance_status),
             tuple(settings.board_closing_status),
+            tuple(settings.board_done_status),
             tuple(settings.board_priorities),
             settings.board_window_days,
             settings.board_stale_days,

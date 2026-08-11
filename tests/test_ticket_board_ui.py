@@ -546,10 +546,28 @@ class TestEinstellungsseite:
             await pilot.pause()
             texte = " ".join(
                 screen.query_one(f"#{widget_id}", Input).placeholder
-                for widget_id in ("set-board-active", "set-board-closing")
+                for widget_id in (
+                    "set-board-active",
+                    "set-board-backlog",
+                    "set-board-acceptance",
+                    "set-board-handback",
+                    "set-board-closing",
+                    "set-board-done",
+                )
             ).casefold()
 
-        for marker in ("in arbeit", "fertig für entwicklung", "schließen", "übergabe betrieb"):
+        # Die echten Statusnamen der vermessenen Instanz. Am 11.08.2026 waren
+        # drei davon versehentlich als Platzhalter eingetragen - der Test hat
+        # sie abgefangen, deshalb deckt er jetzt ALLE sechs Felder ab.
+        for marker in (
+            "in arbeit",
+            "im code review",
+            "fertig für entwicklung",
+            "in abnahme",
+            "evaluation",
+            "schließen",
+            "übergabe betrieb",
+        ):
             assert marker not in texte
 
 

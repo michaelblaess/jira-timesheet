@@ -315,6 +315,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 ("acceptance", "set-board-acceptance", "board_acceptance_status"),
                 ("handback", "set-board-handback", "board_handback_status"),
                 ("closing", "set-board-closing", "board_closing_status"),
+                ("done", "set-board-done", "board_done_status"),
                 ("priorities", "set-board-priorities", "board_priorities"),
             ):
                 yield from self._list_row(
@@ -590,6 +591,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             ("board_acceptance_status", "set-board-acceptance"),
             ("board_handback_status", "set-board-handback"),
             ("board_closing_status", "set-board-closing"),
+            ("board_done_status", "set-board-done"),
             ("board_priorities", "set-board-priorities"),
         ):
             settings[key] = self._split_list(widget_id)

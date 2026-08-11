@@ -266,6 +266,13 @@ def _is_pile_of_shame(
     Returns:
         True, wenn beide Haelften zutreffen.
     """
+    if ticket.role is Role.DONE:
+        # Was fertig ist, kann nicht liegengeblieben sein. Das gilt hier
+        # strukturell und nicht ueber die Konfiguration: eine versehentlich
+        # gesetzte Schwelle wuerde sonst Tickets anmahnen, an denen nichts
+        # mehr zu tun ist.
+        return False
+
     threshold = config.threshold_of(ticket.role)
     if threshold is None:
         return False
