@@ -40,7 +40,7 @@ DEFAULT_HIGH_PRIORITY_RANKS = 4
 # Uebernommen aus dem Morgen-Briefing (morning.py, STALE_DAYS).
 DEFAULT_STALE_DAYS = 180
 
-# Zeitfenster der Ansicht "Relevante Tickets", in Kalendertagen. Ohne Fenster
+# Zeitfenster der Ansicht "Meine Aktivitaeten", in Kalendertagen. Ohne Fenster
 # ist die Liste ein Archiv und kein Arbeitsvorrat.
 DEFAULT_WINDOW_DAYS = 90
 

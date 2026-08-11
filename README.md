@@ -105,7 +105,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Configurable export columns** — Every column can be toggled and renamed (settings tab "Columns"), including a customer column
 - **Calendar view** — Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
-- **Relevant tickets** — Tickets not assigned to you that still concern you: reported, watched, worked on, updated or mentioned by name
+- **My activity** — Tickets not assigned to you that you have touched: reported, watched, worked on, updated or mentioned by name
 - **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
@@ -242,7 +242,7 @@ flexible column: it takes whatever width the other visible columns leave.
 
 ### Setting up the ticket views
 
-The tabs **My tickets**, **Relevant tickets** and **My team** group the tickets by whose
+The tabs **My tickets**, **My activity** and **My team** group the tickets by whose
 turn it is. Which status belongs to which group is something only your Jira
 instance knows - every workflow uses different names. You therefore enter the
 mapping once in the settings tab **Tickets**, one comma-separated list per group.
@@ -332,7 +332,7 @@ Qt edition - the terminal is not wide enough for a third chart.
 | B | Ticket analysis (interactive report as an HTML file) |
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
-| TAB | Switch tab (list / calendar / my tickets / relevant tickets) |
+| TAB | Switch tab (list / calendar / my tickets / my activity / my team) |
 | F5 | Reload the ticket view of the current tab |
 | / | Focus the search field of the current tab |
 | R | Reset cache |
@@ -379,7 +379,7 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Handover | Status Jira counts as done although the go-live is pending | (empty) |
 | Completed | Status that are really finished - no action needed | (empty) |
 | Priorities | Order of priority levels, most urgent first | (built-in) |
-| Time window | Days that "relevant tickets" looks back (0 = all) | 90 |
+| Time window | Days that "My activity" looks back (0 = all) | 90 |
 | Stale after | Days without a change until the "stale" flag | 180 |
 | Threshold active | Working days without motion in "my turn" (0 = off) | 20 |
 | Threshold approval | Working days without motion in "someone else's turn" (0 = off) | 10 |

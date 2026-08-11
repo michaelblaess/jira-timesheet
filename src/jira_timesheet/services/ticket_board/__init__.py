@@ -1,4 +1,4 @@
-"""Ticket-Ansichten "Meine Tickets" und "Relevante Tickets".
+"""Ticket-Ansichten "Meine Tickets" und "Meine Aktivitaeten".
 
 Der Kern ist bewusst abhaengigkeitsfrei (reine Standardbibliothek) und kennt
 keinen Jira-Client: die aufrufende Anwendung holt die Antworten der API

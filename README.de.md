@@ -105,7 +105,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Konfigurierbare Export-Spalten** — jede Spalte an-/abwählbar und frei benennbar (Settings-Tab "Spalten"), inklusive Kunden-Spalte
 - **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
-- **Relevante Tickets** — Tickets, die dir nicht zugewiesen sind, dich aber betreffen: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
+- **Meine Aktivitäten** — Tickets, die dir nicht zugewiesen sind, an denen du aber drangewesen bist: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
 - **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
@@ -246,7 +246,7 @@ sichtbaren Spalten übrig lassen.
 
 ### Ticket-Ansichten einrichten
 
-Die Reiter **Meine Tickets**, **Relevante Tickets** und **Mein Team** gruppieren die
+Die Reiter **Meine Tickets**, **Meine Aktivitäten** und **Mein Team** gruppieren die
 Tickets danach, wer gerade am Zug ist. Welcher Status zu welcher Gruppe gehört,
 weiß nur deine Jira-Instanz - jeder Workflow heißt anders. Deshalb trägst du die
 Zuordnung einmalig im Settings-Tab **Tickets** ein, je Gruppe eine Kommaliste.
@@ -337,7 +337,7 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 | B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Relevante Tickets / Mein Team) |
+| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Meine Aktivitäten / Mein Team) |
 | F5 | Ticket-Ansicht des aktuellen Reiters neu laden |
 | / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
@@ -384,7 +384,7 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Übergabe | Status, die Jira als fertig zählt, obwohl die Live-Setzung aussteht | (leer) |
 | Abgeschlossen | Status, die wirklich fertig sind - ohne Handlungsbedarf | (leer) |
 | Prioritäten | Rangfolge der Prioritätsstufen, dringendstes zuerst | (eingebaut) |
-| Zeitfenster | Tage, die "Relevante Tickets" zurückblickt (0 = alle) | 90 |
+| Zeitfenster | Tage, die "Meine Aktivitäten" zurückblickt (0 = alle) | 90 |
 | Verwaist ab | Tage ohne Änderung bis zur Markierung "verwaist" | 180 |
 | Schwelle aktiv | Arbeitstage ohne Regung in "Ich bin dran" (0 = aus) | 20 |
 | Schwelle Freigabe | Arbeitstage ohne Regung in "Andere sind dran" (0 = aus) | 10 |

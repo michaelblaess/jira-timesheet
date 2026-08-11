@@ -141,7 +141,7 @@ class Settings:
     # Rangfolge der Prioritaeten, dringendstes zuerst. Leer = die Vorgabe
     # des Kerns, die mehrere gaengige Jira-Schemata abdeckt.
     board_priorities: list[str] = field(default_factory=list)
-    # Zeitfenster der Ansicht "Relevante Tickets" in Kalendertagen.
+    # Zeitfenster der Ansicht "Meine Aktivitaeten" in Kalendertagen.
     board_window_days: int = 90
     # Ab so vielen Kalendertagen ohne Aenderung gilt ein Ticket als verwaist.
     board_stale_days: int = 180
