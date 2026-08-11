@@ -34,6 +34,8 @@ from jira_timesheet.services.ticket_board import (
     AccountIdError,
     BoardConfig,
     Marker,
+    Role,
+    WorklogInfo,
     assigned_jql,
     assignee_clause,
     build_board,
@@ -771,6 +773,101 @@ class SichtbarkeitTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("Anna Muster", text)
         self.assertTrue(sichtbar, "die Rueckmeldung selbst liegt ausserhalb des Bildes")
+
+
+class AbgeschlossenTest(unittest.TestCase):
+    """Die Rolle "Abgeschlossen" - fertig, aber weiterhin sichtbar.
+
+    Michael hat am 11.08.2026 belegt, dass die frühere Gruppe "Abschluss
+    offen" zwei verschiedene Dinge zusammenwarf: Status, die auf die
+    Live-Setzung warten, und solche, die wirklich fertig sind. Ein Name kann
+    beides nicht tragen.
+    """
+
+    def _config(self) -> BoardConfig:
+        return BoardConfig(
+            active_status=("In Arbeit",),
+            closing_status=("Zur Übergabe",),
+            done_status=("Erledigt",),
+        )
+
+    def _issue(self, key: str, status: str) -> dict[str, object]:
+        alt = (dt.datetime.now(dt.UTC) - dt.timedelta(days=200)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000+0000"
+        )
+        return {
+            "key": key,
+            "fields": {
+                "summary": "Beispiel",
+                "status": {"name": status, "statusCategory": {"key": "done"}},
+                "priority": {"name": "Medium"},
+                "issuetype": {"name": "Task"},
+                "reporter": {"accountId": ID_B, "displayName": "Autor"},
+                "created": alt,
+                "updated": alt,
+            },
+        }
+
+    def test_beide_status_landen_in_verschiedenen_gruppen(self) -> None:
+        board = build_board(
+            [self._issue("PROJ-1", "Zur Übergabe"), self._issue("PROJ-2", "Erledigt")],
+            self._config(),
+            account_id=ID_A,
+        )
+        rollen = {
+            gruppe.role: [ticket.key for ticket in gruppe.tickets]
+            for gruppe in board.groups
+        }
+        self.assertEqual(["PROJ-1"], rollen[Role.CLOSING])
+        self.assertEqual(["PROJ-2"], rollen[Role.DONE])
+
+    def test_abgeschlossen_steht_hinter_uebergabe(self) -> None:
+        # Was fertig ist, gehoert ans Ende. Sonst schiebt sich der reine
+        # Kontrollblick vor die Gruppen mit Handlungsbedarf.
+        board = build_board(
+            [self._issue("PROJ-1", "Erledigt"), self._issue("PROJ-2", "Zur Übergabe")],
+            self._config(),
+            account_id=ID_A,
+        )
+        reihenfolge = [gruppe.role for gruppe in board.groups]
+        self.assertLess(
+            reihenfolge.index(Role.CLOSING), reihenfolge.index(Role.DONE)
+        )
+
+    def test_abgeschlossen_erzeugt_keinen_pile_of_shame(self) -> None:
+        # Eine Schwelle wuerde Tickets anmahnen, an denen nichts mehr zu tun
+        # ist. Die Gegenprobe unten zeigt, dass die Schwelle sonst greift.
+        config = BoardConfig(
+            closing_status=("Zur Übergabe",),
+            done_status=("Erledigt",),
+            thresholds={Role.CLOSING: 1.0, Role.DONE: 1.0},
+        )
+        board = build_board(
+            [self._issue("PROJ-1", "Erledigt"), self._issue("PROJ-2", "Zur Übergabe")],
+            config,
+            account_id=ID_A,
+            worklogs={
+                "PROJ-1": WorklogInfo(count=0),
+                "PROJ-2": WorklogInfo(count=0),
+            },
+        )
+        marker = {
+            ticket.key: ticket.markers
+            for gruppe in board.groups
+            for ticket in gruppe.tickets
+        }
+        self.assertNotIn(Marker.PILE_OF_SHAME, marker["PROJ-1"])
+        # Gegenprobe: in der Uebergabe-Gruppe greift dieselbe Schwelle sehr wohl.
+        self.assertIn(Marker.PILE_OF_SHAME, marker["PROJ-2"])
+
+    def test_die_abfrage_deckt_beide_listen_ab(self) -> None:
+        # Jira zaehlt beide als "Done" - sie fallen also gemeinsam durch
+        # statusCategory != Done und muessen zusammen abgefragt werden.
+        config = self._config()
+        ausdruecke = jqls_for(MODE_ASSIGNED, config)("eigene-kennung")
+        zusammen = " ".join(ausdruecke)
+        self.assertIn("Zur Übergabe", zusammen)
+        self.assertIn("Erledigt", zusammen)
 
 
 if __name__ == "__main__":

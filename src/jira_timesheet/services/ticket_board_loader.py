@@ -78,6 +78,7 @@ def config_from(settings: Settings) -> BoardConfig:
         handback_status=tuple(settings.board_handback_status),
         acceptance_status=tuple(settings.board_acceptance_status),
         closing_status=tuple(settings.board_closing_status),
+        done_status=tuple(settings.board_done_status),
         priorities=(
             tuple(settings.board_priorities)
             if settings.board_priorities
@@ -140,7 +141,11 @@ def jqls_for(
             return [relevant_jql(account_id, config.window_days)]
         # Die Abschluss-Status fallen durch "statusCategory != Done" hindurch
         # und brauchen deshalb eine zweite Abfrage.
-        return [assigned_jql(ids), closing_jql(config.closing_status, ids)]
+        # Beide Listen in EINER Abfrage: Jira zaehlt sie gleichermassen als
+        # "Done", sie fallen also gemeinsam durch statusCategory != Done. In
+        # welche Gruppe ein Ticket danach kommt, entscheidet der Kern.
+        jira_done = (*config.closing_status, *config.done_status)
+        return [assigned_jql(ids), closing_jql(jira_done, ids)]
 
     return build
 
