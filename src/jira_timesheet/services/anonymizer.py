@@ -48,12 +48,21 @@ _FAKE_SUMMARIES = [
     "Add health check endpoint",
 ]
 
+# Unmissverstaendlich erfundene Namen. Gaengige Nachnamen wie "Weber" oder
+# "Schmidt" kollidieren in einer echten Instanz frueher oder spaeter mit einer
+# realen Person - im Screenshot steht dann der Name eines Kollegen, obwohl
+# anonymisiert wurde. Genau das ist an echten Daten aufgefallen.
+#
+# Die Qt-Fassung hatte diese Loesung schon im Juli, hier stand weiter eine
+# Liste gaengiger Nachnamen. Beim Release v1.19.0 (10.08.2026) fiel deshalb
+# ein echter Kollegenname in genau dieser Liste auf - der uebliche
+# Marker-Grep nach Firmennamen und Ticketnummern findet so etwas nicht.
 _FAKE_AUTHORS = [
-    "Mueller, Thomas",
-    "Schmidt, Anna",
-    "Hoffmann, Peter",
-    "Fischer, Laura",
-    "Wagner, Stefan",
+    "Mustermann, Max",
+    "Musterfrau, Erika",
+    "Beispiel, Bernd",
+    "Muster, Martina",
+    "Beispiel, Berta",
 ]
 
 _FAKE_COMPONENTS = [
