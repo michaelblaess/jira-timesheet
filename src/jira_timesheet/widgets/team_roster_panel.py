@@ -276,6 +276,13 @@ class TeamRosterPanel(Vertical):
             )
 
         self.query_one("#team-name", Input).value = ""
+        # Suchbegriff ist verbraucht, der Fokus geht zurueck ins Feld: der
+        # naechste Name laesst sich sofort tippen. Die Trefferliste bleibt
+        # bewusst stehen - faellt einem hinterher auf, dass ein weiteres Konto
+        # zu derselben Person gehoert, ist es noch da.
+        suche = self.query_one("#team-search", Input)
+        suche.value = ""
+        suche.focus()
         self._refresh_roster()
 
     @on(Button.Pressed, "#team-btn-remove")

@@ -436,6 +436,50 @@ class EinstellungsseiteTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("Reiner Beispiel", gespeichert[0]["display_name"])
         self.assertEqual([ID_A], gespeichert[0]["account_ids"])
 
+    async def test_suchbegriff_wird_nach_der_uebernahme_geleert(self) -> None:
+        # Der Begriff ist verbraucht. Bleibt er stehen, muss man ihn vor jedem
+        # weiteren Namen erst von Hand loeschen. Die Trefferliste bleibt
+        # dagegen bewusst stehen - faellt hinterher auf, dass ein weiteres
+        # Konto zu derselben Person gehoert, ist es noch da.
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            panel = screen.query_one(TeamRosterPanel)
+            suche = screen.query_one("#team-search", Input)
+            suche.value = "beispiel"
+            panel._hits = parse_search([_user(ID_A, "Beispiel, Reinhold")])
+            panel._refresh_hits()
+            await pilot.pause()
+            screen.query_one("#team-btn-add", Button).press()
+            await pilot.pause()
+
+            self.assertEqual("", suche.value)
+            self.assertEqual("", screen.query_one("#team-name", Input).value)
+            # Gegenprobe: die Trefferliste steht noch.
+            self.assertEqual(1, len(panel._hits))
+
+    async def test_ohne_treffer_bleibt_der_suchbegriff_stehen(self) -> None:
+        # Ohne Auswahl passiert nichts - dann darf auch nichts weggeraeumt
+        # werden, sonst ist die Eingabe weg und der Grund unklar.
+        screen = SettingsScreen(Settings().to_dict(), lang="de")
+
+        class _App(App[None]):
+            def on_mount(self) -> None:
+                self.push_screen(screen)
+
+        async with _App().run_test() as pilot:
+            await pilot.pause()
+            suche = screen.query_one("#team-search", Input)
+            suche.value = "beispiel"
+            screen.query_one("#team-btn-add", Button).press()
+            await pilot.pause()
+            self.assertEqual("beispiel", suche.value)
+
     async def test_zweites_konto_landet_bei_derselben_person(self) -> None:
         werte = Settings().to_dict()
         werte["team_members"] = [{"display_name": "Reiner Beispiel", "account_ids": [ID_A]}]
