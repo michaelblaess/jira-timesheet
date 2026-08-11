@@ -211,8 +211,17 @@ def markers_for(
             Bezugszeitpunkt fuer die Buchungs-Liegezeit.
 
     Returns:
-        Die gesetzten Marker, in stabiler Reihenfolge.
+        Die gesetzten Marker, in stabiler Reihenfolge. Fuer abgeschlossene
+        Tickets ist das Ergebnis IMMER leer.
     """
+    if ticket.role is Role.DONE:
+        # Ein abgeschlossenes Ticket ist endgueltig - es kann nicht verwaisen,
+        # nicht blockiert sein und keine Prioritaet mehr haben, die zu etwas
+        # auffordert. Jeder Marker hier waere eine Aufforderung ohne Adressat,
+        # und die rote Einfaerbung stiehlt die Aufmerksamkeit den Gruppen, in
+        # denen tatsaechlich etwas zu tun ist.
+        return ()
+
     found: list[Marker] = []
 
     if ticket.role is Role.HANDBACK and ticket.foreign_reporter:
@@ -266,13 +275,6 @@ def _is_pile_of_shame(
     Returns:
         True, wenn beide Haelften zutreffen.
     """
-    if ticket.role is Role.DONE:
-        # Was fertig ist, kann nicht liegengeblieben sein. Das gilt hier
-        # strukturell und nicht ueber die Konfiguration: eine versehentlich
-        # gesetzte Schwelle wuerde sonst Tickets anmahnen, an denen nichts
-        # mehr zu tun ist.
-        return False
-
     threshold = config.threshold_of(ticket.role)
     if threshold is None:
         return False
