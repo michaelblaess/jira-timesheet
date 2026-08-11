@@ -4,10 +4,12 @@ Zeigt ein fertig aufbereitetes Board des Kerns an: Gruppen als Zwischen-
 ueberschriften, darunter die Tickets. Das Widget rechnet nichts - es stellt
 dar, was ``services.ticket_board`` geliefert hat, und filtert die Anzeige.
 
-Bewusst NICHT sortierbar per Kopfzeilenklick: die Reihenfolge kommt aus dem
-Kern und traegt eine Aussage (im Backlog etwa Fehler zuerst, sonst das
-Aelteste oben). Eine Sortierung nach Titel wuerde diese Aussage wegwerfen,
-ohne dass es auffaellt.
+Sortierbar per Kopfzeilenklick, aber NUR INNERHALB einer Gruppe. Die
+Reihenfolge des Kerns traegt eine Aussage (im Backlog etwa Fehler zuerst,
+sonst das Aelteste oben) - deshalb war die Sortierung anfangs ganz gesperrt.
+Michael hat am 11.08.2026 den besseren Schnitt genannt: wer nach Titel
+sortiert, will die Liste durchsehen, nicht die Gliederung aufloesen. Ein
+dritter Klick stellt die Vorgabe des Kerns wieder her.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
@@ -44,6 +47,17 @@ _MIN_SUMMARY_WIDTH = 20
 # Gruppe wie im Baum der Qt-Fassung - hier ist nichts zuklappbar, aber das
 # Zeichen macht die Ueberschrift auf einen Blick als solche erkennbar.
 _GROUP_MARK = "▼"
+
+# Zeichen einer zugeklappten Gruppe. Dasselbe Paar wie im Baum der Qt-Fassung.
+_GROUP_MARK_CLOSED = "▶"
+
+# Fragezeichen hinter dem Gruppentitel. Der Hinweis dazu haengt am Tooltip -
+# in der Titel-Spalte gelesen wirkte er wie der Titel des ersten Tickets.
+_GROUP_HELP = " (?)"
+
+# Diese Gruppe startet zugeklappt. Was fertig ist, muss nicht den halben
+# Bildschirm fuellen - bei einem gemessenen Bestand waren es 24 von 54 Zeilen.
+_COLLAPSED_BY_DEFAULT: tuple[Role, ...] = (Role.DONE,)
 
 # Einrueckung der Ticketzeilen unter ihrer Gruppe. Ohne sie stehen
 # Ueberschrift und Tickets buendig untereinander, und die Gliederung ist
@@ -79,6 +93,25 @@ _MARKER_KEYS: dict[Marker, str] = {
 # uebrigen sind Hinweise und bleiben ruhig - faerbt man alles ein, faellt
 # nichts mehr auf.
 _URGENT_MARKERS = (Marker.PILE_OF_SHAME, Marker.STALE, Marker.HIGH_PRIORITY)
+
+# Sortierschluessel je Spalte. Nur Spalten mit Eintrag sind klickbar - die
+# Merkmalspalte etwa traegt eine Menge und hat keine sinnvolle Ordnung.
+#
+# Sortiert wird ausschliesslich INNERHALB einer Gruppe. Wer nach Titel
+# sortiert, will die Liste durchsehen, nicht die Gliederung aufloesen - und
+# ohne Gruppen waere die Ansicht nur noch eine Liste.
+_SORT_KEYS: dict[str, Any] = {
+    "key": lambda ticket: ticket.key,
+    "status": lambda ticket: ticket.status.casefold(),
+    "priority": lambda ticket: ticket.priority_rank,
+    "type": lambda ticket: ticket.issue_type.casefold(),
+    "idle": lambda ticket: ticket.idle_workdays,
+    "summary": lambda ticket: ticket.summary.casefold(),
+}
+
+# Sortier-Indikator-Pfeile, dieselbe Konvention wie in der Stundenliste.
+_ARROW_ASC = " ▲"
+_ARROW_DESC = " ▼"
 
 # Wert des Statusfilters fuer "alle". Leer waere mehrdeutig, weil ein Ticket
 # tatsaechlich einen leeren Status haben kann.
@@ -191,6 +224,14 @@ class TicketBoardTable(Vertical):
         # Ticket je Zeilenschluessel; Gruppenzeilen fehlen hier bewusst.
         self._row_tickets: dict[str, Ticket] = {}
         self._col_keys: list[Any] = []
+        # Zugeklappte Gruppen. Zeilenschluessel je Gruppenzeile, damit ein
+        # Klick auf die Ueberschrift sie wiederfindet.
+        self._collapsed: set[Role] = set(_COLLAPSED_BY_DEFAULT)
+        self._row_groups: dict[str, Role] = {}
+        # Sortierung INNERHALB der Gruppen. Die Gruppenreihenfolge selbst
+        # bleibt unberuehrt - sie traegt die Aussage der Ansicht.
+        self._sort_col: str = ""
+        self._sort_desc: bool = False
 
     # --- Aufbau ---------------------------------------------------------
 
@@ -449,22 +490,44 @@ class TicketBoardTable(Vertical):
             table.add_row(*(Text("") for _ in _COLUMNS), key=str(row_index))
             row_index += 1
 
-        title = f"{_GROUP_MARK} {t(_GROUP_KEYS[group.role])} ({group.count})"
-        hint = t(f"{_GROUP_KEYS[group.role]}_hint")
-        cells: list[Any] = [Text(title, style="bold")]
-        cells.extend(Text("") for _ in _COLUMNS[1:-1])
-        # Ohne no_wrap bricht der Hinweis um und macht die Ueberschrift
-        # zweizeilig - dann steht er unter der Gruppe statt neben ihr.
-        cells.append(Text(hint, style="dim", no_wrap=True, overflow="ellipsis", end=""))
-        table.add_row(*cells, key=str(row_index))
+        zu = group.role in self._collapsed
+        mark = _GROUP_MARK_CLOSED if zu else _GROUP_MARK
+        title = Text(f"{mark} {t(_GROUP_KEYS[group.role])} ({group.count})", style="bold")
+        # Das Fragezeichen traegt den Hinweis als Tooltip. Frueher stand der
+        # Text in der Titel-Spalte und las sich dort wie der Titel des ersten
+        # Tickets - "es wird gerade gearbeitet" als Ticketueberschrift.
+        title.append(_GROUP_HELP, style="bold cyan")
+
+        gruppen_key = str(row_index)
+        self._row_groups[gruppen_key] = group.role
+        cells: list[Any] = [title]
+        cells.extend(Text("") for _ in _COLUMNS[1:])
+        table.add_row(*cells, key=gruppen_key)
         row_index += 1
 
-        for ticket in group.tickets:
+        if zu:
+            return row_index
+
+        for ticket in self._sorted(group.tickets):
             key = str(row_index)
             self._row_tickets[key] = ticket
             table.add_row(*self._cells(ticket), key=key)
             row_index += 1
         return row_index
+
+    def _sorted(self, tickets: Sequence[Ticket]) -> list[Ticket]:
+        """Sortiert die Tickets EINER Gruppe.
+
+        Ohne gewaehlte Spalte bleibt die Reihenfolge des Kerns - sie traegt
+        eine Aussage (im Backlog etwa Fehler zuerst, sonst das Aelteste oben).
+        Ein Klick auf einen Spaltenkopf ordnet nur innerhalb der Gruppen um,
+        nie ueber sie hinweg: die Gruppierung ist die eigentliche Auskunft
+        der Ansicht.
+        """
+        schluessel = _SORT_KEYS.get(self._sort_col)
+        if schluessel is None:
+            return list(tickets)
+        return sorted(tickets, key=schluessel, reverse=self._sort_desc)
 
     def _cells(self, ticket: Ticket) -> list[Any]:
         """Baut die Zellen einer Ticketzeile."""
@@ -530,9 +593,118 @@ class TicketBoardTable(Vertical):
         return self._row_tickets.get(str(row_key.value))
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        """Enter auf einer Zeile meldet das Ticket an den Host."""
+        """Enter auf einer Zeile - Ticket oeffnen oder Gruppe umschalten."""
         event.stop()
-        self.post_message(self.TicketSelected(self._row_tickets.get(str(event.row_key.value))))
+        key = str(event.row_key.value)
+        rolle = self._row_groups.get(key)
+        if rolle is not None:
+            self._toggle_group(rolle)
+            return
+        self.post_message(self.TicketSelected(self._row_tickets.get(key)))
+
+    def on_resizable_data_table_cell_clicked(
+        self, event: ResizableDataTable.CellClicked
+    ) -> None:
+        """Klick auf die Ticketnummer oeffnet, Klick auf eine Gruppe klappt.
+
+        Textuals DataTable meldet einen Klick erst beim ZWEITEN Mal auf
+        dieselbe Zelle - der erste verschiebt nur den Zeilenzeiger. Eine
+        unterstrichene Ticketnummer, die auf den ersten Klick nichts tut, ist
+        aber genau die Enttaeuschung, die Michael am 11.08.2026 gemeldet hat.
+
+        Nur die Nummern-Spalte oeffnet. Ein Klick in die uebrigen Spalten
+        setzt weiterhin bloss den Zeilenzeiger - sonst startet jeder Versuch,
+        eine Zeile auszuwaehlen, den Browser.
+        """
+        event.stop()
+        try:
+            table = self.query_one(f"#board-data-{self._mode}", DataTable)
+            row_key = table.ordered_rows[event.row_index].key
+        except Exception:  # noqa: BLE001 - Klick daneben oder leere Tabelle
+            return
+
+        key = str(row_key.value)
+        rolle = self._row_groups.get(key)
+        if rolle is not None:
+            self._toggle_group(rolle)
+            return
+
+        ticket = self._row_tickets.get(key)
+        if ticket is not None and event.column_index == 0:
+            self.post_message(self.TicketSelected(ticket))
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        """Zeigt den Gruppenhinweis als Tooltip, solange die Maus darauf steht.
+
+        Eine DataTable kennt keine Tooltips je Zelle. Der Tooltip haengt
+        deshalb am Widget und wird beim Ueberfahren gesetzt beziehungsweise
+        geloescht - fuer den Benutzer ist das nicht zu unterscheiden.
+        """
+        try:
+            table = self.query_one(f"#board-data-{self._mode}", DataTable)
+        except Exception:  # noqa: BLE001 - vor dem Aufbau gibt es sie nicht
+            return
+
+        rolle: Role | None = None
+        zeile = event.style.meta.get("row") if event.style else None
+        if isinstance(zeile, int) and zeile >= 0:
+            try:
+                row_key = table.ordered_rows[zeile].key
+                rolle = self._row_groups.get(str(row_key.value))
+            except (IndexError, AttributeError):
+                rolle = None
+
+        hinweis = t(f"{_GROUP_KEYS[rolle]}_hint") if rolle is not None else None
+        if table.tooltip != hinweis:
+            table.tooltip = hinweis
+
+    def _toggle_group(self, role: Role) -> None:
+        """Klappt eine Gruppe auf oder zu und zeichnet neu."""
+        if role in self._collapsed:
+            self._collapsed.discard(role)
+        else:
+            self._collapsed.add(role)
+        self._refresh()
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Klick auf einen Spaltenkopf sortiert innerhalb der Gruppen.
+
+        Erster Klick auf eine Spalte: aufsteigend. Zweiter auf dieselbe:
+        absteigend. Ein dritter stellt die Reihenfolge des Kerns wieder her -
+        die ist keine Willkuer, sondern die Vorgabe der Ansicht, und ohne
+        Rueckweg waere sie nach dem ersten Klick unerreichbar.
+        """
+        event.stop()
+        try:
+            spalte = _COLUMNS[self._col_keys.index(event.column_key)][0]
+        except (ValueError, IndexError):
+            return
+        if spalte not in _SORT_KEYS:
+            return
+
+        if spalte != self._sort_col:
+            self._sort_col, self._sort_desc = spalte, False
+        elif not self._sort_desc:
+            self._sort_desc = True
+        else:
+            self._sort_col, self._sort_desc = "", False
+        self._update_sort_indicator()
+        self._refresh()
+
+    def _update_sort_indicator(self) -> None:
+        """Haengt den Pfeil an den Kopf der aktiven Sortierspalte."""
+        try:
+            table = self.query_one(f"#board-data-{self._mode}", DataTable)
+        except Exception:  # noqa: BLE001 - vor dem Aufbau gibt es sie nicht
+            return
+        pfeil = _ARROW_DESC if self._sort_desc else _ARROW_ASC
+        for index, (spalte, label) in enumerate(_COLUMNS):
+            if index >= len(self._col_keys):
+                break
+            beschriftung = t(label)
+            if spalte == self._sort_col:
+                beschriftung = f"{beschriftung}{pfeil}"
+            table.columns[self._col_keys[index]].label = Text(beschriftung)
 
     def on_resizable_data_table_right_clicked(
         self, event: ResizableDataTable.RightClicked

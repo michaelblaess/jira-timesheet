@@ -43,6 +43,24 @@ class ResizableDataTable(DataTable[Any]):
             self.screen_y = screen_y
             self.row_index = row_index
 
+    class CellClicked(Message):
+        """Linksklick auf eine Zelle, bevor die Tabelle ihn verarbeitet.
+
+        Textuals DataTable meldet eine Auswahl nur, wenn der Zeilenzeiger
+        schon auf der Zelle stand (``_data_table.py``: ``highlight_click``) -
+        der erste Klick verschiebt ihn bloss, und danach stoppt sie das
+        Ereignis. Wer auf den ERSTEN Klick reagieren will, braucht deshalb
+        diese Nachricht.
+
+        Sie wird gepostet, ohne das Ereignis anzuhalten: die Tabelle setzt
+        ihren Zeilenzeiger anschliessend wie gewohnt.
+        """
+
+        def __init__(self, row_index: int, column_index: int) -> None:
+            super().__init__()
+            self.row_index = row_index
+            self.column_index = column_index
+
     class ColumnResized(Message):
         """Wird gesendet wenn eine Spaltenbreite per Maus geaendert wurde.
 
@@ -184,6 +202,18 @@ class ResizableDataTable(DataTable[Any]):
         Sortierung umschalten. Ein Doppelklick auf die Trennlinie setzt die
         Spalte auf Auto-Breite.
         """
+        if event.button == 1:
+            # Der Linksklick wird nur GEMELDET, nicht abgefangen: die Tabelle
+            # setzt danach ihren Zeilenzeiger wie gewohnt. Eine eigene
+            # _on_click-Ueberschreibung waere der naheliegende Ort, kollidiert
+            # aber mit der asynchronen Fassung der Basisklasse - gemessen am
+            # 11.08.2026: die Methode lief, das post_message darin nicht.
+            meta = event.style.meta if event.style else {}
+            row = meta.get("row")
+            column = meta.get("column")
+            if isinstance(row, int) and isinstance(column, int) and row >= 0:
+                self.post_message(self.CellClicked(row, column))
+
         if event.button == 3:
             meta = event.style.meta if event.style else {}
             row_index = meta.get("row", -1)
