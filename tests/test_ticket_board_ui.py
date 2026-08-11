@@ -641,16 +641,22 @@ class TestEinstellungsseite:
         # Die echten Statusnamen der vermessenen Instanz. Am 11.08.2026 waren
         # drei davon versehentlich als Platzhalter eingetragen - der Test hat
         # sie abgefangen, deshalb deckt er jetzt ALLE sechs Felder ab.
+        #
+        # Beide Seiten casefolden, nicht nur die Platzhalter: casefold() macht
+        # aus "Schließen" ein "schliessen" (ß zerfaellt in ss). Stand das ß in
+        # der Suchliste, konnte der Vergleich nie anschlagen - der Schutz
+        # gegen genau diesen Statusnamen war wirkungslos. Aufgefallen am
+        # 11.08.2026 in der Qt-Fassung, dieselbe Luecke lag hier.
         for marker in (
-            "in arbeit",
-            "im code review",
-            "fertig für entwicklung",
-            "in abnahme",
-            "evaluation",
-            "schließen",
-            "übergabe betrieb",
+            "In Arbeit",
+            "Im Code Review",
+            "Fertig für Entwicklung",
+            "In Abnahme",
+            "Evaluation",
+            "Schließen",
+            "Übergabe Betrieb",
         ):
-            assert marker not in texte
+            assert marker.casefold() not in texte
 
 
 class TestLeereAnsicht:
