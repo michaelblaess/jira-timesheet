@@ -759,19 +759,49 @@ class TestVerdrahtung:
         # verdeckt die Zahl, auf die es ankommt.
         assert t("board.summary.pile_of_shame") not in labels
 
-    async def test_neu_laden_gibt_es_nur_in_den_ticket_reitern(self) -> None:
+    async def test_aktualisieren_gilt_in_allen_reitern(self) -> None:
+        """F5 aktualisiert, was gerade zu sehen ist.
+
+        Frueher lud "g" den Stundenzettel und F5 die Ticket-Ansichten - zwei
+        Tasten fuer dieselbe Absicht. Seit dem 11.08.2026 gibt es nur noch
+        F5, und die Taste gilt in jedem Reiter.
+        """
         from jira_timesheet.app import JiraTimesheetApp
 
         app = JiraTimesheetApp()
         async with app.run_test() as pilot:
             await _settle(pilot)
-            app.query_one("#view-tabs").active = "tab-list"
-            await pilot.pause()
-            assert app.check_action("reload_board", ()) is None
-            app._board_loaded[MODE_RELEVANT] = True
-            app.query_one("#view-tabs").active = "tab-relevant"
-            await pilot.pause()
-            assert app.check_action("reload_board", ()) is True
+            app._settings.jira_host = "https://beispiel.atlassian.net"
+            app._settings.email = "test@example.invalid"
+            app._settings.jira_token = "geheim"
+
+            for reiter in ("tab-list", "tab-relevant", "tab-team"):
+                app.query_one("#view-tabs").active = reiter
+                await pilot.pause()
+                assert app.check_action("refresh", ()) is True, reiter
+
+            # Ohne Zugangsdaten fuehrt die Taste nur in eine Fehlermeldung -
+            # dann bleibt sie aus dem Footer draussen.
+            app._settings.jira_token = ""
+            assert app.check_action("refresh", ()) is None
+
+    async def test_die_alte_generieren_taste_gibt_es_nicht_mehr(self) -> None:
+        # Gegenprobe zur Zusammenlegung: bliebe die Bindung bestehen, haetten
+        # wir zwei Tasten fuer dieselbe Absicht - und der Footer waere wieder
+        # doppelt belegt.
+        from jira_timesheet.app import JiraTimesheetApp
+
+        app = JiraTimesheetApp()
+        async with app.run_test() as pilot:
+            await _settle(pilot)
+            aktionen = {
+                binding.action
+                for bindings in app._bindings.key_to_bindings.values()
+                for binding in bindings
+            }
+
+        assert "generate" not in aktionen
+        assert "refresh" in aktionen
 
     async def test_geaenderte_zuordnung_verwirft_die_geladenen_ansichten(self) -> None:
         """Ein altes Board waere nach der Aenderung schlicht falsch."""

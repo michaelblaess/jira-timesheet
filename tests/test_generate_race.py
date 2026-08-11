@@ -136,6 +136,27 @@ async def _lauf_beruhigen(pilot: Any) -> None:
         await pilot.pause()
 
 
+async def _startabruf_abwarten(pilot: Any) -> None:
+    """Laesst den Abruf durchlaufen, der beim Programmstart von selbst startet.
+
+    Seit dem 11.08.2026 laedt der Stundenzettel ohne Tastendruck, sobald der
+    Jira-Zugang vollstaendig ist. Fuer die Wettlauf-Tests ist das nur
+    Ausgangsrauschen: sie wollen ihre eigenen Laeufe zaehlen, nicht diesen.
+    Also erst abwarten, dann die Zaehler leeren - sonst misst der Test eine
+    Lage, die er gar nicht hergestellt hat.
+    """
+    await _warte_bis(
+        pilot, lambda: len(FakeJiraClient.started) >= 1, "der Startabruf laeuft an"
+    )
+    FakeJiraClient.release.set()
+    await _warte_bis(
+        pilot, lambda: len(FakeJiraClient.completed) >= 1, "der Startabruf laeuft durch"
+    )
+    FakeJiraClient.started.clear()
+    FakeJiraClient.completed.clear()
+    FakeJiraClient.release = asyncio.Event()
+
+
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Verlegt Einstellungen, Cache und Datenbank nach tmp_path.
@@ -176,6 +197,7 @@ async def test_second_run_starts_while_first_is_still_fetching(
     """
     async with app.run_test() as pilot:
         await pilot.pause()
+        await _startabruf_abwarten(pilot)
 
         app._generate(force_refresh=True)
         await _warte_bis(
@@ -215,6 +237,7 @@ async def test_running_flag_is_released_after_cancellation(
     """
     async with app.run_test() as pilot:
         await pilot.pause()
+        await _startabruf_abwarten(pilot)
 
         app._generate(force_refresh=True)
         await _warte_bis(
@@ -240,6 +263,7 @@ async def test_fast_month_navigation_triggers_only_one_fetch(
     """Drei Tastendruecke am Stueck ergeben einen Abruf, nicht drei."""
     async with app.run_test() as pilot:
         await pilot.pause()
+        await _startabruf_abwarten(pilot)
 
         app.action_prev_month()
         app.action_prev_month()
@@ -259,3 +283,57 @@ async def test_fast_month_navigation_triggers_only_one_fetch(
             f"erwartet: 1 Abruf nach dem Blaettern, tatsaechlich "
             f"{len(FakeJiraClient.started)}"
         )
+
+
+async def test_der_stundenzettel_laedt_beim_start_von_selbst(
+    app: JiraTimesheetApp,
+) -> None:
+    """Frueher blieb er leer, bis jemand "g" drueckte.
+
+    Die Ticket-Ansichten luden dagegen sofort - zwei Verhalten im selben
+    Programm, und der blinkende Hinweis war der Notbehelf dafuer.
+    """
+    async with app.run_test() as pilot:
+        await _warte_bis(
+            pilot,
+            lambda: len(FakeJiraClient.started) == 1,
+            "der Stundenzettel laedt ohne Zutun",
+        )
+        FakeJiraClient.release.set()
+        await _lauf_beruhigen(pilot)
+
+
+async def test_ohne_zugang_laedt_nichts_von_selbst(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Die Gegenprobe - und zugleich Michaels Bedingung.
+
+    Ohne Host, Mailadresse und Token gibt es nichts zu holen. Ein Abruf
+    endete in einer Fehlermeldung, die niemand angefordert hat.
+    """
+    monkeypatch.setattr("jira_timesheet.app.JiraClient", FakeJiraClient)
+    monkeypatch.setattr(JiraTimesheetApp, "_ask_disclaimer", lambda self: None)
+
+    # Die Meldungen mitschreiben. Dass NICHTS ABGERUFEN wird, allein zu
+    # pruefen genuegt nicht: _generate bricht ohne Token ohnehin ab, der Test
+    # waere also auch ohne die Bedingung gruen (Gegenprobe am 11.08.2026).
+    # Der beobachtbare Unterschied ist die Fehlermeldung, die beim Start
+    # aufpoppt, ohne dass jemand etwas angefordert haette.
+    meldungen: list[str] = []
+    monkeypatch.setattr(
+        JiraTimesheetApp,
+        "notify",
+        lambda self, message, **kwargs: meldungen.append(str(message)),
+    )
+
+    ohne_zugang = JiraTimesheetApp()
+    ohne_zugang._settings.jira_host = "https://example.atlassian.net"
+    ohne_zugang._settings.email = "test@example.com"
+    ohne_zugang._settings.jira_token = ""
+
+    async with ohne_zugang.run_test() as pilot:
+        await _lauf_beruhigen(pilot)
+
+    assert FakeJiraClient.started == [], "ohne Token darf nichts abgerufen werden"
+    assert meldungen == [], f"unaufgeforderte Meldung beim Start: {meldungen}"
+

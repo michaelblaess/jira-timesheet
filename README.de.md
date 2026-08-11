@@ -206,7 +206,7 @@ Beim ersten Start `S` für Settings drücken und konfigurieren:
 - Budget-Custom-Field — bei Cloud per **Automatisch ermitteln** befüllen lassen
 - Bundesland (Feiertage)
 
-Dann `G` zum Generieren des Stundenzettels.
+Der Stundenzettel lädt dann von selbst - `F5` holt ihn jederzeit frisch aus Jira.
 
 ### Zeiten erfassen, die nicht in Jira stehen
 
@@ -330,15 +330,14 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 
 | Taste | Aktion |
 |-------|--------|
-| G | Stundenzettel generieren |
 | E | Excel-Export |
 | P | PDF-Export |
 | D | Ticket-Details anzeigen |
 | B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Liste / Kalender / Meine Tickets / Meine Aktivitäten / Mein Team) |
-| F5 | Ticket-Ansicht des aktuellen Reiters neu laden |
+| TAB | Tab wechseln (Stundenzettel / Kalender / Meine Tickets / Meine Aktivitäten / Mein Team) |
+| F5 | Aktualisiert, was gerade zu sehen ist - Stundenzettel oder Ticket-Ansicht, immer frisch aus Jira |
 | / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
 | J | Jahresansicht mit Forecast |
