@@ -105,6 +105,30 @@ ISSUES = [
 ]
 
 
+def _board_mit_abgeschlossen() -> Board:
+    """Ein Board mit einem wirklich fertigen Ticket.
+
+    Die Rolle DONE ist der Kontrollblick: sichtbar, aber ohne Anspruch auf
+    Aufmerksamkeit - deshalb startet die Gruppe zugeklappt.
+    """
+    return build_board(
+        [*ISSUES, _issue("PROJ-9", "Erledigt", days_idle=100)],
+        BoardConfig(
+            active_status=CONFIG.active_status,
+            backlog_status=CONFIG.backlog_status,
+            handback_status=CONFIG.handback_status,
+            acceptance_status=CONFIG.acceptance_status,
+            closing_status=CONFIG.closing_status,
+            done_status=("Erledigt",),
+            priorities=CONFIG.priorities,
+            high_priority_ranks=CONFIG.high_priority_ranks,
+        ),
+        NOW,
+        account_id=ACCOUNT,
+        browse_base="https://beispiel.atlassian.net",
+    )
+
+
 def _board() -> Board:
     """Ein fertig aufbereitetes Board aus dem echten Kern."""
     return build_board(
@@ -119,12 +143,23 @@ def _board() -> Board:
 class _BoardApp(App[None]):
     """Minimal-App, die nur die Ticket-Tabelle zeigt."""
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Gemeldete Ticketschluessel - so laesst sich pruefen, ob ein Klick
+        # tatsaechlich beim Host ankommt.
+        self.gemeldet: list[str] = []
+
     def compose(self) -> ComposeResult:
         yield TicketBoardTable(
             MODE_ASSIGNED,
             jira_host="https://beispiel.atlassian.net",
             id=f"board-{MODE_ASSIGNED}",
         )
+
+    def on_ticket_board_table_ticket_selected(
+        self, event: TicketBoardTable.TicketSelected
+    ) -> None:
+        self.gemeldet.append(event.ticket.key if event.ticket is not None else "None")
 
 
 def _rows(table: DataTable[Any]) -> list[list[str]]:
@@ -227,8 +262,14 @@ class TestTabellenaufbau:
         assert all(not title.startswith(" ") for title in gruppen)
         assert all(key.startswith("  PROJ-") for key in tickets)
 
-    async def test_gruppenzeile_traegt_die_handlungsanweisung(self) -> None:
-        """Der Kurztitel allein sagt nicht, was zu tun ist."""
+    async def test_gruppenzeile_verweist_auf_die_erklaerung(self) -> None:
+        """Der Kurztitel allein sagt nicht, was zu tun ist.
+
+        Der Hinweis stand frueher in der TITEL-Spalte und las sich dort wie
+        die Ueberschrift des ersten Tickets - "es wird gerade gearbeitet" als
+        Ticketname. Jetzt steht dort ein Fragezeichen, der Text haengt am
+        Tooltip.
+        """
         app = _BoardApp()
         async with app.run_test() as pilot:
             widget = app.query_one(TicketBoardTable)
@@ -237,7 +278,11 @@ class TestTabellenaufbau:
             rows = _rows(app.query_one(DataTable))
 
         gruppe = next(row for row in rows if t("board.group.handback") in row[0])
-        assert gruppe[-1] == t("board.group.handback_hint")
+        assert gruppe[0].rstrip().endswith("(?)")
+        # Die Titel-Spalte der Gruppenzeile bleibt leer.
+        assert gruppe[-1] == ""
+        # Gegenprobe: der Hinweistext taucht in KEINER Zelle mehr auf.
+        assert all(t("board.group.handback_hint") not in zelle for zeile in rows for zelle in zeile)
 
     async def test_merkmale_stehen_in_der_zeile(self) -> None:
         app = _BoardApp()
@@ -852,3 +897,125 @@ class TestDringlichkeit:
 
     def test_ticket_ohne_merkmal_bleibt_leer(self) -> None:
         assert TicketBoardTable._marker_text(Ticket(key="PROJ-9")).plain == ""
+
+
+class TestBedienungDerGruppen:
+    """Klappen, Sortieren und der Klick auf die Ticketnummer.
+
+    Alle vier Punkte hat Michael am 11.08.2026 am laufenden Programm gemeldet.
+    """
+
+    async def test_abgeschlossen_startet_zugeklappt(self) -> None:
+        # 24 fertige Tickets fuellten den halben Bildschirm, ohne dass an
+        # ihnen etwas zu tun waere.
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board_mit_abgeschlossen())
+            await pilot.pause()
+            rows = _rows(app.query_one(DataTable))
+
+        ueberschrift = next(row for row in rows if t("board.group.done") in row[0])
+        assert ueberschrift[0].startswith("▶")
+        # Die Anzahl steht trotzdem dran, sonst waere die Gruppe unsichtbar.
+        assert "(1)" in ueberschrift[0]
+        assert not any(row[0].strip() == "PROJ-9" for row in rows)
+
+    async def test_klick_auf_die_gruppe_klappt_sie_auf(self) -> None:
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board_mit_abgeschlossen())
+            await pilot.pause()
+            widget._toggle_group(Role.DONE)
+            await pilot.pause()
+            rows = _rows(app.query_one(DataTable))
+
+        ueberschrift = next(row for row in rows if t("board.group.done") in row[0])
+        assert ueberschrift[0].startswith("▼")
+        assert any(row[0].strip() == "PROJ-9" for row in rows)
+
+    async def test_kopfklick_sortiert_nur_innerhalb_der_gruppe(self) -> None:
+        # Der Kern der Anforderung: die Gliederung bleibt, nur die Ordnung
+        # innerhalb einer Gruppe aendert sich.
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            table = app.query_one(DataTable)
+            vorher = [row[0] for row in _rows(table) if not row[0].startswith("  ")]
+
+            spalte = table.columns[widget._col_keys[6]]
+            table.post_message(DataTable.HeaderSelected(table, spalte.key, 6, spalte.label))
+            await pilot.pause()
+            rows = _rows(table)
+
+        # Die Gruppen stehen weiterhin in derselben Reihenfolge.
+        assert [row[0] for row in rows if not row[0].startswith("  ")] == vorher
+
+        # Innerhalb JEDER Gruppe ist nach Titel sortiert - ueber die Gruppen
+        # hinweg ausdruecklich nicht, sonst waere die Gliederung aufgeloest.
+        gruppen: list[list[str]] = []
+        for row in rows:
+            if not row[0].startswith("  "):
+                gruppen.append([])
+            elif gruppen:
+                gruppen[-1].append(row[-1])
+        gefuellt = [g for g in gruppen if len(g) > 1]
+        assert gefuellt, "keine Gruppe mit mehr als einem Ticket - Test sagt nichts"
+        for titel in gefuellt:
+            assert titel == sorted(titel, key=str.casefold)
+
+    async def test_dritter_kopfklick_stellt_die_vorgabe_wieder_her(self) -> None:
+        # Ohne Rueckweg waere die Reihenfolge des Kerns nach dem ersten Klick
+        # unerreichbar - und die traegt eine Aussage.
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            table = app.query_one(DataTable)
+            spalte = table.columns[widget._col_keys[6]]
+            for _ in range(3):
+                table.post_message(
+                    DataTable.HeaderSelected(table, spalte.key, 6, spalte.label)
+                )
+                await pilot.pause()
+
+        assert widget._sort_col == ""
+        assert widget._sort_desc is False
+
+    async def test_klick_auf_die_nummer_meldet_das_ticket(self) -> None:
+        # Textuals DataTable meldet einen Mausklick NICHT als Auswahl - eine
+        # unterstrichene Nummer, die auf Klick nichts tut, ist aber genau die
+        # Enttaeuschung, die gemeldet wurde.
+        app = _BoardApp()
+        async with app.run_test(size=(120, 30)) as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            table = app.query_one(DataTable)
+            # Bildzeile 2 ist Tabellenzeile 1: darueber liegen Spaltenkopf
+            # und Gruppenueberschrift. Welches Ticket dort steht, bestimmt
+            # die Reihenfolge des Kerns (aeltestes oben) - also ablesen
+            # statt raten.
+            erwartet = _rows(table)[1][0].strip()
+            await pilot.click(table, offset=(4, 2))
+            await pilot.pause()
+
+        assert app.gemeldet == [erwartet]
+        assert erwartet.startswith("PROJ-")
+
+    async def test_klick_in_andere_spalten_oeffnet_nichts(self) -> None:
+        # Sonst startet jeder Versuch, eine Zeile auszuwaehlen, den Browser.
+        app = _BoardApp()
+        async with app.run_test(size=(120, 30)) as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            table = app.query_one(DataTable)
+            await pilot.click(table, offset=(35, 2))
+            await pilot.pause()
+
+        assert app.gemeldet == []
