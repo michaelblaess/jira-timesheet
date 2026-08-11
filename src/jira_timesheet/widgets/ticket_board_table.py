@@ -61,6 +61,7 @@ _GROUP_KEYS: dict[Role, str] = {
     Role.BACKLOG: "board.group.backlog",
     Role.HANDBACK: "board.group.handback",
     Role.CLOSING: "board.group.closing",
+    Role.DONE: "board.group.done",
     Role.UNKNOWN: "board.group.unknown",
 }
 

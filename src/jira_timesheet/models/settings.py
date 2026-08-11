@@ -136,6 +136,8 @@ class Settings:
     board_handback_status: list[str] = field(default_factory=list)
     board_acceptance_status: list[str] = field(default_factory=list)
     board_closing_status: list[str] = field(default_factory=list)
+    # Wirklich fertig - reiner Kontrollblick, ohne Handlungsbedarf.
+    board_done_status: list[str] = field(default_factory=list)
     # Rangfolge der Prioritaeten, dringendstes zuerst. Leer = die Vorgabe
     # des Kerns, die mehrere gaengige Jira-Schemata abdeckt.
     board_priorities: list[str] = field(default_factory=list)
@@ -195,6 +197,7 @@ class Settings:
         "board_handback_status",
         "board_acceptance_status",
         "board_closing_status",
+        "board_done_status",
         "board_priorities",
         "board_window_days",
         "board_stale_days",
@@ -264,6 +267,7 @@ class Settings:
                     data.get("board_acceptance_status")
                 ),
                 board_closing_status=Settings._parse_str_list(data.get("board_closing_status")),
+                board_done_status=Settings._parse_str_list(data.get("board_done_status")),
                 board_priorities=Settings._parse_str_list(data.get("board_priorities")),
                 board_window_days=Settings._parse_int(data.get("board_window_days"), 90),
                 board_stale_days=Settings._parse_int(data.get("board_stale_days"), 180),

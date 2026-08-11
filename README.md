@@ -252,8 +252,9 @@ mapping once in the settings tab **Tickets**, one comma-separated list per group
 | My turn | Status values you are actively working in | `In progress, In review` |
 | Backlog | Ready to pull, not started yet | `Ready, Scheduled` |
 | Someone else's turn | Waiting for approval by someone else | `Awaiting approval` |
-| Hand back | Delivered, waiting for the reporter's assessment | `Delivered` |
-| Closing open | Counted as done by Jira, work remains | `For acceptance, Docs open` |
+| Live, test pending | Deployed to production, waiting for the reporter to test | `Delivered` |
+| Handover | Counted as done by Jira, still waiting to go live | `For handover, Deployment pending` |
+| Completed | Really finished, a control view only | `Done, Completed` |
 
 ### Setting up My team
 
@@ -281,7 +282,7 @@ no analysis. The Jira board shows everyone on the team the tickets of the others
 but neither bookings nor throughput - and this view sticks to that. It is a
 faster lens on what the board already holds, not a productivity tool.
 
-**"Closing open" is the most important field.** Jira files these status values
+**"Handover" is the most important field.** Jira files these status values
 under the *Done* category - a query on `statusCategory != Done` will not find
 them, and they show up in no list at all. On one measured instance that was 24
 out of 93 assigned tickets, missing silently. Only if you enter them here does
@@ -374,8 +375,9 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | My turn | Status values you are actively working in | (empty) |
 | Backlog | Status values ready to pull | (empty) |
 | Someone else's turn | Status values waiting for external approval | (empty) |
-| Hand back | Status "delivered, waiting for the reporter" | (empty) |
-| Closing open | Status Jira counts as done although work remains | (empty) |
+| Live, test pending | Status "deployed, waiting for the reporter to test" | (empty) |
+| Handover | Status Jira counts as done although the go-live is pending | (empty) |
+| Completed | Status that are really finished - no action needed | (empty) |
 | Priorities | Order of priority levels, most urgent first | (built-in) |
 | Time window | Days that "relevant tickets" looks back (0 = all) | 90 |
 | Stale after | Days without a change until the "stale" flag | 180 |

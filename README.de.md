@@ -256,8 +256,9 @@ Zuordnung einmalig im Settings-Tab **Tickets** ein, je Gruppe eine Kommaliste.
 | Ich bin dran | Status, in denen du selbst arbeitest | `In Bearbeitung, Im Review` |
 | Backlog | Bereit zum Ziehen, noch nicht begonnen | `Bereit, Eingeplant` |
 | Andere sind dran | Wartet auf Freigabe durch jemand anderen | `Wartet auf Freigabe` |
-| Rückläufer | Ausgeliefert, zur Bewertung beim Autor | `Ausgeliefert` |
-| Abschluss offen | Von Jira als fertig gezählt, mit Restarbeit | `Zur Abnahme, Doku offen` |
+| Live, Test offen | Produktiv gesetzt, wartet auf den Test durch den Autor | `Ausgeliefert` |
+| Übergabe | Von Jira als fertig gezählt, wartet auf die Live-Setzung | `Zur Übergabe, Deployment offen` |
+| Abgeschlossen | Wirklich fertig, reiner Kontrollblick | `Erledigt, Abgeschlossen` |
 
 ### Mein Team einrichten
 
@@ -285,14 +286,14 @@ anderen, aber weder Buchungen noch Durchsatz - daran hält sich diese Ansicht.
 Sie ist eine schnellere Linse auf das, was im Board ohnehin steht, und kein
 Werkzeug zur Leistungsmessung.
 
-**"Abschluss offen" ist das wichtigste Feld.** Jira sortiert diese Status in die
+**"Übergabe" ist das wichtigste Feld.** Jira sortiert diese Status in die
 Kategorie *Fertig* ein - eine Abfrage über `statusCategory != Done` findet sie
 also nicht, und sie tauchen in keiner Liste auf. Bei einer vermessenen Instanz
 waren das 24 von 93 zugewiesenen Tickets, die lautlos fehlten. Nur wenn du sie
 hier einträgst, holt die Anwendung sie mit einer zweiten Abfrage dazu.
 
 Was du nicht einträgst, ordnet Jira selbst grob nach seiner Statuskategorie zu.
-Das funktioniert sofort, ist aber deutlich gröber - Rückläufer und wartende
+Das funktioniert sofort, ist aber deutlich gröber - live gesetzte und wartende
 Freigaben lassen sich so nicht auseinanderhalten.
 
 Die Spalte **Merkmale** zeigt, warum ein Ticket auffällt:
@@ -379,14 +380,15 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | Ich bin dran | Status, in denen du selbst arbeitest | (leer) |
 | Backlog | Status "bereit zum Ziehen" | (leer) |
 | Andere sind dran | Status, die auf fremde Freigabe warten | (leer) |
-| Rückläufer | Status "ausgeliefert, zur Bewertung beim Autor" | (leer) |
-| Abschluss offen | Status, die Jira als fertig zählt, obwohl Arbeit bleibt | (leer) |
+| Live, Test offen | Status "produktiv gesetzt, wartet auf den Test durch den Autor" | (leer) |
+| Übergabe | Status, die Jira als fertig zählt, obwohl die Live-Setzung aussteht | (leer) |
+| Abgeschlossen | Status, die wirklich fertig sind - ohne Handlungsbedarf | (leer) |
 | Prioritäten | Rangfolge der Prioritätsstufen, dringendstes zuerst | (eingebaut) |
 | Zeitfenster | Tage, die "Relevante Tickets" zurückblickt (0 = alle) | 90 |
 | Verwaist ab | Tage ohne Änderung bis zur Markierung "verwaist" | 180 |
 | Schwelle aktiv | Arbeitstage ohne Regung in "Ich bin dran" (0 = aus) | 20 |
 | Schwelle Freigabe | Arbeitstage ohne Regung in "Andere sind dran" (0 = aus) | 10 |
-| Schwelle Abschluss | Arbeitstage ohne Regung in "Abschluss offen" (0 = aus) | 0 |
+| Schwelle Übergabe | Arbeitstage ohne Regung in "Übergabe" (0 = aus) | 0 |
 
 ## Tech Stack
 
