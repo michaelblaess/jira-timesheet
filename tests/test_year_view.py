@@ -24,7 +24,7 @@ from jira_timesheet.i18n import load_locale
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.models.timesheet import WorklogEntry
 from jira_timesheet.services import cache_service
-from jira_timesheet.services.manual_entry_service import ManualEntryService
+from jira_timesheet.services.manual_entry_service import DB_FILE, ManualEntryService
 from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.year_panel import MonthTile, YearPanel
 
@@ -175,6 +175,32 @@ def meldungen(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def _tabs(app: JiraTimesheetApp) -> list[str]:
     """Die Reiter-Kennungen in ihrer Reihenfolge."""
     return [pane.id or "" for pane in app.query_one("#view-tabs", TabbedContent).query("TabPane")]
+
+
+async def test_manuelle_ablage_liegt_wirklich_im_testverzeichnis(
+    app: JiraTimesheetApp, tmp_path: Path
+) -> None:
+    """Die Anwendung darf im Test NICHT die echte Eintragsdatenbank oeffnen.
+
+    Der uebliche Weg (``monkeypatch.setattr(ManualEntryService, "db_path", ...)``)
+    ist WIRKUNGSLOS: der Dienst ist eine Dataclass, ihr Default steckt im
+    erzeugten ``__init__`` und wird von einem spaeteren Klassenattribut nicht
+    mehr gelesen. Drei Testdateien haben genau das getan und trotzdem die
+    Datei unter ``~/.jira-timesheet`` benutzt - aufgefallen erst, als in einem
+    automatisch aufgenommenen Screenshot echte manuelle Buchungen standen.
+
+    Geprueft wird deshalb der TATSAECHLICH geoeffnete Pfad, nicht die Absicht.
+    """
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        benutzt = app._manual_entries.db_path
+
+    assert benutzt.parent == tmp_path, (
+        f"Die Anwendung benutzt {benutzt} statt einer Datei unter {tmp_path}"
+    )
+    # Ausdruecklich gegen die Produktivdatei, nicht gegen das Heimverzeichnis:
+    # unter Windows liegt auch tmp_path darunter.
+    assert benutzt != DB_FILE
 
 
 async def test_jahresansicht_ist_der_dritte_reiter(app: JiraTimesheetApp) -> None:
