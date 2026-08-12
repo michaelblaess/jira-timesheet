@@ -60,18 +60,61 @@ class FakeJiraClient:
         ]
 
 
-async def _warte_bis(pilot: Any, bedingung: Callable[[], bool], was: str) -> None:
-    """Wartet auf einen ZUSTAND statt auf eine Zeitspanne."""
+async def _warte_bis(
+    pilot: Any,
+    bedingung: Callable[[], bool],
+    was: str,
+    diagnose: Callable[[], str] | None = None,
+) -> None:
+    """Wartet auf einen ZUSTAND statt auf eine Zeitspanne.
+
+    Args:
+        pilot:
+            Der Textual-Pilot der laufenden App.
+        bedingung:
+            Wird nach jedem Durchlauf des Event-Loops geprueft.
+        was:
+            Klartext fuer die Fehlermeldung.
+        diagnose:
+            Optional. Wird NUR beim Fehlschlag ausgewertet und an die Meldung
+            gehaengt. Ein Fehlschlag auf einem CI-Runner laesst sich sonst
+            nicht auseinanderhalten - "kam nicht" sagt nicht, ob der Ausloeser
+            fehlte oder die Reaktion.
+    """
     grenze = time.monotonic() + _GEDULD_SECONDS
     while not bedingung():
         if time.monotonic() > grenze:
-            raise AssertionError(f"{was} - nach {_GEDULD_SECONDS} s nicht eingetreten")
+            zusatz = f" [{diagnose()}]" if diagnose is not None else ""
+            raise AssertionError(f"{was} - nach {_GEDULD_SECONDS} s nicht eingetreten{zusatz}")
         await pilot.pause()
 
 
 async def _beruhigen(pilot: Any) -> None:
     """Mehrere Loop-Durchlaeufe fuer die Frage "kommt da noch etwas?"."""
     for _ in range(20):
+        await pilot.pause()
+
+
+async def _wechsle_zu(pilot: Any, app: JiraTimesheetApp, tab_id: str) -> None:
+    """Schaltet auf einen Reiter und wartet, bis der Wechsel wirklich haelt.
+
+    Eine einzelne Zuweisung genuegt NICHT. Solange TabbedContent seine
+    Initialisierung nicht abgeschlossen hat, setzt es danach den ersten
+    Reiter und verwirft die Zuweisung - gemessen unmittelbar nach dem Start,
+    und zwar obwohl alle sechs Reiter zu diesem Zeitpunkt bereits montiert
+    sind. Ein Event fuer den gewuenschten Reiter kommt dann nie, und damit
+    laeuft auch der Ladehaken der Anwendung nicht an.
+
+    Genau daran scheiterte der Windows-Runner am 12.08.2026, waehrend lokal
+    alles gruen war: dort reichte die eine Pause vor der Zuweisung, auf dem
+    langsameren Runner nicht.
+    """
+    tabs = app.query_one("#view-tabs", TabbedContent)
+    grenze = time.monotonic() + _GEDULD_SECONDS
+    while app._active_tab() != tab_id:
+        if time.monotonic() > grenze:
+            raise AssertionError(f"Reiter {tab_id} wurde nach {_GEDULD_SECONDS} s nicht aktiv")
+        tabs.active = tab_id
         await pilot.pause()
 
 
@@ -152,7 +195,7 @@ async def test_tab_laeuft_durch_alle_reiter(app: JiraTimesheetApp) -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         vorhanden = _tabs(app)
-        app.query_one("#view-tabs", TabbedContent).active = vorhanden[0]
+        await _wechsle_zu(pilot, app, vorhanden[0])
         await pilot.pause()
 
         besucht = [vorhanden[0]]
@@ -202,8 +245,13 @@ async def test_erster_blick_in_den_reiter_laedt(app: JiraTimesheetApp) -> None:
         await _beruhigen(pilot)
         FakeJiraClient.calls.clear()
 
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
         # Nur vergangene Monate werden geholt - kuenftige haben nichts zu bieten.
         heute = date.today()
@@ -223,14 +271,18 @@ async def test_zweiter_blick_laedt_nicht_erneut(app: JiraTimesheetApp) -> None:
         await pilot.pause()
         await _beruhigen(pilot)
 
-        tabs = app.query_one("#view-tabs", TabbedContent)
-        tabs.active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
         nach_dem_ersten = len(FakeJiraClient.calls)
 
-        tabs.active = "tab-list"
+        await _wechsle_zu(pilot, app, "tab-list")
         await pilot.pause()
-        tabs.active = "tab-year"
+        await _wechsle_zu(pilot, app, "tab-year")
         await _beruhigen(pilot)
 
         assert len(FakeJiraClient.calls) == nach_dem_ersten
@@ -245,8 +297,13 @@ async def test_jahreswechsel_verwirft_den_stand(app: JiraTimesheetApp) -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         await _beruhigen(pilot)
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
         app._on_settings_closed({"year": _JAHR - 1})
         await _warte_bis(
@@ -262,10 +319,15 @@ async def test_manuelle_buchung_verwirft_den_stand(app: JiraTimesheetApp) -> Non
     async with app.run_test() as pilot:
         await pilot.pause()
         await _beruhigen(pilot)
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
-        app.query_one("#view-tabs", TabbedContent).active = "tab-list"
+        await _wechsle_zu(pilot, app, "tab-list")
         await pilot.pause()
         app._reload_after_manual_change()
         assert app._year_loaded_for is None
@@ -285,18 +347,22 @@ async def test_kennzahlen_zeigen_das_jahr_nicht_den_monat(app: JiraTimesheetApp)
     async with app.run_test(size=(180, 55)) as pilot:
         await pilot.pause()
         await _beruhigen(pilot)
-        tabs = app.query_one("#view-tabs", TabbedContent)
-        tabs.active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
-        tabs.active = "tab-list"
+        await _wechsle_zu(pilot, app, "tab-list")
         await pilot.pause()
         monat = app.query_one("#summary-panel", SummaryPanel).render_line(0).text
         # Der Tagesdurchschnitt steht nur in der Monatsleiste - er ist das
         # Unterscheidungsmerkmal, die Beschriftungen sind es nicht.
         assert "Ø" in monat
 
-        tabs.active = "tab-year"
+        await _wechsle_zu(pilot, app, "tab-year")
         await pilot.pause()
         jahr = app.query_one("#summary-panel", SummaryPanel).render_line(0).text
         assert str(_JAHR) in jahr
@@ -318,8 +384,13 @@ async def test_meldungen_im_reiter_tragen_kein_markup(
     async with app.run_test() as pilot:
         await pilot.pause()
         await _beruhigen(pilot)
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
-        await _warte_bis(pilot, lambda: app._year_loaded_for == _JAHR, "das Jahr ist geladen")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: app._year_loaded_for == _JAHR,
+            "das Jahr ist geladen",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
     assert meldungen, "es kam ueberhaupt keine Meldung im Reiter an"
     mit_markup = [m for m in meldungen if not _markup_frei(m)]
@@ -340,7 +411,7 @@ async def test_fehlermeldung_im_reiter_traegt_kein_markup(
     async with app.run_test() as pilot:
         await pilot.pause()
         await _beruhigen(pilot)
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
+        await _wechsle_zu(pilot, app, "tab-year")
         await _warte_bis(
             pilot,
             lambda: any("Netz weg" in m for m in meldungen),
@@ -356,13 +427,23 @@ async def test_fehlermeldung_im_reiter_traegt_kein_markup(
 async def test_fehlender_zugang_meldet_im_reiter_ohne_markup(
     app: JiraTimesheetApp, meldungen: list[str]
 ) -> None:
-    """Ohne Jira-Zugang steht der Hinweis im Reiter, ebenfalls als Klartext."""
+    """Ohne Jira-Zugang steht der Hinweis im Reiter, ebenfalls als Klartext.
+
+    Schaltet bewusst OHNE vorherigen Loop-Durchlauf um - das ist die Lage, in
+    der TabbedContent eine Zuweisung noch verwirft. Genau daran scheiterte der
+    Windows-Runner, waehrend lokal eine einzige Pause reichte. Der Test haelt
+    den Fall damit dauerhaft fest, statt ihn wegzuwarten.
+    """
     app._settings.jira_token = ""
 
     async with app.run_test() as pilot:
-        await pilot.pause()
-        app.query_one("#view-tabs", TabbedContent).active = "tab-year"
-        await _warte_bis(pilot, lambda: bool(meldungen), "der Hinweis steht im Reiter")
+        await _wechsle_zu(pilot, app, "tab-year")
+        await _warte_bis(
+            pilot,
+            lambda: bool(meldungen),
+            "der Hinweis steht im Reiter",
+            lambda: f"aktiver Reiter={app._active_tab()!r}, Jahr geladen fuer={app._year_loaded_for}, Abrufe={len(FakeJiraClient.calls)}",
+        )
 
     assert app._year_loaded_for is None
     mit_markup = [m for m in meldungen if not _markup_frei(m)]
@@ -377,13 +458,12 @@ async def test_stundenzettel_tasten_sind_im_jahresreiter_aus(app: JiraTimesheetA
     """
     async with app.run_test() as pilot:
         await pilot.pause()
-        tabs = app.query_one("#view-tabs", TabbedContent)
 
-        tabs.active = "tab-list"
+        await _wechsle_zu(pilot, app, "tab-list")
         await pilot.pause()
         assert app.check_action("manual_entry", ()) is True
 
-        tabs.active = "tab-year"
+        await _wechsle_zu(pilot, app, "tab-year")
         await pilot.pause()
         assert app.check_action("manual_entry", ()) is False
         assert app.check_action("show_details", ()) is False
