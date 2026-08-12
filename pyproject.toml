@@ -37,6 +37,10 @@ dev = [
     "poethepoet>=0.29",
     "ruff>=0.3",
     "types-openpyxl>=3.1.5.20260518",
+    # Nur fuer assets/make_screenshots.py: reduziert die aufgenommenen Bilder
+    # auf eine 256er-Palette. Kam bisher nur transitiv mit und war damit
+    # nicht zugesichert.
+    "pillow>=10.0",
 ]
 
 [project.scripts]
