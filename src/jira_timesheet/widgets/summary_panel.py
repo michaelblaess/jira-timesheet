@@ -6,12 +6,9 @@ from typing import Any
 
 from textual_widgets import StatusBar, StatusItem
 
-from jira_timesheet.i18n import format_eur, format_number, t
+from jira_timesheet.i18n import REDACTED_MONEY, format_eur, format_number, t
 from jira_timesheet.models.settings import DEFAULT_MANUAL_COLOR
 from jira_timesheet.models.timesheet import Timesheet
-
-# Maske fuer zensierte Geldbetraege im Anonymisierungs-Modus (Screenshots).
-_REDACTED = "••••• €"
 
 
 class SummaryPanel(StatusBar):  # type: ignore[misc]
@@ -154,13 +151,13 @@ class SummaryPanel(StatusBar):  # type: ignore[misc]
             items.append(
                 StatusItem(
                     t("summary.net"),
-                    _REDACTED if self._anonymized else format_eur(netto),
+                    REDACTED_MONEY if self._anonymized else format_eur(netto),
                 )
             )
             items.append(
                 StatusItem(
                     t("summary.gross"),
-                    _REDACTED if self._anonymized else format_eur(brutto),
+                    REDACTED_MONEY if self._anonymized else format_eur(brutto),
                 )
             )
         return items
