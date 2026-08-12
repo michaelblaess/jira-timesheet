@@ -109,7 +109,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
-- **Jahresansicht** — 12 Monatskacheln mit Progressbar und Forecast (J)
+- **Jahresansicht** — Eigener Reiter: 12 Monatskacheln mit Progressbar und Forecast, geladen beim ersten Ansehen
 - **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
 - **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
 - **Feiertage** — Deutsche Feiertage pro Bundesland, Lücken-Erkennung
@@ -336,11 +336,10 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 | B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Stundenzettel / Kalender / Meine Tickets / Meine Aktivitäten / Mein Team) |
-| F5 | Aktualisiert, was gerade zu sehen ist - Stundenzettel oder Ticket-Ansicht, immer frisch aus Jira |
+| TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
+| F5 | Aktualisiert, was gerade zu sehen ist - Stundenzettel, Jahresansicht oder Ticket-Ansicht, immer frisch aus Jira |
 | / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
-| J | Jahresansicht mit Forecast |
 | A | Daten anonymisieren |
 | < / > | Monat wechseln |
 | S | Settings |
