@@ -35,7 +35,7 @@ from textual_widgets import (
 )
 
 from jira_timesheet import __author__, __version__, __year__
-from jira_timesheet.i18n import current_language, format_number, t
+from jira_timesheet.i18n import REDACTED_MONEY, current_language, format_eur, format_number, t
 from jira_timesheet.models.export_column import parse_columns
 from jira_timesheet.models.settings import Settings, normalize_color
 from jira_timesheet.models.ticket_lifecycle import TicketLifecycleData
@@ -64,6 +64,7 @@ from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
 from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel
 from jira_timesheet.widgets.timesheet_table import TimesheetTable
+from jira_timesheet.widgets.year_panel import YearPanel
 
 try:
     from textual_themes import THEME_DISPLAY_NAMES
@@ -145,6 +146,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # anonymisierte Kopie - das Original bleibt hier, damit sich der
         # Screenshot-Modus verlustfrei zurueckschalten laesst.
         self._real_boards: dict[str, Board | None] = dict.fromkeys(_BOARD_TABS.values())
+        # Fuer welches Jahr die Jahresansicht geladen ist. None heisst: noch
+        # nichts geladen (oder verworfen), der naechste Blick holt es.
+        self._year_loaded_for: int | None = None
         # Ticket der Zeile, auf der das Kontextmenue der Ansicht steht.
         self._menu_ticket: BoardTicket | None = None
 
@@ -163,7 +167,6 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Filter-Suchfeld der Liste fokussieren - im Footer ausgeblendet
         # (Konvention: / fokussiert den Filter, die Lupe macht ihn sichtbar).
         self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
-        self._bindings.bind("j,J", "show_year", t("binding.year"), key_display="j")
         self._bindings.bind("b,B", "ticket_report", t("binding.ticket_report"), key_display="b")
         # EINE Taste fuer alle Reiter. Vorher lud "g" den Stundenzettel und F5
         # die Ticket-Ansichten - zwei Tasten fuer dieselbe Absicht, und welche
@@ -202,7 +205,6 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             "show_settings": t("tooltip.settings"),
             "show_about": t("tooltip.info"),
             "next_tab": t("tooltip.switch_view"),
-            "show_year": t("tooltip.year"),
             "toggle_anon": t("tooltip.anonymize"),
             "reset_cache": t("tooltip.reset_cache"),
             "toggle_log": t("tooltip.toggle_log"),
@@ -261,6 +263,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     jira_host=self._settings.jira_host,
                     id="calendar-view",
                 )
+            with TabPane(t("tab.year"), id="tab-year"):
+                # Laedt nicht beim Start, sondern beim ersten Ansehen - zwoelf
+                # Monate kosten Zeit, und wer nur den laufenden Monat will,
+                # soll nicht darauf warten (wie bei den Ticket-Ansichten).
+                yield YearPanel(id="year-panel")
             with TabPane(t("tab.tickets_assigned"), id="tab-assigned"):
                 yield TicketBoardTable(
                     MODE_ASSIGNED,
@@ -407,12 +414,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
     def action_refresh(self) -> None:
         """F5: aktualisiert, was gerade zu sehen ist.
 
-        In den Ticket-Reitern die jeweilige Ansicht, sonst den Stundenzettel.
+        In den Ticket-Reitern die jeweilige Ansicht, in der Jahresansicht alle
+        zwoelf Monate, sonst den Stundenzettel.
         Beides erzwingt einen frischen Abruf: der Cache wird ueberschrieben,
         damit nachtraeglich in Jira eingetragene Stunden sofort erscheinen -
         auch fuer einen bereits abgeschlossenen Monat. Genau dafuer gab es
         frueher die g-Taste.
         """
+        if self._active_tab() == "tab-year":
+            if not self._settings_complete():
+                self._year_panel().show_message(t("board.needs_settings"))
+                return
+            self._load_year(force_refresh=True)
+            return
         mode = self._board_mode()
         if mode is not None:
             self._reload_board(mode)
@@ -821,6 +835,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # muessen die geladenen Boards weg. Sie zeigen sonst Gruppen und
         # Merkmale nach der alten Regel - falsch, ohne dass man es sieht.
         board_before = self._board_fingerprint()
+        year_before = self._year_fingerprint()
 
         for key, value in new_settings.items():
             if not hasattr(self._settings, key):
@@ -844,6 +859,32 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._board_widget(MODE_TEAM).set_members(self._member_names())
         if self._board_fingerprint() != board_before:
             self._invalidate_boards()
+        if self._year_fingerprint() != year_before:
+            self._invalidate_year()
+            # Nur nachladen, wenn der Reiter offen ist - sonst holt ihn der
+            # naechste Blick, wie beim ersten Mal auch.
+            if self._active_tab() == "tab-year":
+                self._ensure_year()
+
+    def _year_fingerprint(self) -> tuple[object, ...]:
+        """Alle Werte, die den Inhalt der Jahresansicht beeinflussen.
+
+        Auch die reinen Anzeige-Groessen gehoeren dazu: Sollstunden und
+        Arbeitstage je Monat entstehen beim Laden, nicht beim Zeichnen.
+        """
+        settings = self._settings
+        return (
+            settings.year,
+            settings.jira_host,
+            settings.email,
+            settings.use_legacy_api,
+            settings.hours_per_day,
+            settings.federal_state,
+            settings.vacation_days,
+            settings.hourly_rate,
+            settings.vat_rate,
+            settings.max_yearly_hours,
+        )
 
     def _board_fingerprint(self) -> tuple[object, ...]:
         """Alle Werte, die das Ergebnis der Ticket-Ansichten beeinflussen.
@@ -892,6 +933,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             table.set_columns(self._settings.export_columns)
         with contextlib.suppress(Exception):
             self.query_one("#summary-panel", SummaryPanel).set_manual_marking(
+                self._settings.mark_manual_entries,
+                self._settings.manual_entry_color,
+            )
+        with contextlib.suppress(Exception):
+            self._year_panel().set_manual_marking(
                 self._settings.mark_manual_entries,
                 self._settings.manual_entry_color,
             )
@@ -1137,6 +1183,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
     def _reload_after_manual_change(self) -> None:
         """Baut den Stundenzettel nach einer Aenderung neu auf (aus dem Cache)."""
+        # Die Jahressumme enthaelt die manuellen Zeiten mit - eine neue oder
+        # geloeschte Buchung macht sie falsch, auch wenn der Reiter zu ist.
+        self._invalidate_year()
+        if self._active_tab() == "tab-year":
+            self._ensure_year()
         if self._timesheet is None:
             return
         # force_refresh=False: die Jira-Daten liegen im Cache, nur der Merge
@@ -1155,14 +1206,104 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         host = FAKE_HOST if self._anonymized else self._settings.jira_host
         self.push_screen(DetailScreen(entry, jira_host=host))
 
-    @work(exclusive=True)
-    async def action_show_year(self) -> None:
-        """Laedt Jahresdaten und zeigt die Jahresansicht."""
-        if not self._settings.jira_host or not self._settings.jira_token or not self._settings.email:
-            self.notify(t("notify.settings_first"), severity="error")
+    # --- Jahresansicht ------------------------------------------------
+
+    def _year_panel(self) -> YearPanel:
+        """Liefert den Reiter "Jahresansicht"."""
+        return self.query_one("#year-panel", YearPanel)
+
+    def _target_year(self) -> int:
+        """Das Jahr, das die Ansicht zeigen soll."""
+        return self._settings.year if self._settings.year > 0 else date.today().year
+
+    def _ensure_year(self) -> None:
+        """Startet den Jahres-Abruf, wenn dieses Jahr noch nicht geladen ist."""
+        if self._year_loaded_for == self._target_year():
+            return
+        if not self._settings_complete():
+            self._year_panel().show_message(t("board.needs_settings"))
+            return
+        self._load_year()
+
+    def _invalidate_year(self) -> None:
+        """Verwirft den geladenen Jahrgang - der naechste Blick laedt neu."""
+        self._year_loaded_for = None
+
+    def _show_year_summary(self) -> None:
+        """Traegt die Jahreszahlen in die Kennzahlen-Leiste unter dem Reiter.
+
+        Ohne das stuenden dort die Zahlen des laufenden MONATS unter einem
+        Jahresraster - dieselbe Beschriftung, andere Bedeutung.
+        """
+        panel = self._year_panel()
+        summary = self.query_one("#summary-panel", SummaryPanel)
+        if self._year_loaded_for is None:
+            summary.show_items([])
             return
 
-        year = self._settings.year if self._settings.year > 0 else date.today().year
+        items = [
+            StatusItem(str(panel.year), f"{format_number(panel.total_hours)}h"),
+            StatusItem(t("summary.workdays"), str(panel.total_days)),
+        ]
+        if panel.total_manual > 0:
+            items.append(
+                StatusItem(
+                    t("summary.manual"),
+                    f"{format_number(panel.total_manual)}h",
+                    value_style=(
+                        f"bold #{self._settings.manual_entry_color}"
+                        if self._settings.mark_manual_entries
+                        else "bold"
+                    ),
+                )
+            )
+        if self._settings.max_yearly_hours > 0:
+            diff = panel.total_hours - self._settings.max_yearly_hours
+            items.append(
+                StatusItem(t("summary.target"), f"{format_number(self._settings.max_yearly_hours)}h")
+            )
+            items.append(
+                StatusItem(
+                    "",
+                    f"{'+' if diff >= 0 else ''}{format_number(diff)}h",
+                    value_style="bold red" if diff < 0 else "bold green",
+                )
+            )
+        if self._settings.hourly_rate > 0:
+            netto = panel.total_hours * self._settings.hourly_rate
+            brutto = netto * (1.0 + self._settings.vat_rate / 100.0)
+            items.append(
+                StatusItem(t("summary.net"), REDACTED_MONEY if self._anonymized else format_eur(netto))
+            )
+            items.append(
+                StatusItem(t("summary.gross"), REDACTED_MONEY if self._anonymized else format_eur(brutto))
+            )
+        summary.show_items(items)
+
+    @work(exclusive=True, group="year")
+    async def _load_year(self, force_refresh: bool = False) -> None:
+        """Laedt zwoelf Monate und fuellt den Reiter "Jahresansicht".
+
+        Eigene Worker-Gruppe: der Abruf darf den laufenden Monats-Abruf
+        (``_generate``, Standardgruppe) nicht abbrechen - beide koennen
+        nebeneinander laufen, wenn beim Start gleich in den Reiter gewechselt
+        wird.
+
+        Args:
+            force_refresh:
+                Umgeht den Monats-Cache und holt jeden Monat frisch (F5).
+                Ohne das zeigte die Jahresansicht nach einer Nachbuchung in
+                Jira weiter die alten Zahlen aus dem Cache.
+        """
+        year = self._target_year()
+        # Der Reiter kann waehrend des Abrufs verschwinden (Beenden). Ein
+        # Fehlschlag beim Zeichnen darf den Abruf nicht mit einer Ausnahme
+        # aus dem Worker heraus beenden.
+        #
+        # EIGENER Schluessel, nicht der des Logs: die log.*-Texte tragen
+        # Rich-Markup ("[bold]...[/bold]"), das im Panel woertlich dastuende.
+        with contextlib.suppress(Exception):
+            self._year_panel().show_message(t("year.loading", year=year))
         self._write_log("")
         self._write_log(t("log.year_loading", year=year))
 
@@ -1202,7 +1343,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     continue
 
                 # Cache pruefen fuer abgeschlossene Monate
-                if CacheService.has_cache(year, month, self._settings.email):
+                if not force_refresh and CacheService.has_cache(year, month, self._settings.email):
                     entries = CacheService.load(year, month, self._settings.email)
                     cached_count += 1
                     source = t("source.cache")
@@ -1256,39 +1397,54 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 )
             )
 
-            from jira_timesheet.screens.year_screen import YearScreen
-
-            self.push_screen(
-                YearScreen(
-                    year=year,
-                    month_data=month_data,
-                    max_yearly_hours=self._settings.max_yearly_hours,
-                    hourly_rate=self._settings.hourly_rate,
-                    vat_rate=self._settings.vat_rate,
-                    vacation_days=self._settings.vacation_days,
-                    hours_per_day=self._settings.hours_per_day,
-                    federal_state=self._settings.federal_state,
-                    anonymized=self._anonymized,
-                    mark_manual=self._settings.mark_manual_entries,
-                    manual_color=self._settings.manual_entry_color,
-                )
+            panel = self._year_panel()
+            panel.set_anonymized(self._anonymized)
+            panel.set_year(
+                year=year,
+                month_data=month_data,
+                max_yearly_hours=self._settings.max_yearly_hours,
+                hourly_rate=self._settings.hourly_rate,
+                vat_rate=self._settings.vat_rate,
+                vacation_days=self._settings.vacation_days,
+                hours_per_day=self._settings.hours_per_day,
+                federal_state=self._settings.federal_state,
+                mark_manual=self._settings.mark_manual_entries,
+                manual_color=self._settings.manual_entry_color,
             )
+            self._year_loaded_for = year
+            if self._active_tab() == "tab-year":
+                self._show_year_summary()
 
         except Exception as exc:
             self.sub_title = ""
+            # Der Reiter darf nicht mit "Lade ..." stehenbleiben, wenn der
+            # Abruf gescheitert ist - sonst sieht er aus wie ein Haenger.
+            with contextlib.suppress(Exception):
+                self._year_panel().show_message(t("year.failed", error=exc))
             self._write_log(t("log.error", error=exc))
             self.notify(t("notify.error", error=exc), severity="error")
 
     def action_toggle_anon(self) -> None:
         """Anonymisiert/de-anonymisiert die Daten fuer Screenshots."""
-        # Auch eine geladene Ticket-Ansicht zaehlt: wer nur sie geoeffnet hat,
-        # muss sie fuer einen Screenshot ebenso zensieren koennen.
-        if self._timesheet is None and not any(self._real_boards.values()):
+        # Auch eine geladene Ticket-Ansicht oder die Jahresansicht zaehlt: wer
+        # nur sie geoeffnet hat, muss sie fuer einen Screenshot ebenso
+        # zensieren koennen.
+        if (
+            self._timesheet is None
+            and not any(self._real_boards.values())
+            and self._year_loaded_for is None
+        ):
             self.notify(t("notify.generate_first"), severity="warning")
             return
 
         self._anonymized = not self._anonymized
         self._refresh_boards_anonymization()
+        # Die Jahresansicht bleibt beim Umschalten stehen - ihre Geldbetraege
+        # muessen trotzdem mitziehen, sonst steht der Umsatz im Screenshot.
+        with contextlib.suppress(Exception):
+            self._year_panel().set_anonymized(self._anonymized)
+            if self._active_tab() == "tab-year":
+                self._show_year_summary()
 
         if self._timesheet is None:
             # Nur Ticket-Ansichten geladen - fuer den Stundenzettel gibt es
@@ -1341,6 +1497,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         import shutil
 
         from jira_timesheet.services.cache_service import CACHE_DIR
+
+        # Ohne Cache stimmt auch die Jahresansicht nicht mehr: sie ist genau
+        # aus diesen Dateien zusammengesetzt.
+        self._invalidate_year()
 
         if CACHE_DIR.is_dir():
             count = len(list(CACHE_DIR.glob("*.json")))
@@ -1649,9 +1809,17 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._fetch_ticket_report(ticket.key)
 
     def action_next_tab(self) -> None:
-        """Wechselt zum naechsten Tab (im Kreis)."""
+        """Wechselt zum naechsten Reiter (im Kreis).
+
+        Die Reihenfolge kommt aus dem TabbedContent SELBST. Vorher stand sie
+        hier als Liste im Code und lief zweimal aus dem Tritt: erst blieb
+        "Mein Team" liegen, dann die Jahresansicht - beide waren angelegt,
+        aber TAB sprang an ihnen vorbei, weil sie niemand nachgetragen hatte.
+        """
         tabs = self.query_one("#view-tabs", TabbedContent)
-        order = ["tab-list", "tab-calendar", "tab-assigned", "tab-relevant"]
+        order = [pane.id for pane in tabs.query(TabPane) if pane.id]
+        if not order:
+            return
         try:
             index = order.index(tabs.active)
         except ValueError:
@@ -1747,16 +1915,20 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return True if self._settings_complete() else None
         # Loeschen nur anbieten, wenn der Cursor wirklich auf einem manuellen
         # Eintrag steht - sonst laeuft die Taste ins Leere.
+        #
+        # Reiter ohne markierbare Stundenzettel-Zeile: Kalender, Jahresansicht
+        # und die Ticket-Ansichten. Der Cursor steht dort zwar weiter auf einer
+        # Zeile der (unsichtbaren) Liste - eine Taste, die etwas mit einer nicht
+        # sichtbaren Zeile macht, ist aber keine Hilfe, sondern eine Falle.
+        on_list = board_mode is None and self._active_tab() not in ("tab-calendar", "tab-year")
         if action == "delete_manual":
-            if board_mode is not None:
+            if not on_list:
                 return None
             entry = self._cursor_entry()
             return None if entry is None or not entry.manual else True
-        # "Details" und die manuelle Erfassung gibt es nur in der Listenansicht -
-        # weder im Kalender noch in den Ticket-Ansichten laesst sich eine Zeile
-        # des Stundenzettels markieren.
+        # "Details" und die manuelle Erfassung gibt es nur in der Listenansicht.
         if action in ("show_details", "manual_entry"):
-            return not (board_mode is not None or self._active_tab() == "tab-calendar")
+            return on_list
         return True
 
     def _active_tab(self) -> str:
@@ -1773,6 +1945,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         nicht darauf warten.
         """
         self.refresh_bindings()
+        if self._active_tab() == "tab-year":
+            self._ensure_year()
+            self._show_year_summary()
+            return
         mode = self._board_mode()
         if mode is None:
             self.query_one("#summary-panel", SummaryPanel).refresh_timesheet()

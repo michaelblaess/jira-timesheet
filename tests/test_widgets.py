@@ -12,16 +12,16 @@ from textual.pilot import Pilot, _get_mouse_message_arguments
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Input, Select
 
-from jira_timesheet.i18n import load_locale
+from jira_timesheet.i18n import REDACTED_MONEY, load_locale
 from jira_timesheet.models.export_column import ExportColumn, default_columns
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay, WorklogEntry
 from jira_timesheet.screens.confirm_screen import ConfirmScreen
 from jira_timesheet.screens.manual_entry_screen import ManualEntryResult, ManualEntryScreen
-from jira_timesheet.screens.year_screen import MonthTile, YearScreen
 from jira_timesheet.services.manual_entry_service import ManualEntry
 from jira_timesheet.widgets.resizable_data_table import ResizableDataTable
 from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.timesheet_table import _MIN_DESCRIPTION_WIDTH, TimesheetTable
+from jira_timesheet.widgets.year_panel import MonthTile, YearPanel
 
 _LONG_SUMMARY = "Sitefinity Security Advisory for Addressing Security Vulnerabilities in Telerik UI " * 2
 
@@ -587,24 +587,31 @@ _YEAR_DATA = {
 class _YearApp(App[None]):
     """Traegt nur die Jahresansicht."""
 
-    def __init__(self, mark_manual: bool = True) -> None:
+    def __init__(self, mark_manual: bool = True, fill: bool = True) -> None:
         super().__init__()
         self.mark_manual = mark_manual
+        self.fill = fill
 
     def compose(self) -> ComposeResult:
-        yield from ()
+        yield YearPanel(id="year-panel")
 
     def on_mount(self) -> None:
-        """Oeffnet die Jahresansicht beim Start."""
-        self.push_screen(
-            YearScreen(
-                year=2026,
-                month_data=dict(_YEAR_DATA),
-                max_yearly_hours=1720.0,
-                mark_manual=self.mark_manual,
-                manual_color="FF0000",
-            )
+        """Befuellt die Jahresansicht, wie es die Anwendung nach dem Abruf tut."""
+        if not self.fill:
+            return
+        self.query_one("#year-panel", YearPanel).set_year(
+            year=2026,
+            month_data=dict(_YEAR_DATA),
+            max_yearly_hours=1720.0,
+            mark_manual=self.mark_manual,
+            manual_color="FF0000",
         )
+
+
+def _year_summary_text(app: App[None]) -> str:
+    """Alle Zeilen der Jahres-Zusammenfassung als ein Text."""
+    summary = app.screen.query_one("#year-summary")
+    return "\n".join(summary.render_line(i).text for i in range(summary.size.height))
 
 
 def _tile(screen: Screen[Any], month: int) -> MonthTile:
@@ -650,6 +657,49 @@ async def test_year_manual_share_respects_marking_setting() -> None:
         assert "davon manuell: 38,75h" in tile.render().plain
         styles = {str(span.style) for span in tile.render().spans}
         assert not any("#ff0000" in style for style in styles)
+
+
+@pytest.mark.asyncio
+async def test_year_switch_moves_the_current_month_marker() -> None:
+    """Ein anderes Jahr nimmt dem laufenden Monat die Hervorhebung wieder ab.
+
+    Als Modal wurden die Kacheln bei jedem Oeffnen neu erzeugt, die Markierung
+    entstand also von selbst richtig. Der Reiter bleibt stehen und wird nur
+    befuellt - ohne Nachziehen bliebe der Rahmen im falschen Jahr stehen.
+    """
+    heute = date.today()
+    app = _YearApp(fill=False)
+    async with app.run_test(size=(180, 55)) as pilot:
+        await pilot.pause()
+        panel = app.query_one("#year-panel", YearPanel)
+
+        panel.set_year(year=heute.year, month_data=dict(_YEAR_DATA))
+        await pilot.pause()
+        assert _tile(app.screen, heute.month).has_class("current")
+
+        panel.set_year(year=heute.year - 1, month_data=dict(_YEAR_DATA))
+        await pilot.pause()
+        assert not _tile(app.screen, heute.month).has_class("current")
+
+
+@pytest.mark.asyncio
+async def test_year_anonymization_masks_money() -> None:
+    """Im Screenshot-Modus verschwinden Umsatz UND Forecast-Umsatz."""
+    app = _YearApp(fill=False)
+    async with app.run_test(size=(180, 55)) as pilot:
+        await pilot.pause()
+        panel = app.query_one("#year-panel", YearPanel)
+        panel.set_year(year=2026, month_data=dict(_YEAR_DATA), hourly_rate=100.0)
+        await pilot.pause()
+        # Jahresumsatz und Forecast-Umsatz stehen in verschiedenen Zeilen -
+        # frueher war nur einer von beiden zensiert.
+        klartext = _year_summary_text(app)
+        assert "Netto" in klartext and REDACTED_MONEY not in klartext
+
+        panel.set_anonymized(True)
+        await pilot.pause()
+        zensiert = _year_summary_text(app)
+        assert zensiert.count(REDACTED_MONEY) == 4
 
 
 @pytest.mark.asyncio

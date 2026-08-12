@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGES = ("de", "en")
 DEFAULT_LANGUAGE = "de"
 
+# Maske fuer zensierte Geldbetraege im Anonymisierungs-Modus (Screenshots).
+# Steht hier, weil sie zu format_eur gehoert - vorher lag dieselbe Zeichenkette
+# in drei Widgets, und eine geaenderte Kopie waere niemandem aufgefallen.
+REDACTED_MONEY = "••••• €"
+
 _strings: dict[str, str] = {}
 _current_lang: str = DEFAULT_LANGUAGE
 

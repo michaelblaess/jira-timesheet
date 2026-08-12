@@ -109,7 +109,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
-- **Year view** — 12 monthly tiles with progress bar and forecast (J)
+- **Year view** — Own tab: 12 monthly tiles with progress bar and forecast, loaded on first view
 - **Excel export** — Formatted timesheet with logo and signature line
 - **PDF export** — Adobe-signable, Unicode font (Arial)
 - **Public holidays** — German public holidays per federal state, gap detection
@@ -331,11 +331,10 @@ Qt edition - the terminal is not wide enough for a third chart.
 | B | Ticket analysis (interactive report as an HTML file) |
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
-| TAB | Switch tab (timesheet / calendar / my tickets / my activity / my team) |
-| F5 | Refreshes whatever is on screen - timesheet or ticket view, always fresh from Jira |
+| TAB | Switch tab (timesheet / calendar / year view / my tickets / my activity / my team) |
+| F5 | Refreshes whatever is on screen - timesheet, year view or ticket view, always fresh from Jira |
 | / | Focus the search field of the current tab |
 | R | Reset cache |
-| J | Year view with forecast |
 | A | Anonymize data |
 | < / > | Switch month |
 | S | Settings |
