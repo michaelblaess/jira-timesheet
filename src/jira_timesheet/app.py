@@ -129,7 +129,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._last_export_dir = str(Path.home() / "Desktop")
         # Manuell erfasste Zeiten (SQLite) - bewusst getrennt vom Jira-Cache,
         # der ausschliesslich abbildet was Jira geliefert hat.
-        self._manual_entries = ManualEntryService()
+        # Pfad AUSDRUECKLICH mitgeben, nicht den Default der Dataclass nehmen.
+        # Der Default steckt im erzeugten __init__ und laesst sich nicht mehr
+        # umbiegen: ein monkeypatch auf ManualEntryService.db_path bleibt
+        # wirkungslos, die Anwendung oeffnet dann weiter die echte Datei unter
+        # ~/.jira-timesheet. Ueber Settings.SETTINGS_DIR greift dagegen
+        # dieselbe Umleitung wie fuer Einstellungen und Cache.
+        self._manual_entries = ManualEntryService(
+            db_path=Settings.SETTINGS_DIR / "manual-entries.db"
+        )
         # Id des Eintrags, fuer den gerade die Loesch-Rueckfrage offen ist.
         self._pending_delete_id = 0
         # Zwischenspeicher zwischen Abruf und Speichern-Dialog der Ticket-Analyse.
