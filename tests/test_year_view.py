@@ -24,7 +24,7 @@ from jira_timesheet.i18n import load_locale
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.models.timesheet import WorklogEntry
 from jira_timesheet.services import cache_service
-from jira_timesheet.services.manual_entry_service import DB_FILE, ManualEntryService
+from jira_timesheet.services.manual_entry_service import DB_FILE
 from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.year_panel import MonthTile, YearPanel
 
@@ -124,7 +124,10 @@ def _isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     load_locale("de")
     monkeypatch.setattr(Settings, "SETTINGS_DIR", tmp_path)
     monkeypatch.setattr(Settings, "SETTINGS_FILE", tmp_path / "settings.json")
-    monkeypatch.setattr(ManualEntryService, "db_path", tmp_path / "manual-entries.db")
+    # NICHT ManualEntryService.db_path patchen - das ist wirkungslos, der
+    # Dataclass-Default steckt im erzeugten __init__ (siehe conftest.py).
+    # Die Anwendung leitet den Pfad aus Settings.SETTINGS_DIR ab, und das
+    # oben Gesetzte greift dadurch.
     monkeypatch.setattr(cache_service, "CACHE_DIR", tmp_path / "cache")
     FakeJiraClient.reset()
     return tmp_path

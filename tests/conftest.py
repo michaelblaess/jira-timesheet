@@ -33,6 +33,23 @@ def isolierte_ablage(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pyte
     Die Pfade sind Modul- bzw. Klassenkonstanten und muessen einzeln
     umgehaengt werden - ``HOME`` umzubiegen wirkt hier nicht, weil sie beim
     Import festgezurrt werden.
+
+    **Und eine Konstante umzuhaengen genuegt nicht ueberall.**
+    ``ManualEntryService`` ist eine Dataclass mit ``db_path: Path = DB_FILE``.
+    Dieser Default wird beim Import ausgewertet und in das erzeugte
+    ``__init__`` eingebacken - ein spaeterer ``monkeypatch`` auf ``DB_FILE``
+    ODER auf ``ManualEntryService.db_path`` bleibt danach wirkungslos:
+
+        >>> manual_entry_service.DB_FILE = Path("C:/tmp/x.db")
+        >>> ManualEntryService().db_path
+        WindowsPath('C:/Users/.../.jira-timesheet/manual-entries.db')
+
+    Beides stand hier trotzdem jahrelang und sah aus, als wuerde es wirken -
+    aufgefallen erst am 12.08.2026, als in einem automatisch aufgenommenen
+    Screenshot echte manuelle Buchungen standen. Die Anwendung gibt den Pfad
+    seither ausdruecklich mit (``app.py``, abgeleitet aus
+    ``Settings.SETTINGS_DIR``), und DARUEBER greift die Umleitung. Die
+    Zeile unten bleibt fuer Code, der die Konstante direkt liest.
     """
     import json
 
