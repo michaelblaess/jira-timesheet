@@ -17,7 +17,6 @@ from textual_widgets import DISCLAIMER_VERSION, DisclaimerScreen
 from jira_timesheet.app import JiraTimesheetApp
 from jira_timesheet.i18n import load_locale
 from jira_timesheet.models.settings import Settings
-from jira_timesheet.services.manual_entry_service import ManualEntryService
 
 
 @pytest.fixture(autouse=True)
@@ -31,7 +30,10 @@ def _isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     load_locale("de")
     monkeypatch.setattr(Settings, "SETTINGS_DIR", tmp_path)
     monkeypatch.setattr(Settings, "SETTINGS_FILE", tmp_path / "settings.json")
-    monkeypatch.setattr(ManualEntryService, "db_path", tmp_path / "manual-entries.db")
+    # NICHT ManualEntryService.db_path patchen - das ist wirkungslos, der
+    # Dataclass-Default steckt im erzeugten __init__ (siehe conftest.py).
+    # Die Anwendung leitet den Pfad aus Settings.SETTINGS_DIR ab, und das
+    # oben Gesetzte greift dadurch.
     return tmp_path
 
 
