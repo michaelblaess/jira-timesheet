@@ -135,9 +135,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # wirkungslos, die Anwendung oeffnet dann weiter die echte Datei unter
         # ~/.jira-timesheet. Ueber Settings.SETTINGS_DIR greift dagegen
         # dieselbe Umleitung wie fuer Einstellungen und Cache.
-        self._manual_entries = ManualEntryService(
-            db_path=Settings.SETTINGS_DIR / "manual-entries.db"
-        )
+        self._manual_entries = ManualEntryService(db_path=Settings.SETTINGS_DIR / "manual-entries.db")
         # Id des Eintrags, fuer den gerade die Loesch-Rueckfrage offen ist.
         self._pending_delete_id = 0
         # Zwischenspeicher zwischen Abruf und Speichern-Dialog der Ticket-Analyse.
@@ -312,6 +310,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.query_one("#log-splitter", HorizontalSplitter).add_class("-log-hidden")
 
         self._write_log(t("log.ready"))
+        self._log_theme()
 
         if not self._settings.jira_host or not self._settings.jira_token:
             self._write_log(t("log.hint_settings"))
@@ -402,6 +401,23 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             return
         self._settings.theme = theme_name
         self._settings.save()
+        self._log_theme()
+
+    def _log_theme(self) -> None:
+        """Schreibt das aktive Theme ins Log.
+
+        Textual zeigt nirgends an, welches Theme gerade laeuft - nach einem
+        Neustart weiss man also nicht, was man vor sich hat. Der technische
+        Name steht mit dabei, weil genau der in den Einstellungen und in der
+        Befehlspalette auftaucht.
+        """
+        with contextlib.suppress(Exception):
+            from textual_themes import THEME_DISPLAY_NAMES
+
+            name = self.theme or ""
+            anzeige = THEME_DISPLAY_NAMES.get(name, name)
+            beschriftung = f"{anzeige} ({name})" if anzeige != name else name
+            self._write_log(t("log.theme_active", name=beschriftung))
 
     def action_cycle_theme(self) -> None:
         """Wechselt zum naechsten registrierten Theme (alphabetisch sortiert)."""
@@ -1136,9 +1152,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 t("menu.ticket_report"),
                 # Anonymisierte Keys sind erfunden - ein Abruf ginge ins Leere.
                 enabled=(
-                    has_ticket
-                    and bool(self._settings.jira_host and self._settings.jira_token)
-                    and not self._anonymized
+                    has_ticket and bool(self._settings.jira_host and self._settings.jira_token) and not self._anonymized
                 ),
             ),
             ContextMenuItem.separator(),
@@ -1259,17 +1273,13 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     t("summary.manual"),
                     f"{format_number(panel.total_manual)}h",
                     value_style=(
-                        f"bold #{self._settings.manual_entry_color}"
-                        if self._settings.mark_manual_entries
-                        else "bold"
+                        f"bold #{self._settings.manual_entry_color}" if self._settings.mark_manual_entries else "bold"
                     ),
                 )
             )
         if self._settings.max_yearly_hours > 0:
             diff = panel.total_hours - self._settings.max_yearly_hours
-            items.append(
-                StatusItem(t("summary.target"), f"{format_number(self._settings.max_yearly_hours)}h")
-            )
+            items.append(StatusItem(t("summary.target"), f"{format_number(self._settings.max_yearly_hours)}h"))
             items.append(
                 StatusItem(
                     "",
@@ -1280,12 +1290,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if self._settings.hourly_rate > 0:
             netto = panel.total_hours * self._settings.hourly_rate
             brutto = netto * (1.0 + self._settings.vat_rate / 100.0)
-            items.append(
-                StatusItem(t("summary.net"), REDACTED_MONEY if self._anonymized else format_eur(netto))
-            )
-            items.append(
-                StatusItem(t("summary.gross"), REDACTED_MONEY if self._anonymized else format_eur(brutto))
-            )
+            items.append(StatusItem(t("summary.net"), REDACTED_MONEY if self._anonymized else format_eur(netto)))
+            items.append(StatusItem(t("summary.gross"), REDACTED_MONEY if self._anonymized else format_eur(brutto)))
         summary.show_items(items)
 
     @work(exclusive=True, group="year")
@@ -1437,11 +1443,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Auch eine geladene Ticket-Ansicht oder die Jahresansicht zaehlt: wer
         # nur sie geoeffnet hat, muss sie fuer einen Screenshot ebenso
         # zensieren koennen.
-        if (
-            self._timesheet is None
-            and not any(self._real_boards.values())
-            and self._year_loaded_for is None
-        ):
+        if self._timesheet is None and not any(self._real_boards.values()) and self._year_loaded_for is None:
             self.notify(t("notify.generate_first"), severity="warning")
             return
 
@@ -1541,9 +1543,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 return self._members().find(name)
         return None
 
-    def on_ticket_board_table_member_changed(
-        self, event: TicketBoardTable.MemberChanged
-    ) -> None:
+    def on_ticket_board_table_member_changed(self, event: TicketBoardTable.MemberChanged) -> None:
         """Eine andere Person wurde gewaehlt - die Ansicht wird neu geholt.
 
         Ein Personenwechsel ist kein Filter auf denselben Bestand, sondern
@@ -1603,9 +1603,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 self._settings,
                 config_from(self._settings),
                 mode,
-                on_worklog_check=lambda count: self._write_log(
-                    t("board.worklog_check", count=count)
-                ),
+                on_worklog_check=lambda count: self._write_log(t("board.worklog_check", count=count)),
                 on_log=self._write_log,
                 member=self._current_member() if mode == MODE_TEAM else None,
             )
@@ -1766,17 +1764,13 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if active is not None:
             self._ensure_board(active)
 
-    def on_ticket_board_table_ticket_selected(
-        self, event: TicketBoardTable.TicketSelected
-    ) -> None:
+    def on_ticket_board_table_ticket_selected(self, event: TicketBoardTable.TicketSelected) -> None:
         """Enter auf einem Ticket oeffnet es im Browser."""
         event.stop()
         if event.ticket is not None and event.ticket.url:
             webbrowser.open(event.ticket.url)
 
-    def on_ticket_board_table_ticket_right_clicked(
-        self, event: TicketBoardTable.TicketRightClicked
-    ) -> None:
+    def on_ticket_board_table_ticket_right_clicked(self, event: TicketBoardTable.TicketRightClicked) -> None:
         """Oeffnet das Kontextmenue einer Ticketzeile."""
         event.stop()
         if event.ticket is None:
