@@ -138,6 +138,7 @@
   "jira.worklog_progress": "[dim]Worklogs: {done}/{total} Vorgänge geprüft[/dim]",
   "jira.worklogs_found": "{count} Worklogs im Zeitraum gefunden",
   "log.aborted": "[yellow]Abruf abgebrochen - Zeitraum wurde gewechselt[/yellow]",
+  "log.theme_active": "Theme: {name}",
   "log.cache_cleared": "[yellow]Cache gelöscht ({count} Dateien)[/yellow]",
   "log.cache_empty": "[dim]Cache war bereits leer[/dim]",
   "log.details_error": "[red]Details-Fehler: {error}[/red]",

@@ -138,6 +138,7 @@
   "jira.worklog_progress": "[dim]Worklogs: {done}/{total} issues checked[/dim]",
   "jira.worklogs_found": "{count} worklogs found in range",
   "log.aborted": "[yellow]Fetch cancelled - period changed[/yellow]",
+  "log.theme_active": "Theme: {name}",
   "log.cache_cleared": "[yellow]Cache cleared ({count} files)[/yellow]",
   "log.cache_empty": "[dim]Cache was already empty[/dim]",
   "log.details_error": "[red]Details error: {error}[/red]",
