@@ -139,6 +139,7 @@
   "jira.worklogs_found": "{count} worklogs found in range",
   "log.aborted": "[yellow]Fetch cancelled - period changed[/yellow]",
   "log.theme_active": "Theme: {name}",
+  "log.theme_unknown": "Theme \"{name}\" is unknown - using the default",
   "log.cache_cleared": "[yellow]Cache cleared ({count} files)[/yellow]",
   "log.cache_empty": "[dim]Cache was already empty[/dim]",
   "log.details_error": "[red]Details error: {error}[/red]",
