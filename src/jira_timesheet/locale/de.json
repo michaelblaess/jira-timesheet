@@ -387,7 +387,7 @@
   "tooltip.manual_entry": "Erfasst eine Zeit, die nicht in Jira gebucht ist, oder bearbeitet den markierten manuellen Eintrag",
   "tooltip.pdf": "Exportiert den aktuell angezeigten Stundenzettel als PDF im Querformat.",
   "tooltip.quit": "Schließt die Anwendung. Ungespeicherte Worklog-Daten gehen nicht verloren — sie werden bei Bedarf erneut aus Jira geladen.",
-  "tooltip.refresh": "Holt den Stundenzettel bzw. die gerade sichtbare Ticket-Ansicht frisch aus Jira - am Cache vorbei, damit nachgetragene Stunden erscheinen",
+  "tooltip.refresh": "Holt die sichtbare Ansicht und immer auch den Stundenzettel frisch aus Jira - am Cache vorbei, damit nachgetragene Stunden erscheinen. Die übrigen Ansichten laden beim nächsten Hinwechseln nach",
   "tooltip.reset_cache": "Löscht den lokalen Worklog-Cache (~/.jira-timesheet/cache). Der nächste Abruf zieht alle Monate frisch aus Jira.",
   "tooltip.settings": "Öffnet die Einstellungen: Jira-Host/Token, E-Mail, Bundesland, Soll-Stunden, Stundensatz, Logo, Sprache.",
   "tooltip.switch_view": "Wechselt zwischen Listenansicht und Kalenderansicht des aktuellen Stundenzettels.",

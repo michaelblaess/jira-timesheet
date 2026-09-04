@@ -387,7 +387,7 @@
   "tooltip.manual_entry": "Record time that is not booked in Jira, or edit the selected manual entry",
   "tooltip.pdf": "Exports the current timesheet as a PDF in landscape orientation.",
   "tooltip.quit": "Closes the application. Unsaved worklog data is not lost — it will be reloaded from Jira on demand.",
-  "tooltip.refresh": "Fetches the timesheet or the visible ticket view fresh from Jira - bypassing the cache so that hours entered later show up",
+  "tooltip.refresh": "Fetches the visible view and always the timesheet as well, fresh from Jira - bypassing the cache so that hours entered later show up. The remaining views reload when you switch to them",
   "tooltip.reset_cache": "Clears the local worklog cache (~/.jira-timesheet/cache). The next fetch will pull all months fresh from Jira.",
   "tooltip.settings": "Opens settings: Jira host/token, email, federal state, target hours, hourly rate, logo, language.",
   "tooltip.switch_view": "Switches between list view and calendar view of the current timesheet.",

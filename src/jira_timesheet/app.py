@@ -88,6 +88,10 @@ _BOARD_TABS: dict[str, str] = {
     "tab-team": MODE_TEAM,
 }
 
+# Reiter, die die Monatsdaten zeigen. Laeuft ein Abruf, waehrend einer von
+# ihnen im Vordergrund steht, darf er die Anzeige anfassen - sonst nicht.
+_TIMESHEET_TABS: frozenset[str] = frozenset({"tab-list", "tab-calendar"})
+
 
 class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
     """TUI fuer Jira Stundenzettel."""
@@ -447,34 +451,64 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self.notify(t("notify.theme", name=display))
 
     def action_refresh(self) -> None:
-        """F5: aktualisiert, was gerade zu sehen ist.
+        """F5: aktualisiert die sichtbare Ansicht UND immer den Stundenzettel.
 
-        In den Ticket-Reitern die jeweilige Ansicht, in der Jahresansicht alle
-        zwoelf Monate, sonst den Stundenzettel.
-        Beides erzwingt einen frischen Abruf: der Cache wird ueberschrieben,
+        Der Stundenzettel ist der Zweck der Anwendung - er darf nie alt sein,
+        nur weil gerade eine Ticketliste im Vordergrund stand. Frueher lud F5
+        ausschliesslich die aktive Ansicht: wer in "Meine Tickets" aktualisiert
+        hatte und danach auf den Stundenzettel wechselte, musste dort ein
+        zweites Mal F5 druecken.
+
+        Die uebrigen Ansichten werden nur als veraltet vermerkt und laden beim
+        naechsten Hinwechseln von selbst nach. Sie sofort mitzuziehen waere
+        teuer und meist umsonst - ein Abruf kostet Minuten, und "Mein Team"
+        fragt dabei eine fremde Person ab.
+
+        Die Jahresansicht bleibt aussen vor, solange sie nicht selbst im
+        Vordergrund steht: zwoelf Monatsabrufe sind der teuerste Vorgang
+        ueberhaupt. Auch sie laedt beim naechsten Hinwechseln neu.
+
+        Jeder Abruf erzwingt frische Daten: der Cache wird ueberschrieben,
         damit nachtraeglich in Jira eingetragene Stunden sofort erscheinen -
         auch fuer einen bereits abgeschlossenen Monat. Genau dafuer gab es
         frueher die g-Taste.
         """
-        if self._active_tab() == "tab-year":
+        aktiv = self._active_tab()
+        mode = self._board_mode()
+
+        # Alles, was jetzt nicht abgerufen wird, gilt als veraltet.
+        for anderer in _BOARD_TABS.values():
+            if anderer != mode:
+                self._board_loaded[anderer] = False
+        if aktiv != "tab-year":
+            self._invalidate_year()
+
+        if aktiv == "tab-year":
             if not self._settings_complete():
                 self._year_panel().show_message(t("board.needs_settings"))
-                return
-            self._load_year(force_refresh=True)
-            return
-        mode = self._board_mode()
-        if mode is not None:
+            else:
+                self._load_year(force_refresh=True)
+        elif mode is not None:
             self._reload_board(mode)
-            return
-        self._generate(force_refresh=True)
+
+        # Der Stundenzettel immer. Steht er nicht im Vordergrund, laeuft der
+        # Abruf im Hintergrund und laesst die sichtbare Anzeige in Ruhe.
+        self._generate(force_refresh=True, background=aktiv not in _TIMESHEET_TABS)
 
     @work(exclusive=True)
-    async def _generate(self, force_refresh: bool = False) -> None:
+    async def _generate(self, force_refresh: bool = False, background: bool = False) -> None:
         """Generiert den Stundenzettel aus Jira.
 
         force_refresh=True umgeht den Cache und ruft immer frisch ab. Bei der
         Monats-Navigation (Pfeile) ist es False - dort darf der Cache fuer
         schnelles Blaettern genutzt werden.
+
+        background=True heisst: der Stundenzettel steht gerade NICHT im
+        Vordergrund (F5 auf einem Ticket-Reiter). Dann bleiben zwei Dinge
+        unangetastet, die dem Anwender sonst unter den Haenden wegzucken
+        wuerden - die Kennzahlen-Leiste, die dort die Zahlen der sichtbaren
+        Ansicht traegt, und die Anonymisierung, die er fuer genau diese
+        Ansicht eingeschaltet hat.
 
         KEIN Guard auf self._generating: exclusive=True bricht den laufenden
         Worker bereits ab, der Abbruch wirkt aber erst verzoegert (asyncio
@@ -505,9 +539,16 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Frisch generierte (echte) Daten -> Anonymisierung zuruecksetzen, bevor
         # die erste Log-Zeile geschrieben wird. Tabelle, Kalender, Summary und
         # Log zeigen dann konsistent echte Werte; 'a' zensiert alles gemeinsam.
-        self._anonymized = False
+        #
+        # NICHT im Hintergrund: dort hat der Anwender die Zensur fuer die
+        # sichtbare Ticketliste eingeschaltet. Sie hinter seinem Ruecken
+        # abzuschalten waere ein Leck - die Ansicht bliebe zensiert gezeichnet,
+        # das Flag stuende auf "echt", und der naechste Screenshot zeigte die
+        # echten Werte, sobald irgendetwas neu zeichnet.
         config = self.query_one("#config-panel", ConfigPanel)
-        config.set_anonymized(False)
+        if not background:
+            self._anonymized = False
+            config.set_anonymized(False)
         table = self.query_one("#timesheet-table", TimesheetTable)
         summary = self.query_one("#summary-panel", SummaryPanel)
 
@@ -515,7 +556,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         table.clear_table()
         cal.clear_calendar()
-        summary.clear()
+        if not background:
+            # Im Hintergrund zeigt die Leiste die Zahlen der sichtbaren
+            # Ansicht - sie zu leeren saehe dort wie ein Datenverlust aus.
+            summary.clear()
 
         start_time = time.monotonic()
         self._write_log("")
@@ -584,14 +628,28 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
             self._missing_days = missing_days
 
-            table.load_timesheet(self._timesheet, missing_days=missing_days)
-            cal.load_timesheet(self._timesheet, missing_days=missing_days)
+            # Ist die Zensur an (nur im Hintergrundlauf moeglich, siehe oben),
+            # gehen die zensierten Daten in die Anzeige - die echten bleiben
+            # in self._timesheet, wie beim Umschalten mit "a".
+            anzeige = self._timesheet
+            if self._anonymized:
+                from jira_timesheet.services.anonymizer import anonymize_timesheet
+
+                anzeige = anonymize_timesheet(self._timesheet)
+            table.load_timesheet(anzeige, missing_days=missing_days)
+            cal.load_timesheet(anzeige, missing_days=missing_days)
             summary.update_timesheet(
                 self._timesheet,
                 target_hours=target_hours,
                 hourly_rate=self._settings.hourly_rate,
                 vat_rate=self._settings.vat_rate,
             )
+            if background:
+                # update_timesheet hinterlegt die Zahlen UND zeigt sie an.
+                # Hinterlegen ist gewollt (der Wechsel auf den Stundenzettel
+                # soll sie finden), Anzeigen nicht - die Leiste gehoert der
+                # Ansicht, die gerade zu sehen ist.
+                self._restore_summary()
 
             holidays_in_range = holiday_svc.get_holidays_in_range(config.date_from, config.date_to)
             if holidays_in_range:
@@ -1687,6 +1745,23 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._stats_loaded = False
             return
         panel.set_statistics(stats)
+
+    def _restore_summary(self) -> None:
+        """Stellt die Kennzahlen-Leiste der gerade sichtbaren Ansicht wieder her.
+
+        Gebraucht, wenn ein Abruf im Hintergrund gelaufen ist und dabei die
+        Zahlen seiner eigenen Ansicht hinterlegt hat - angezeigt gehoert
+        weiterhin, was vorne steht.
+        """
+        with contextlib.suppress(Exception):
+            if self._active_tab() == "tab-year":
+                self._show_year_summary()
+                return
+            mode = self._board_mode()
+            if mode is not None:
+                self._show_board_summary(mode)
+                return
+            self.query_one("#summary-panel", SummaryPanel).refresh_timesheet()
 
     def _show_board_summary(self, mode: str) -> None:
         """Traegt die Kennzahlen einer Ansicht in die Zusammenfassung ein."""
