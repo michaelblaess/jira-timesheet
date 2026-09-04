@@ -19,6 +19,7 @@
   "binding.theme": "Theme",
   "binding.ticket_report": "Analysis",
   "binding.toggle_log": "Toggle log",
+  "board.col.assignee": "Assignee",
   "board.col.idle": "Idle (WD)",
   "board.col.markers": "Flags",
   "board.col.priority": "Priority",

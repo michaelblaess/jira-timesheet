@@ -40,7 +40,12 @@ from jira_timesheet.services.ticket_board_loader import (
     config_from,
     jqls_for,
 )
-from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
+from jira_timesheet.widgets.ticket_board_table import _COLUMNS, TicketBoardTable
+
+# Spalte, nach der die Sortiertests klicken. Ueber den Schluessel, nicht
+# als Zahl: eine eingeschobene Spalte verschiebt sonst den Index, und der
+# Test klickt danach woanders hin, ohne dass jemand es merkt.
+_SUMMARY_COL = [key for key, _ in _COLUMNS].index("summary")
 from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel
 
 TZ = dt.timezone(dt.timedelta(hours=2))
@@ -267,6 +272,25 @@ class TestTabellenaufbau:
         assert any(f"{t('board.group.backlog')} (1)" in title for title in titles)
         # Fuenf Tickets, vier Gruppenzeilen und drei Leerzeilen dazwischen.
         assert len(rows) == 12
+
+    async def test_die_bearbeiter_spalte_zeigt_den_zustaendigen(self) -> None:
+        """In "Meine Aktivitaeten" liegen eigene und fremde Tickets nebeneinander -
+        ohne diese Spalte ist der Gruppe "Andere sind dran" nicht anzusehen, WER
+        dran ist."""
+        spalte = [key for key, _ in _COLUMNS].index("assignee")
+        app = _BoardApp()
+        async with app.run_test() as pilot:
+            widget = app.query_one(TicketBoardTable)
+            widget.set_board(_board())
+            await pilot.pause()
+            table = app.query_one(DataTable)
+            kopf = [str(table.columns[key].label) for key in widget._col_keys]
+            rows = _rows(table)
+
+        assert t("board.col.assignee") in kopf
+        tickets = [row for row in rows if row[0].strip().startswith("PROJ-")]
+        assert tickets, "keine Ticketzeile - der Test sagt sonst nichts"
+        assert all(row[spalte] == "Ich Selbst" for row in tickets)
 
     async def test_gruppen_sind_durch_eine_leerzeile_getrennt(self) -> None:
         """Im Terminal gibt es keine Linien - der Abstand macht die Gliederung."""
@@ -1019,8 +1043,8 @@ class TestBedienungDerGruppen:
             table = app.query_one(DataTable)
             vorher = [row[0] for row in _rows(table) if not row[0].startswith("  ")]
 
-            spalte = table.columns[widget._col_keys[6]]
-            table.post_message(DataTable.HeaderSelected(table, spalte.key, 6, spalte.label))
+            spalte = table.columns[widget._col_keys[_SUMMARY_COL]]
+            table.post_message(DataTable.HeaderSelected(table, spalte.key, _SUMMARY_COL, spalte.label))
             await pilot.pause()
             rows = _rows(table)
 
@@ -1049,10 +1073,10 @@ class TestBedienungDerGruppen:
             widget.set_board(_board())
             await pilot.pause()
             table = app.query_one(DataTable)
-            spalte = table.columns[widget._col_keys[6]]
+            spalte = table.columns[widget._col_keys[_SUMMARY_COL]]
             for _ in range(3):
                 table.post_message(
-                    DataTable.HeaderSelected(table, spalte.key, 6, spalte.label)
+                    DataTable.HeaderSelected(table, spalte.key, _SUMMARY_COL, spalte.label)
                 )
                 await pilot.pause()
 
