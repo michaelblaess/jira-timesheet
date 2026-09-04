@@ -37,6 +37,7 @@ _COLUMNS: tuple[tuple[str, str], ...] = (
     ("type", "board.col.type"),
     ("idle", "board.col.idle"),
     ("markers", "board.col.markers"),
+    ("assignee", "board.col.assignee"),
     ("summary", "board.col.summary"),
 )
 
@@ -106,6 +107,7 @@ _SORT_KEYS: dict[str, Any] = {
     "priority": lambda ticket: ticket.priority_rank,
     "type": lambda ticket: ticket.issue_type.casefold(),
     "idle": lambda ticket: ticket.idle_workdays,
+    "assignee": lambda ticket: ticket.assignee.casefold(),
     "summary": lambda ticket: ticket.summary.casefold(),
 }
 
@@ -552,6 +554,7 @@ class TicketBoardTable(Vertical):
             Text(ticket.issue_type, style=style),
             Text(format_number(ticket.idle_workdays, decimals=0), style=style, justify="right"),
             self._marker_text(ticket),
+            Text(ticket.assignee, no_wrap=True, overflow="ellipsis", end="", style=style),
             Text(ticket.summary, no_wrap=True, overflow="ellipsis", end="", style=style),
         ]
 

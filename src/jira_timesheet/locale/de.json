@@ -19,6 +19,7 @@
   "binding.theme": "Theme",
   "binding.ticket_report": "Analyse",
   "binding.toggle_log": "Log anzeigen",
+  "board.col.assignee": "Bearbeiter",
   "board.col.idle": "Liegezeit (AT)",
   "board.col.markers": "Merkmale",
   "board.col.priority": "Priorität",
