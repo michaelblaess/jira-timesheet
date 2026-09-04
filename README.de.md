@@ -391,7 +391,7 @@ ein liegendes Ticket in Arbeit nicht. `0` schaltet die Prüfung für eine Gruppe
 ab. Die Vorgabewerte sind Setzungen aus der Praxis, keine Messungen: wenn deine
 Tickets üblicherweise länger liegen, dreh sie hoch, statt die Marker zu ignorieren.
 
-Beide Ansichten laden beim ersten Ansehen und danach nur noch auf `F5` - ein
+Beide Ansichten laden beim ersten Ansehen und danach auf `F5` - ein
 Abruf über alle Tickets kostet je nach Instanz eine Minute. Die **Auswertung**
 unter der Tabelle ist zugeklappt und holt ihre Zahlen erst beim Aufklappen: sie
 braucht eine eigene Abfrage über die gesamte Historie. Sie zeigt Zulauf gegen
@@ -410,7 +410,7 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 | M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
-| F5 | Aktualisiert, was gerade zu sehen ist - Stundenzettel, Jahresansicht oder Ticket-Ansicht, immer frisch aus Jira |
+| F5 | Aktualisiert die sichtbare Ansicht und **immer auch den Stundenzettel**, frisch aus Jira. Die übrigen Ansichten laden beim nächsten Hinwechseln nach |
 | / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
 | A | Daten anonymisieren |

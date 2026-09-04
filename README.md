@@ -383,7 +383,7 @@ ticket in progress sitting still is not. `0` disables the check for a group. The
 defaults are settings taken from practice, not measurements: if your tickets
 usually rest longer, raise them instead of ignoring the flags.
 
-Both views load when first opened and after that only on `F5` - a query across
+Both views load when first opened and after that on `F5` - a query across
 all tickets takes about a minute depending on the instance. The **Analysis**
 below the table starts collapsed and only fetches its numbers when opened: it
 needs a query of its own across the entire history. It shows inflow versus
@@ -402,7 +402,7 @@ Qt edition - the terminal is not wide enough for a third chart.
 | M | Record manual time, or edit the selected entry |
 | DEL | Delete the selected manual entry (with confirmation) |
 | TAB | Switch tab (timesheet / calendar / year view / my tickets / my activity / my team) |
-| F5 | Refreshes whatever is on screen - timesheet, year view or ticket view, always fresh from Jira |
+| F5 | Refreshes the visible view and **always the timesheet as well**, fresh from Jira. The remaining views reload when you switch to them |
 | / | Focus the search field of the current tab |
 | R | Reset cache |
 | A | Anonymize data |
