@@ -21,6 +21,7 @@ import httpx
 from jira_timesheet.i18n import t
 from jira_timesheet.models.ticket_lifecycle import TicketLifecycleData
 from jira_timesheet.models.timesheet import WorklogEntry
+from jira_timesheet.services.ssl_support import TlsSettings, build_verify, is_ssl_error
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class JiraClient:
         budget_field: str = "",
         legacy: bool = False,
         proxy: str = "",
+        tls: TlsSettings | None = None,
         on_log: Callable[[str], None] | None = None,
     ) -> None:
         """Initialisiert den Client.
@@ -63,6 +65,9 @@ class JiraClient:
                 Optionale Proxy-URL (z.B. Firmen-Proxy,
                 "http://host:port"). Leer = kein expliziter Proxy; httpx
                 liest dann weiterhin HTTP(S)_PROXY aus der Umgebung.
+            tls:
+                Einstellungen fuer die Zertifikatspruefung. Ohne Angabe wird
+                geprueft - bis v1.21.0 war die Pruefung hier fest abgeschaltet.
             on_log:
                 Optionaler Callback fuer Log-Ausgaben.
         """
@@ -72,6 +77,12 @@ class JiraClient:
         self._budget_field = budget_field
         self._legacy = legacy
         self._proxy = proxy.strip()
+        # Einmal bauen statt bei jedem der acht Aufrufe: ein SSLContext liest
+        # dabei Zertifikatsdateien von der Platte.
+        try:
+            self._verify = build_verify(tls or TlsSettings())
+        except FileNotFoundError as exc:
+            raise JiraClientError(t("jira.tls_file_missing", path=exc.args[0])) from exc
         self._log = on_log or (lambda _: None)
         # Cloud-Modus: accountId des angemeldeten Benutzers (fuer Matching).
         self._account_id = ""
@@ -83,6 +94,12 @@ class JiraClient:
     ) -> list[WorklogEntry]:
         """Holt alle Worklogs des Benutzers in einem Zeitraum.
 
+        Duenne Huelle um `_get_worklogs`, die Verbindungsfehler in eine
+        lesbare Meldung uebersetzt. Vor allem den TLS-Fall: Seit die
+        Zertifikatspruefung eingeschaltet ist, scheitert eine Verbindung hinter
+        einem Firmenproxy mit einer httpx-Meldung, aus der niemand ableitet,
+        dass ein Wurzelzertifikat fehlt.
+
         Args:
             date_from:
                 Erster Tag des Zeitraums (inklusive).
@@ -91,10 +108,40 @@ class JiraClient:
 
         Returns:
             Liste der Worklog-Eintraege, sortiert nach Datum und Ticket.
+
+        Raises:
+            JiraClientError:
+                Bei jedem Verbindungsfehler, mit einem Hinweis auf die
+                TLS-Einstellungen, wenn die Ursache dort liegt.
         """
+        try:
+            return await self._get_worklogs(date_from, date_to)
+        except httpx.HTTPError as exc:
+            raise self._as_client_error(exc) from exc
+
+    def _as_client_error(self, exc: Exception) -> JiraClientError:
+        """Uebersetzt einen Verbindungsfehler in eine Meldung fuer den Anwender.
+
+        Args:
+            exc:
+                Der aufgetretene Fehler.
+
+        Returns:
+            Ein `JiraClientError`. Bei einer gescheiterten Zertifikatspruefung
+            mit dem Hinweis auf die Einstellungen, sonst mit dem Originaltext.
+        """
+        if is_ssl_error(exc):
+            return JiraClientError(t("jira.tls_failed", error=exc))
+        return JiraClientError(str(exc))
+
+    async def _get_worklogs(
+        self,
+        date_from: date,
+        date_to: date,
+    ) -> list[WorklogEntry]:
+        """Der eigentliche Abruf. Siehe `get_worklogs`."""
         fields = (
-            "worklog,summary,status,issuetype,components,labels,priority,"
-            "resolution,assignee,created,updated,timespent"
+            "worklog,summary,status,issuetype,components,labels,priority,resolution,assignee,created,updated,timespent"
         )
         # Das Budget-Feld nur anfordern, wenn eine Custom-Field-ID gesetzt ist -
         # ein leerer Wert wuerde die Feldliste mit einem Komma abschliessen.
@@ -108,7 +155,7 @@ class JiraClient:
         else:
             # Cloud: native JQL ueber den angemeldeten Benutzer.
             jql = (
-                f'worklogAuthor = currentUser() '
+                f"worklogAuthor = currentUser() "
                 f'AND worklogDate >= "{date_from:%Y-%m-%d}" '
                 f'AND worklogDate <= "{date_to:%Y-%m-%d}"'
             )
@@ -122,7 +169,7 @@ class JiraClient:
         auth = None if self._legacy else (self._email, self._token)
 
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             # Getrenntes, knappes connect-Timeout: haengt der Verbindungsaufbau
             # (Proxy, VPN), soll das nach 15s auffliegen statt erst nach 60.
             timeout=httpx.Timeout(60.0, connect=15.0),
@@ -149,9 +196,7 @@ class JiraClient:
                 # gefunden" still - ein langsamer Abruf ist dann von einem
                 # haengenden nicht zu unterscheiden.
                 if index % _PROGRESS_EVERY == 0 and index != total_issues:
-                    self._log(
-                        t("jira.worklog_progress", done=index, total=total_issues)
-                    )
+                    self._log(t("jira.worklog_progress", done=index, total=total_issues))
 
         self._log(t("jira.worklogs_found", count=len(entries)))
         entries.sort(key=lambda e: (e.date, e.ticket))
@@ -175,7 +220,7 @@ class JiraClient:
         base = f"{self._host}/rest/api/{version}/issue/{key}"
 
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=60.0,
             follow_redirects=True,
             auth=None if self._legacy else (self._email, self._token),
@@ -205,9 +250,7 @@ class JiraClient:
             self._check_response(response, url)
             comments: list[dict[str, Any]] = response.json().get("comments", [])
 
-        self._log(
-            f"{key}: {len(changelog)} Änderungen, {len(comments)} Kommentare gelesen"
-        )
+        self._log(f"{key}: {len(changelog)} Änderungen, {len(comments)} Kommentare gelesen")
         return TicketLifecycleData(issue=issue, changelog=changelog, comments=comments)
 
     async def get_ticket_summaries(self, keys: list[str]) -> dict[str, str]:
@@ -238,7 +281,7 @@ class JiraClient:
         titles: dict[str, str] = {}
         try:
             async with httpx.AsyncClient(
-                verify=False,
+                verify=self._verify,
                 timeout=30.0,
                 follow_redirects=True,
                 auth=None if self._legacy else (self._email, self._token),
@@ -273,7 +316,7 @@ class JiraClient:
         matches: list[tuple[str, str]] = []
 
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=30.0,
             follow_redirects=True,
             auth=(self._email, self._token),
@@ -328,7 +371,7 @@ class JiraClient:
         account_id = ""
 
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=60.0,
             follow_redirects=True,
             auth=auth,
@@ -370,7 +413,7 @@ class JiraClient:
         result: dict[str, tuple[int, str]] = {}
 
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=60.0,
             follow_redirects=True,
             auth=auth,
@@ -379,9 +422,7 @@ class JiraClient:
             for key in keys:
                 url = f"{self._host}/rest/api/{api}/issue/{key}/worklog"
                 try:
-                    response = await client.get(
-                        url, headers=self._headers(), params={"maxResults": 1000}
-                    )
+                    response = await client.get(url, headers=self._headers(), params={"maxResults": 1000})
                 except httpx.HTTPError as exc:
                     logger.warning("Worklogs von %s nicht abrufbar: %s", key, exc)
                     continue
@@ -416,7 +457,7 @@ class JiraClient:
 
         url = f"{self._host}/rest/api/3/user/search"
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=60.0,
             follow_redirects=True,
             auth=(self._email, self._token),
@@ -467,7 +508,7 @@ class JiraClient:
 
         result: dict[str, tuple[int, list[dict[str, Any]]]] = {}
         async with httpx.AsyncClient(
-            verify=False,
+            verify=self._verify,
             timeout=60.0,
             follow_redirects=True,
             auth=(self._email, self._token),
@@ -476,9 +517,7 @@ class JiraClient:
             for account_id in account_ids:
                 try:
                     offen = await self._search_issues(client, open_jql(account_id), "key")
-                    juengst = await self._search_issues_page(
-                        client, last_jql(account_id), "updated", limit=1
-                    )
+                    juengst = await self._search_issues_page(client, last_jql(account_id), "updated", limit=1)
                 except (httpx.HTTPError, JiraClientError) as exc:
                     logger.warning("Konto %s nicht abrufbar: %s", account_id, exc)
                     continue

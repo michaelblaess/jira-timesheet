@@ -227,6 +227,30 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 )
 
         with TabPane(t("settings.tab_network"), id="settings-tab-network"), VerticalScroll():
+            yield Static(t("settings.tls_section"), classes="hint")
+            pruefen = Checkbox(
+                t("settings.verify_ssl"),
+                value=bool(self._settings.get("verify_ssl", True)),
+                id="set-verify-ssl",
+            )
+            pruefen.tooltip = t("settings.verify_ssl_tip")
+            yield pruefen
+            yield from self._text_row(
+                "settings.ca_bundle",
+                "set-ca-bundle",
+                "ca_bundle",
+                "",
+                tooltip_key="settings.ca_bundle_tip",
+            )
+            yield from self._text_row("settings.client_cert", "set-client-cert", "client_cert", "")
+            yield from self._text_row("settings.client_key", "set-client-key", "client_key", "")
+            yield from self._text_row(
+                "settings.client_key_password",
+                "set-client-key-password",
+                "client_key_password",
+                "",
+                password=True,
+            )
             yield from self._text_row(
                 "settings.proxy_url",
                 "set-proxy-url",
@@ -430,7 +454,14 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
             return
 
         self.notify(t("settings.budget_detect_running"))
-        client = JiraClient(host=host, email=email, token=token, legacy=False, proxy=proxy)
+        client = JiraClient(
+            host=host,
+            email=email,
+            token=token,
+            legacy=False,
+            proxy=proxy,
+            tls=getattr(self.app, "tls_settings", None),
+        )
 
         try:
             matches = await client.detect_budget_field("budget")
@@ -582,6 +613,12 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         if isinstance(style_value, str):
             settings["keymap_style"] = style_value
         settings["keymap_vim"] = self.query_one("#set-keymap-vim", Checkbox).value
+
+        settings["verify_ssl"] = self.query_one("#set-verify-ssl", Checkbox).value
+        settings["ca_bundle"] = self.query_one("#set-ca-bundle", Input).value.strip()
+        settings["client_cert"] = self.query_one("#set-client-cert", Input).value.strip()
+        settings["client_key"] = self.query_one("#set-client-key", Input).value.strip()
+        settings["client_key_password"] = self.query_one("#set-client-key-password", Input).value
 
         with contextlib.suppress(ValueError):
             settings["hours_per_day"] = float(self.query_one("#set-hours-per-day", Input).value.strip())

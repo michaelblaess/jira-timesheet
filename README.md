@@ -479,6 +479,9 @@ Settings are stored in `~/.jira-timesheet/settings.json`:
 | Email | Atlassian login (Cloud) or Jira username (Data Center) | — |
 | Jira mode (legacy API) | Off = Jira Cloud (v3), on = Data Center (v2) | off |
 | Budget custom field | Custom field ID; Cloud supports **Auto-detect** | (leer) |
+| Verify server certificate | Off means encrypted but unverified. Only turn off if no CA bundle can be obtained | on |
+| CA bundle (PEM) | Root certificate of the corporate proxy. Empty = system store or `SSL_CERT_FILE` | (empty) |
+| Client certificate / key | If the server asks for a client certificate | (empty) |
 | Federal state | For public holiday calculation | SN |
 | Target hours/day | Working hours per day | 8.0 |
 | Max. yearly hours | Upper limit for progress bar | 1720 |
