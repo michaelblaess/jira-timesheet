@@ -29,17 +29,19 @@ from textual_widgets import (
     DisclaimerScreen,
     DisclaimerStore,
     HorizontalSplitter,
+    KeymapProblem,
     LogPanel,
     LogRouter,
     StatusItem,
 )
 
-from jira_timesheet import __author__, __version__, __year__
+from jira_timesheet import __author__, __version__, __year__, keymap
 from jira_timesheet.i18n import REDACTED_MONEY, current_language, format_eur, format_number, t
 from jira_timesheet.models.export_column import parse_columns
 from jira_timesheet.models.settings import Settings, normalize_color
 from jira_timesheet.models.ticket_lifecycle import TicketLifecycleData
 from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
+from jira_timesheet.screens.keymap_screen import KeymapScreen
 from jira_timesheet.screens.manual_entry_screen import ManualEntryResult
 from jira_timesheet.services.anonymizer import FAKE_EMAIL, FAKE_HOST
 from jira_timesheet.services.cache_service import CacheService
@@ -170,38 +172,43 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Ticket der Zeile, auf der das Kontextmenue der Ansicht steht.
         self._menu_ticket: BoardTicket | None = None
 
-        # Runtime-Bindings mit uebersetzten Labels - class-level BINDINGS
-        # koennen kein t() nutzen. Buchstaben-Bindings case-insensitive.
-        self._bindings.bind("q,Q", "quit", t("binding.quit"), key_display="q")
-        self._bindings.bind("e,E", "export_excel", t("binding.excel"), key_display="e")
-        self._bindings.bind("p,P", "export_pdf", t("binding.pdf"), key_display="p")
-        self._bindings.bind("d,D", "show_details", t("binding.details"), key_display="d")
-        # copy_log: Shortcut bleibt, aber nicht im Footer (Log-Kontextmenue
-        # bietet "Log kopieren" ohnehin an).
-        self._bindings.bind("c,C", "copy_log", t("binding.copy_log"), key_display="c", show=False)
-        self._bindings.bind("s,S", "show_settings", t("binding.settings"), key_display="s")
-        self._bindings.bind("i,I", "show_about", t("binding.info"), key_display="i")
-        self._bindings.bind("tab", "next_tab", t("binding.switch_view"), key_display="TAB", priority=True)
-        # Filter-Suchfeld der Liste fokussieren - im Footer ausgeblendet
-        # (Konvention: / fokussiert den Filter, die Lupe macht ihn sichtbar).
-        self._bindings.bind("slash", "focus_filter", t("binding.filter"), key_display="/", show=False)
-        self._bindings.bind("b,B", "ticket_report", t("binding.ticket_report"), key_display="b")
-        # EINE Taste fuer alle Reiter. Vorher lud "g" den Stundenzettel und F5
-        # die Ticket-Ansichten - zwei Tasten fuer dieselbe Absicht, und welche
-        # gerade wirkte, musste man wissen. F5 ist in Oberflaechen die
-        # gelaeufige Taste dafuer.
-        self._bindings.bind("f5", "refresh", t("binding.refresh"), key_display="F5")
-        self._bindings.bind("a,A", "toggle_anon", t("binding.anonymize"), key_display="a")
-        self._bindings.bind("r,R", "reset_cache", t("binding.reset_cache"), key_display="r")
-        self._bindings.bind("l,L", "toggle_log", t("binding.toggle_log"), key_display="l")
-        self._bindings.bind("t,T", "cycle_theme", t("binding.theme"), key_display="t")
-        self._bindings.bind("m,M", "manual_entry", t("binding.manual_entry"), key_display="m")
-        # Loeschen bewusst auf DEL statt auf einen Buchstaben - destruktiv.
-        self._bindings.bind("delete", "delete_manual", t("binding.delete_manual"), key_display="DEL")
-        # Monat-Navigation ist als Klick-Pfeile im ConfigPanel sichtbar -
-        # Tastatur-Shortcut bleibt funktional, im Footer aber ausgeblendet.
-        self._bindings.bind("comma", "prev_month", t("binding.month"), key_display="<", show=False)
-        self._bindings.bind("full_stop", "next_month", t("binding.month"), key_display=">", show=False)
+        # Beanstandungen aus der Tastenbelegung. Sie gehoeren ins Log, nicht in
+        # einen Dialog - sie betreffen die Einstellungsdatei, nicht den Vorgang.
+        # Beim Binden gibt es das LogPanel noch nicht, deshalb erst in on_mount.
+        self._keymap_problems: tuple[KeymapProblem, ...] = ()
+        self._apply_keymap()
+
+    @property
+    def vim_navigation(self) -> bool:
+        """Ob die Vim-Navigation in Tabellen und Scroll-Bereichen aktiv ist.
+
+        Die Tabellen fragen das beim Einhaengen ab, statt einen globalen
+        Schalter zu lesen - so bleibt der Zustand an den Einstellungen und
+        nicht an einem Modul.
+        """
+        return bool(self._settings.keymap_vim)
+
+    def _apply_keymap(self) -> None:
+        """Bindet die Tasten der aktiven Belegung.
+
+        Class-level ``BINDINGS`` scheiden aus zwei Gruenden aus: Sie koennen
+        kein ``t()`` nutzen, und der Stil steht erst fest, wenn die
+        Einstellungen geladen sind. Welche Taste welche Aktion ausloest, steht
+        in `jira_timesheet.keymap`, die Mechanik dahinter in
+        `textual_widgets.keymap`.
+        """
+        resolved = keymap.resolve(self._settings)
+        self._keymap_problems = resolved.problems
+
+        for action, binding in resolved.bindings.items():
+            self._bindings.bind(
+                ",".join(binding.keys),
+                action,
+                t(keymap.LABEL_KEYS.get(action, action)),
+                key_display=keymap.key_display(binding.keys[0]),
+                show=binding.show,
+                priority=binding.priority,
+            )
 
         # Footer-Tooltips - BindingsMap.bind() nimmt kein tooltip-Argument,
         # also nachtraeglich per dataclasses.replace setzen.
@@ -214,23 +221,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         nachtraeglich ueber ``key_to_bindings`` iteriert und die Felder via
         ``dataclasses.replace`` ersetzt (``Binding`` ist frozen).
         """
-        binding_tooltips = {
-            "quit": t("tooltip.quit"),
-            "refresh": t("tooltip.refresh"),
-            "export_excel": t("tooltip.excel"),
-            "export_pdf": t("tooltip.pdf"),
-            "show_details": t("tooltip.details"),
-            "show_settings": t("tooltip.settings"),
-            "show_about": t("tooltip.info"),
-            "next_tab": t("tooltip.switch_view"),
-            "toggle_anon": t("tooltip.anonymize"),
-            "reset_cache": t("tooltip.reset_cache"),
-            "toggle_log": t("tooltip.toggle_log"),
-            "cycle_theme": t("tooltip.theme"),
-            "manual_entry": t("tooltip.manual_entry"),
-            "delete_manual": t("tooltip.delete_manual"),
-            "reload_board": t("tooltip.tickets"),
-        }
+        binding_tooltips = {action: t(key) for action, key in keymap.TOOLTIP_KEYS.items()}
         for key, bindings_list in self._bindings.key_to_bindings.items():
             for i, binding in enumerate(bindings_list):
                 tooltip = binding_tooltips.get(binding.action)
@@ -323,6 +314,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         self._write_log(t("log.ready"))
         self._log_theme()
+        self._log_keymap_problems()
 
         if not self._settings.jira_host or not self._settings.jira_token:
             self._write_log(t("log.hint_settings"))
@@ -414,6 +406,30 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._settings.theme = theme_name
         self._settings.save()
         self._log_theme()
+
+    def action_keymap_overview(self) -> None:
+        """Zeigt die aktuell geltende Tastenbelegung.
+
+        Die Seite bekommt das fertige Ergebnis mit, nicht die Einstellungen -
+        so zeigt sie zwangslaeufig das, was tatsaechlich gebunden ist.
+        """
+        self.push_screen(
+            KeymapScreen(
+                keymap.resolve(self._settings),
+                keymap.style_from_settings(self._settings),
+                self.vim_navigation,
+            )
+        )
+
+    def _log_keymap_problems(self) -> None:
+        """Meldet, was beim Zusammenbau der Tastenbelegung auffiel.
+
+        Typische Faelle: eine eigene Belegung nennt eine Aktion, die es nicht
+        gibt, oder die Vim-Navigation verdeckt eine Aktion der Anwendung. Beides
+        waere sonst unsichtbar - die Taste tut dann einfach nichts.
+        """
+        for problem in self._keymap_problems:
+            self._write_log(f"[!] {problem.message}")
 
     def _log_theme(self) -> None:
         """Schreibt das aktive Theme ins Log.

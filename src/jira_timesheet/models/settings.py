@@ -152,6 +152,18 @@ class Settings:
     board_threshold_closing: float = 0.0
 
     # --- Mein Team ----------------------------------------------------
+    # --- Tastatur -----------------------------------------------------
+    # Leer heisst "noch nicht entschieden" - dann entscheidet die Plattform
+    # (auf macOS der Bestandsstil, weil das System dort F3, F4 und F11 selbst
+    # abfaengt). Werte: classic, function_keys.
+    keymap_style: str = ""
+    # Vim-Navigation in Tabellen und Scroll-Bereichen (j/k, h/l, g/G, ctrl+d/u).
+    keymap_vim: bool = False
+    # Eigene Belegungen des Anwenders, Aktion auf Tastenliste. Sie gewinnen
+    # gegen den Stil - siehe textual_widgets.keymap.resolve_keymap.
+    keymap_custom: dict[str, list[str]] = field(default_factory=dict)
+
+    # --- Mein Team ----------------------------------------------------
     # Die Merkliste in ihrer Speicherform, so wie services.team sie liest.
     # Bewusst als rohe Abbildungen und nicht als TeamMember: die
     # Einstellungen sollen den Kern nicht kennen und der Kern nicht die
@@ -205,6 +217,9 @@ class Settings:
         "board_threshold_acceptance",
         "board_threshold_closing",
         "team_members",
+        "keymap_style",
+        "keymap_vim",
+        "keymap_custom",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -263,24 +278,19 @@ class Settings:
                 board_active_status=Settings._parse_str_list(data.get("board_active_status")),
                 board_backlog_status=Settings._parse_str_list(data.get("board_backlog_status")),
                 board_handback_status=Settings._parse_str_list(data.get("board_handback_status")),
-                board_acceptance_status=Settings._parse_str_list(
-                    data.get("board_acceptance_status")
-                ),
+                board_acceptance_status=Settings._parse_str_list(data.get("board_acceptance_status")),
                 board_closing_status=Settings._parse_str_list(data.get("board_closing_status")),
                 board_done_status=Settings._parse_str_list(data.get("board_done_status")),
                 board_priorities=Settings._parse_str_list(data.get("board_priorities")),
                 board_window_days=Settings._parse_int(data.get("board_window_days"), 90),
                 board_stale_days=Settings._parse_int(data.get("board_stale_days"), 180),
-                board_threshold_active=Settings._parse_float(
-                    data.get("board_threshold_active"), 20.0
-                ),
-                board_threshold_acceptance=Settings._parse_float(
-                    data.get("board_threshold_acceptance"), 10.0
-                ),
-                board_threshold_closing=Settings._parse_float(
-                    data.get("board_threshold_closing"), 0.0
-                ),
+                board_threshold_active=Settings._parse_float(data.get("board_threshold_active"), 20.0),
+                board_threshold_acceptance=Settings._parse_float(data.get("board_threshold_acceptance"), 10.0),
+                board_threshold_closing=Settings._parse_float(data.get("board_threshold_closing"), 0.0),
                 team_members=Settings._parse_team(data.get("team_members")),
+                keymap_style=str(data.get("keymap_style", "") or ""),
+                keymap_vim=bool(data.get("keymap_vim", False)),
+                keymap_custom=Settings._parse_keymap_custom(data.get("keymap_custom")),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
@@ -300,6 +310,35 @@ class Settings:
             return list(DEFAULT_CUSTOMERS)
         names = [str(item).strip() for item in raw if str(item).strip()]
         return names or list(DEFAULT_CUSTOMERS)
+
+    @staticmethod
+    def _parse_keymap_custom(raw: object) -> dict[str, list[str]]:
+        """Liest die eigenen Tastenbelegungen defensiv aus dem JSON.
+
+        Args:
+            raw:
+                Der rohe Wert aus der Datei. Erwartet wird Aktion auf
+                Tastenliste, eine einzelne Taste als Text ist auch erlaubt.
+
+        Returns:
+            Die bereinigten Eintraege. Was nicht passt, faellt weg statt die
+            ganze Datei unbrauchbar zu machen - die inhaltliche Pruefung
+            macht spaeter resolve_keymap und meldet sie ins Log.
+        """
+        if not isinstance(raw, dict):
+            return {}
+
+        eigene: dict[str, list[str]] = {}
+        for aktion, wert in raw.items():
+            if not isinstance(aktion, str) or not aktion.strip():
+                continue
+            tasten = [wert] if isinstance(wert, str) else wert
+            if not isinstance(tasten, list):
+                continue
+            bereinigt = [str(taste).strip() for taste in tasten if isinstance(taste, str) and str(taste).strip()]
+            if bereinigt:
+                eigene[aktion.strip()] = bereinigt
+        return eigene
 
     @staticmethod
     def _parse_str_list(raw: object) -> list[str]:
@@ -342,11 +381,7 @@ class Settings:
             if not isinstance(entry, dict):
                 continue
             name = str(entry.get("display_name") or "").strip()
-            ids = [
-                str(value).strip()
-                for value in (entry.get("account_ids") or [])
-                if str(value).strip()
-            ]
+            ids = [str(value).strip() for value in (entry.get("account_ids") or []) if str(value).strip()]
             if not name or not ids:
                 continue
             members.append(

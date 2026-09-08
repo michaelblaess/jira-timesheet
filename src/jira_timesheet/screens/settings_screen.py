@@ -11,6 +11,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Button, Checkbox, Input, Label, Select, Static, TabPane
 from textual_widgets import BaseSettingsScreen
+from textual_widgets.keymap import KeymapStyle
 
 from jira_timesheet.i18n import t
 from jira_timesheet.models.export_column import COLUMN_DEFAULTS, ExportColumn, default_label, parse_columns
@@ -28,6 +29,24 @@ from jira_timesheet.widgets.team_roster_panel import TeamRosterPanel
 
 # Bundesland-Auswahl, alphabetisch nach Anzeigename sortiert.
 _STATE_OPTIONS = [(f"{name} ({code})", code) for code, name in sorted(FEDERAL_STATES.items(), key=lambda x: x[1])]
+
+
+def _keymap_style_options() -> list[tuple[str, str]]:
+    """Baut die Auswahl der Belegungsstile.
+
+    Als Funktion und nicht als Konstante, weil `t()` sonst beim Import
+    ausgewertet wuerde und ein Sprachwechsel die Beschriftungen nicht mehr
+    erreichte.
+
+    Returns:
+        Paare aus Beschriftung und gespeichertem Wert. Der leere Wert heisst
+        "nach Betriebssystem" und ist die Vorgabe.
+    """
+    return [
+        (t("settings.keymap_style_auto"), ""),
+        (t("settings.keymap_style_classic"), KeymapStyle.CLASSIC.value),
+        (t("settings.keymap_style_function_keys"), KeymapStyle.FUNCTION_KEYS.value),
+    ]
 
 
 class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
@@ -364,6 +383,25 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 self._current_credentials,
             )
 
+        with TabPane(t("settings.tab_keyboard"), id="settings-tab-keyboard"), VerticalScroll():
+            yield Static(t("settings.keymap_intro"), classes="hint")
+            with Horizontal(classes="settings-row"):
+                yield Label(t("settings.keymap_style"))
+                yield Select(
+                    options=_keymap_style_options(),
+                    value=str(self._settings.get("keymap_style", "") or ""),
+                    allow_blank=False,
+                    id="set-keymap-style",
+                )
+            checkbox = Checkbox(
+                t("settings.keymap_vim"),
+                value=bool(self._settings.get("keymap_vim", False)),
+                id="set-keymap-vim",
+            )
+            checkbox.tooltip = t("settings.keymap_vim_tip")
+            yield checkbox
+            yield Static(t("settings.keymap_custom_hint"), classes="hint")
+
     @on(Checkbox.Changed, "#set-use-legacy-api")
     def _on_legacy_changed(self, event: Checkbox.Changed) -> None:
         """Deaktiviert die Budget-Autoerkennung im Legacy-Modus."""
@@ -539,6 +577,11 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
         state_value = self.query_one("#set-federal-state", Select).value
         if isinstance(state_value, str):
             settings["federal_state"] = state_value
+
+        style_value = self.query_one("#set-keymap-style", Select).value
+        if isinstance(style_value, str):
+            settings["keymap_style"] = style_value
+        settings["keymap_vim"] = self.query_one("#set-keymap-vim", Checkbox).value
 
         with contextlib.suppress(ValueError):
             settings["hours_per_day"] = float(self.query_one("#set-hours-per-day", Input).value.strip())
