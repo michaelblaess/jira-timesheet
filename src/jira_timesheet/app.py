@@ -29,6 +29,7 @@ from textual_widgets import (
     DisclaimerScreen,
     DisclaimerStore,
     HorizontalSplitter,
+    KeyBinding,
     KeymapProblem,
     LogPanel,
     LogRouter,
@@ -176,6 +177,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # einen Dialog - sie betreffen die Einstellungsdatei, nicht den Vorgang.
         # Beim Binden gibt es das LogPanel noch nicht, deshalb erst in on_mount.
         self._keymap_problems: tuple[KeymapProblem, ...] = ()
+        self._keymap: dict[str, KeyBinding] = {}
         self._apply_keymap()
 
     @property
@@ -188,6 +190,28 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """
         return bool(self._settings.keymap_vim)
 
+    def _key_hint(self, action: str) -> str:
+        """Liefert die Taste einer Aktion, so wie sie in einer Meldung stehen soll.
+
+        Meldungen wie "Druecke X fuer Settings" duerfen die Taste nicht fest
+        eingebaut haben - sie haengt am gewaehlten Stil und an den eigenen
+        Belegungen des Anwenders. Bis v1.21.0 nannten drei Texte sogar [G],
+        eine Taste, die es seit v1.20.0 gar nicht mehr gibt.
+
+        Args:
+            action: Der Name der Aktion.
+
+        Returns:
+            Die erste Taste der Aktion in ihrer Footer-Schreibweise, einzelne
+            Buchstaben gross. Leerer Text, wenn die Aktion keine Taste hat -
+            dann steht in der Meldung nichts statt einer falschen Taste.
+        """
+        binding = self._keymap.get(action)
+        if binding is None:
+            return ""
+        taste = keymap.key_display(binding.keys[0])
+        return taste.upper() if len(taste) == 1 else taste
+
     def _apply_keymap(self) -> None:
         """Bindet die Tasten der aktiven Belegung.
 
@@ -199,6 +223,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """
         resolved = keymap.resolve(self._settings)
         self._keymap_problems = resolved.problems
+        self._keymap = dict(resolved.bindings)
 
         for action, binding in resolved.bindings.items():
             self._bindings.bind(
@@ -301,7 +326,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     members=self._member_names(),
                     id="board-team",
                 )
-        yield SummaryPanel(id="summary-panel")
+        yield SummaryPanel(hint=t("summary.generate_hint", shortcut=self._key_hint("refresh")), id="summary-panel")
         yield HorizontalSplitter(target_id="view-tabs", min_size=10, id="log-splitter")
         yield LogPanel(lang=current_language(), export_name="jira-timesheet", id="log-panel")
         yield Footer()
@@ -312,12 +337,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.query_one("#log-panel", LogPanel).add_class("-log-hidden")
             self.query_one("#log-splitter", HorizontalSplitter).add_class("-log-hidden")
 
-        self._write_log(t("log.ready"))
+        self._write_log(t("log.ready", shortcut=self._key_hint("refresh")))
         self._log_theme()
         self._log_keymap_problems()
 
         if not self._settings.jira_host or not self._settings.jira_token:
-            self._write_log(t("log.hint_settings"))
+            self._write_log(t("log.hint_settings", shortcut=self._key_hint("show_settings")))
 
         # Blinkender Footer-Hinweis lenkt den Blick auf die naechste sinnvolle
         # Aktion: fehlen Settings, blinkt "s". Manuelles Toggle per Timer statt
@@ -534,15 +559,15 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         nur noch der Oberflaeche und wird ueber einen Laufzaehler gepflegt.
         """
         if not self._settings.jira_host:
-            self.notify(t("notify.host_not_set"), severity="error")
+            self.notify(t("notify.host_not_set", shortcut=self._key_hint("show_settings")), severity="error")
             return
 
         if not self._settings.jira_token:
-            self.notify(t("notify.token_not_set"), severity="error")
+            self.notify(t("notify.token_not_set", shortcut=self._key_hint("show_settings")), severity="error")
             return
 
         if not self._settings.email:
-            self.notify(t("notify.email_not_set"), severity="error")
+            self.notify(t("notify.email_not_set", shortcut=self._key_hint("show_settings")), severity="error")
             return
 
         # Laufzaehler hochzaehlen: nur der juengste Lauf darf das Flag am Ende
@@ -804,7 +829,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         from jira_timesheet.services.excel_exporter import ExcelExporter
 
         if self._timesheet is None:
-            self.notify(t("notify.generate_first"), severity="warning")
+            self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
         suggested = ExcelExporter.suggested_filename(self._timesheet)
@@ -819,7 +844,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         from jira_timesheet.services.pdf_exporter import PdfExporter
 
         if self._timesheet is None:
-            self.notify(t("notify.generate_first"), severity="warning")
+            self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
         suggested = PdfExporter.suggested_filename(self._timesheet)
@@ -1083,7 +1108,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Ohne geladenen Stundenzettel gibt es keine Zeile - gleicher
         # Toast wie bei Excel/PDF-Export.
         if self._timesheet is None:
-            self.notify(t("notify.generate_first"), severity="warning")
+            self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
         try:
@@ -1529,7 +1554,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # nur sie geoeffnet hat, muss sie fuer einen Screenshot ebenso
         # zensieren koennen.
         if self._timesheet is None and not any(self._real_boards.values()) and self._year_loaded_for is None:
-            self.notify(t("notify.generate_first"), severity="warning")
+            self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
         self._anonymized = not self._anonymized
