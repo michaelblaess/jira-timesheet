@@ -54,8 +54,7 @@ def changelog_stub(*eintraege: tuple[str, str, list[tuple[str, str, str]]]) -> l
             "created": when,
             "author": {"displayName": who},
             "items": [
-                {"field": feld, "fromString": von or None, "toString": nach or None}
-                for feld, von, nach in items
+                {"field": feld, "fromString": von or None, "toString": nach or None} for feld, von, nach in items
             ],
         }
         for when, who, items in eintraege
@@ -209,7 +208,7 @@ class TestBericht:
         assert html.count("<script>") == 1
         # Keine externe Quelle - der Bericht muss offline laufen.
         assert "http://" not in html.replace("http://www.w3.org", "")
-        for muster in ("src=\"http", "cdn.", "fonts.googleapis"):
+        for muster in ('src="http', "cdn.", "fonts.googleapis"):
             assert muster not in html
 
     def test_titel_mit_sonderzeichen_zerlegt_die_seite_nicht(self) -> None:
@@ -273,13 +272,17 @@ class TestLangePhasen:
             issue_stub(created=stamp(1, 9)),
             changelog_stub(
                 (stamp(1, 10), "Beispiel, Max", [("status", "Offen", "Schätzen")]),
-                ("2026-08-31T10:00:00.000+0200", "Beispiel, Max",
-                 [("status", "Schätzen", "IN ARBEIT")]),
+                ("2026-08-31T10:00:00.000+0200", "Beispiel, Max", [("status", "Schätzen", "IN ARBEIT")]),
             ),
             [],
             BASE,
         )
-        lang = [segment for segment in report.segments if segment.long]
+        # Nur ABGESCHLOSSENE Phasen pruefen. Die letzte laeuft bis heute und
+        # ueberschreitet die Schwelle irgendwann von selbst - seit dem
+        # 08.09.2026 stand deshalb "IN ARBEIT" mit in der Liste, und der Test
+        # war rot, ohne dass sich am Code etwas geaendert haette. Derselbe
+        # Grundsatz wie im Test darueber: ein Test darf nicht am Kalender haengen.
+        lang = [segment for segment in report.segments if segment.long and segment.end is not None]
         assert [segment.status for segment in lang] == ["Schätzen"]
         assert lang[0].workdays > viewmodel.LONG_PHASE_WORKDAYS
         # Der Befund muss den Beleg mitbringen.
