@@ -49,6 +49,7 @@ from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
+from jira_timesheet.services.ssl_support import TlsSettings, tls_from_settings
 from jira_timesheet.services.team import Roster, TeamMember, from_storage
 from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role
 from jira_timesheet.services.ticket_board import Ticket as BoardTicket
@@ -189,6 +190,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         nicht an einem Modul.
         """
         return bool(self._settings.keymap_vim)
+
+    @property
+    def tls_settings(self) -> TlsSettings:
+        """Die TLS-Angaben fuer den Jira-Client.
+
+        Oeffentlich, weil zwei Widgets sie brauchen und ueber `self.app`
+        abholen - ein Attributzugriff statt eines Imports, damit die
+        Schichtgrenze zwischen Oberflaeche und Kern haelt.
+
+        Returns:
+            Die Angaben als eigene Dataclass.
+        """
+        return tls_from_settings(self._settings)
 
     def _key_hint(self, action: str) -> str:
         """Liefert die Taste einer Aktion, so wie sie in einer Meldung stehen soll.
@@ -620,6 +634,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 budget_field=self._settings.budget_field,
                 legacy=self._settings.use_legacy_api,
                 proxy=self._settings.proxy_url,
+                tls=self.tls_settings,
                 on_log=self._write_log,
             )
 
@@ -769,6 +784,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             token=self._settings.jira_token,
             legacy=self._settings.use_legacy_api,
             proxy=self._settings.proxy_url,
+            tls=self.tls_settings,
             on_log=self._write_log,
         )
         try:
@@ -1444,6 +1460,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 # Ohne Proxy scheitert hinter einem Corporate-Proxy jeder Monat,
                 # der noch nicht im Cache liegt ("All connection attempts failed").
                 proxy=self._settings.proxy_url,
+                tls=self.tls_settings,
                 on_log=self._write_log,
             )
 

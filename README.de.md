@@ -487,6 +487,9 @@ Settings werden in `~/.jira-timesheet/settings.json` gespeichert:
 | E-Mail | Atlassian-Login (Cloud) oder Jira-Benutzername (Data Center) | — |
 | Jira-Modus (alte API) | Aus = Jira Cloud (v3), an = Data Center (v2) | aus |
 | Budget-Custom-Field | Custom-Field-ID; Cloud unterstützt **Automatisch ermitteln** | (leer) |
+| Serverzertifikat prüfen | Aus heißt: verschlüsselt, aber ungeprüft. Nur abschalten, wenn kein CA-Bundle zu beschaffen ist | an |
+| CA-Bundle (PEM) | Wurzelzertifikat des Firmenproxys. Leer = Systemspeicher bzw. `SSL_CERT_FILE` | (leer) |
+| Client-Zertifikat / Schlüssel | Falls die Gegenstelle ein Client-Zertifikat verlangt | (leer) |
 | Bundesland | Für Feiertagsberechnung | SN |
 | Soll-Stunden/Tag | Arbeitsstunden pro Tag | 8.0 |
 | Max. Jahresstunden | Obergrenze für Progressbar | 1720 |

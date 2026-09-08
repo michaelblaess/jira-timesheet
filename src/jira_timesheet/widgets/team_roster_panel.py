@@ -154,9 +154,7 @@ class TeamRosterPanel(Vertical):
         self._search(query, host, email, token, proxy)
 
     @work(exclusive=True)
-    async def _search(
-        self, query: str, host: str, email: str, token: str, proxy: str
-    ) -> None:
+    async def _search(self, query: str, host: str, email: str, token: str, proxy: str) -> None:
         """Sucht Konten und reichert sie um Anzahl und juengstes Datum an.
 
         Args:
@@ -171,7 +169,14 @@ class TeamRosterPanel(Vertical):
             proxy:
                 Optionaler Proxy.
         """
-        client = JiraClient(host=host, email=email, token=token, legacy=False, proxy=proxy)
+        client = JiraClient(
+            host=host,
+            email=email,
+            token=token,
+            legacy=False,
+            proxy=proxy,
+            tls=getattr(self.app, "tls_settings", None),
+        )
         try:
             found = parse_search(await client.fetch_people(query))
             facts = await client.fetch_account_facts(
@@ -239,9 +244,7 @@ class TeamRosterPanel(Vertical):
             self.notify(t("settings.team_pick_hit"), severity="warning")
             return
 
-        bereits = {
-            kennung for m in self._roster.members for kennung in m.account_ids
-        }
+        bereits = {kennung for m in self._roster.members for kennung in m.account_ids}
         if kandidat.account_id in bereits:
             self.notify(t("settings.team_duplicate"), severity="warning")
             return
@@ -337,6 +340,7 @@ class TeamRosterPanel(Vertical):
                 "-" if kandidat.open_count is None else str(kandidat.open_count),
                 self._datum(kandidat.last_touch),
             )
+
     def _refresh_state(self) -> None:
         """Schreibt den Stand der Merkliste direkt unter die Trefferliste.
 

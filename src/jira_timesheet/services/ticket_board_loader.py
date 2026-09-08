@@ -14,6 +14,7 @@ from collections.abc import Callable, Sequence
 
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.services.jira_client import JiraClient
+from jira_timesheet.services.ssl_support import tls_from_settings
 from jira_timesheet.services.team import TeamMember
 from jira_timesheet.services.ticket_board import (
     DEFAULT_PRIORITIES,
@@ -79,11 +80,7 @@ def config_from(settings: Settings) -> BoardConfig:
         acceptance_status=tuple(settings.board_acceptance_status),
         closing_status=tuple(settings.board_closing_status),
         done_status=tuple(settings.board_done_status),
-        priorities=(
-            tuple(settings.board_priorities)
-            if settings.board_priorities
-            else DEFAULT_PRIORITIES
-        ),
+        priorities=(tuple(settings.board_priorities) if settings.board_priorities else DEFAULT_PRIORITIES),
         stale_days=settings.board_stale_days,
         window_days=settings.board_window_days,
         thresholds=thresholds,
@@ -99,6 +96,7 @@ def build_client(settings: Settings, on_log: Reporter | None = None) -> JiraClie
         budget_field=settings.budget_field,
         legacy=settings.use_legacy_api,
         proxy=settings.proxy_url,
+        tls=tls_from_settings(settings),
         on_log=on_log,
     )
 
@@ -181,9 +179,7 @@ async def load_board(
     announce = on_worklog_check or (lambda _count: None)
     client = build_client(settings, on_log)
 
-    account_id, issues = await client.fetch_issues(
-        jqls_for(mode, config, member), FIELDS
-    )
+    account_id, issues = await client.fetch_issues(jqls_for(mode, config, member), FIELDS)
     now = dt.datetime.now(dt.UTC)
 
     # In der Fremdsicht ist die gemeinte Person nicht der angemeldete
@@ -215,10 +211,7 @@ async def load_board(
 
     announce(len(keys))
     stats = await client.fetch_worklog_stats(keys)
-    worklogs = {
-        key: WorklogInfo(count=count, last=parse_ts(started))
-        for key, (count, started) in stats.items()
-    }
+    worklogs = {key: WorklogInfo(count=count, last=parse_ts(started)) for key, (count, started) in stats.items()}
     return build_board(
         issues,
         config,

@@ -152,6 +152,16 @@ class Settings:
     board_threshold_closing: float = 0.0
 
     # --- Mein Team ----------------------------------------------------
+    # --- Zertifikate --------------------------------------------------
+    # Bis v1.21.0 stand in jedem httpx-Client verify=False, ohne Schalter.
+    # Die Vorgabe ist jetzt "pruefen"; wer hinter einem TLS-aufbrechenden
+    # Firmenproxy sitzt, traegt dessen Wurzelzertifikat als CA-Bundle ein.
+    verify_ssl: bool = True
+    ca_bundle: str = ""
+    client_cert: str = ""
+    client_key: str = ""
+    client_key_password: str = ""
+
     # --- Tastatur -----------------------------------------------------
     # Leer heisst "noch nicht entschieden" - dann entscheidet die Plattform
     # (auf macOS der Bestandsstil, weil das System dort F3, F4 und F11 selbst
@@ -220,6 +230,11 @@ class Settings:
         "keymap_style",
         "keymap_vim",
         "keymap_custom",
+        "verify_ssl",
+        "ca_bundle",
+        "client_cert",
+        "client_key",
+        "client_key_password",
     )
 
     def to_dict(self) -> dict[str, object]:
@@ -291,6 +306,11 @@ class Settings:
                 keymap_style=str(data.get("keymap_style", "") or ""),
                 keymap_vim=bool(data.get("keymap_vim", False)),
                 keymap_custom=Settings._parse_keymap_custom(data.get("keymap_custom")),
+                verify_ssl=bool(data.get("verify_ssl", True)),
+                ca_bundle=str(data.get("ca_bundle", "") or ""),
+                client_cert=str(data.get("client_cert", "") or ""),
+                client_key=str(data.get("client_key", "") or ""),
+                client_key_password=str(data.get("client_key_password", "") or ""),
             )
         except Exception as exc:
             logger.warning("Settings konnten nicht geladen werden: %s", exc)
