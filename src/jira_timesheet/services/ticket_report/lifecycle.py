@@ -270,9 +270,7 @@ def _preview(body: str) -> str:
     Zeitleiste bei jedem zweiten Eintrag nur eine Begruessung.
     """
     lines = [line.strip() for line in body.splitlines() if line.strip()]
-    meaningful = [
-        line for line in lines if not (len(line) <= FILLER_MAX_LEN and _FILLER.match(line))
-    ] or lines
+    meaningful = [line for line in lines if not (len(line) <= FILLER_MAX_LEN and _FILLER.match(line))] or lines
     return " ".join(meaningful)[:COMMENT_PREVIEW]
 
 
@@ -340,7 +338,9 @@ def from_raw(
         if summary:
             life.titles[str(other.get("key"))] = summary
 
-    _collect_keys(adf.field_to_text(fields.get("description")), life.mentioned, "Beschreibung")
+    beschreibung = fields.get("description")
+    _collect_keys(adf.field_to_text(beschreibung), life.mentioned, "Beschreibung")
+    _collect_keys(" ".join(adf.collect_urls(beschreibung)), life.mentioned, "Beschreibung")
 
     if life.reporter:
         _actor(life.actors, life.reporter, ROLE_REPORTER, created)
@@ -494,7 +494,9 @@ def _add_changelog(entries: list[dict[str, Any]], life: Lifecycle) -> None:
                 old = display_name(old)
                 if new:
                     _actor(life.actors, new, ROLE_ASSIGNEE, when)
-                life.events.append(Event(when, "assignee", who, f"Zuweisung: {old or '(niemand)'} -> {new or '(niemand)'}"))
+                life.events.append(
+                    Event(when, "assignee", who, f"Zuweisung: {old or '(niemand)'} -> {new or '(niemand)'}")
+                )
             elif field_name in (FIELD_LINK, FIELD_PARENT):
                 _actor(life.actors, who, ROLE_EDITOR, when).changes += 1
                 # Ein entferntes Link-Item hat toString=None - das ist die
@@ -531,7 +533,12 @@ def _add_comments(comments: list[dict[str, Any]], life: Lifecycle) -> None:
 
         body = adf.field_to_text(comment.get("body"))
         life.events.append(Event(when, "comment", who, f"Kommentar [{index}]", _preview(body)))
-        _collect_keys(body, life.mentioned, f"Kommentar [{index}] ({who})")
+        # Die Verweisziele kommen getrennt dazu: sie stehen in den ADF-Marks,
+        # nicht im Text. Ohne sie bleibt ein Ticket unentdeckt, das nur hinter
+        # einem Linktext wie "siehe hier" steckt.
+        herkunft = f"Kommentar [{index}] ({who})"
+        _collect_keys(body, life.mentioned, herkunft)
+        _collect_keys(" ".join(adf.collect_urls(comment.get("body"))), life.mentioned, herkunft)
 
     life.mentioned.pop(life.key, None)
 
