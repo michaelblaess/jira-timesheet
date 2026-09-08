@@ -8,7 +8,7 @@ Sprachpaket und die Bruecke zu den Einstellungen.
 Public API:
     - `CLASSIC` - die Belegung im Bestandsstil, so wie sie bis v1.21.0 galt.
     - `LABEL_KEYS` / `TOOLTIP_KEYS` - Aktion auf i18n-Schluessel.
-    - `FOOTER_ORDER` - die Reihenfolge, in der die Tasten im Footer stehen.
+    - `APP_FUNCTION_KEYS` / `FUNCTION_KEYS` - die F-Tasten dieser Anwendung.
     - `resolve(settings)` - die fertige Belegung aus den Einstellungen.
     - `style_from_settings(settings)` - der gewaehlte oder vorgeschlagene Stil.
 
@@ -28,6 +28,7 @@ from textual_widgets.keymap import (
     default_style_for_platform,
     parse_overrides,
     resolve_keymap,
+    sort_for_footer,
 )
 
 CLASSIC: dict[str, KeyBinding] = {
@@ -63,9 +64,6 @@ CLASSIC: dict[str, KeyBinding] = {
     "keymap_overview": KeyBinding(("question_mark",), show=False),
 }
 """Der Bestandsstil - Stand v1.21.0, woertlich aus dem frueheren app.py."""
-
-FOOTER_ORDER: tuple[str, ...] = tuple(CLASSIC)
-"""Die Reihenfolge im Footer. Entspricht der Reihenfolge in `CLASSIC`."""
 
 LABEL_KEYS: dict[str, str] = {
     "quit": "binding.quit",
@@ -124,6 +122,11 @@ KEY_DISPLAY: dict[str, str] = {
     "f3": "F3",
     "f4": "F4",
     "f5": "F5",
+    "f6": "F6",
+    "f7": "F7",
+    "f8": "F8",
+    "f9": "F9",
+    "f10": "F10",
 }
 
 
@@ -161,8 +164,42 @@ def style_from_settings(settings: Any) -> KeymapStyle:
     return default_style_for_platform()
 
 
+APP_FUNCTION_KEYS: dict[str, KeyBinding] = {
+    "ticket_report": KeyBinding(("f7", "b", "B")),
+    "manual_entry": KeyBinding(("f8", "m", "M")),
+    "export_excel": KeyBinding(("f9", "e", "E")),
+    "export_pdf": KeyBinding(("f10", "p", "P")),
+}
+"""Die F-Tasten, die diese Anwendung selbst vergibt.
+
+`f1` bis `f6` kommen aus der gemeinsamen Konvention. Ab `f7` haengt es davon
+ab, was die Anwendung kann - hier die vier haeufigsten fachlichen Aktionen,
+paarweise sortiert: erst ansehen (Analyse), dann erfassen, dann die beiden
+Ausgaben.
+
+Damit ist die Reihe f1..f10 voll. Ohne F-Taste bleiben bewusst:
+
+- `tab` Ansicht wechseln und `q` Beenden - beide sind schon eindeutig und in
+  allen Anwendungen gleich, eine F-Taste daneben braeuchte niemand.
+- `a` Anonymisieren, `r` Cache zuruecksetzen, `t` Theme - selten gebraucht.
+- `f11` und `f12` bleiben frei: viele Terminals und Browser belegen sie selbst
+  mit Vollbild.
+"""
+
+FUNCTION_KEYS: dict[str, KeyBinding] = {**COMMON_FUNCTION_KEYS, **APP_FUNCTION_KEYS}
+"""Die gemeinsame Konvention plus die Ergaenzungen dieser Anwendung."""
+
+
 def resolve(settings: Any) -> ResolvedKeymap:
     """Baut die fertige Belegung aus den Einstellungen.
+
+    Im F-Tasten-Stil steht das Ergebnis in der Reihenfolge fuer den Footer:
+    erst alles mit F-Taste, aufsteigend nach Nummer, danach der Rest. Ohne das
+    stuende dort F2 vor F1, weil die Bestandstabelle die Reihenfolge vorgibt.
+
+    Im Bestandsstil wird NICHT sortiert. Dort haette nur `refresh` eine
+    F-Taste, und die allein nach vorn zu ziehen wuerde die gewohnte Reihenfolge
+    aendern, ohne dass jemand etwas davon haette.
 
     Args:
         settings: Die geladenen Einstellungen.
@@ -173,12 +210,18 @@ def resolve(settings: Any) -> ResolvedKeymap:
         laufenden Vorgang.
     """
 
+    stil = style_from_settings(settings)
     overrides, probleme = parse_overrides(getattr(settings, "keymap_custom", None))
     ergebnis = resolve_keymap(
-        style_from_settings(settings),
+        stil,
         CLASSIC,
-        function_keys=COMMON_FUNCTION_KEYS,
+        function_keys=FUNCTION_KEYS,
         overrides=overrides,
         vim_navigation=bool(getattr(settings, "keymap_vim", False)),
     )
-    return ResolvedKeymap(bindings=ergebnis.bindings, problems=probleme + ergebnis.problems)
+    if stil is not KeymapStyle.FUNCTION_KEYS:
+        return ResolvedKeymap(bindings=ergebnis.bindings, problems=probleme + ergebnis.problems)
+    return ResolvedKeymap(
+        bindings=sort_for_footer(ergebnis.bindings),
+        problems=probleme + ergebnis.problems,
+    )

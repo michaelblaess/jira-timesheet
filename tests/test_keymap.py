@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 from textual.app import App, ComposeResult
-from textual_widgets.keymap import KeymapStyle, find_collisions
+from textual_widgets.keymap import KeymapStyle, find_collisions, function_key_number
 
 from jira_timesheet import keymap
 from jira_timesheet.models.settings import Settings
@@ -67,15 +67,63 @@ def test_nur_das_log_verliert_seinen_buchstaben() -> None:
     assert {a: k for a, k in verloren.items() if k} == {"toggle_log": ["L", "l"]}
 
 
-def test_fachliche_tasten_bleiben_in_beiden_stilen() -> None:
+def test_fachliche_buchstaben_bleiben_in_beiden_stilen() -> None:
+    # Die F-Taste tritt daneben, sie ersetzt den Buchstaben nicht.
     for stil in ("classic", "function_keys"):
         bindings = keymap.resolve(Settings(keymap_style=stil)).bindings
-        assert bindings["show_details"].keys == ("d", "D"), stil
-        assert bindings["ticket_report"].keys == ("b", "B"), stil
-        assert bindings["toggle_anon"].keys == ("a", "A"), stil
-        assert bindings["reset_cache"].keys == ("r", "R"), stil
+        for action, buchstabe in (
+            ("show_details", "d"),
+            ("ticket_report", "b"),
+            ("toggle_anon", "a"),
+            ("reset_cache", "r"),
+            ("manual_entry", "m"),
+            ("export_excel", "e"),
+            ("export_pdf", "p"),
+            ("cycle_theme", "t"),
+        ):
+            assert buchstabe in bindings[action].keys, f"{stil}: {action} hat {buchstabe} verloren"
         assert bindings["next_tab"].keys == ("tab",), stil
         assert bindings["refresh"].keys == ("f5",), stil
+
+
+# --- F-Tasten und Footer-Reihenfolge --------------------------------------------
+
+
+def test_f_reihe_ist_lueckenlos_von_1_bis_10() -> None:
+    bindings = keymap.resolve(Settings(keymap_style="function_keys")).bindings
+    nummern = sorted(n for b in bindings.values() if (n := function_key_number(b)) is not None)
+    assert nummern == list(range(1, 11)), f"Luecke oder Dublette in der F-Reihe: {nummern}"
+
+
+def test_f11_und_f12_bleiben_frei() -> None:
+    # Viele Terminals und Browser belegen sie selbst mit Vollbild.
+    bindings = keymap.resolve(Settings(keymap_style="function_keys")).bindings
+    belegt = {key for b in bindings.values() for key in b.keys}
+    assert not belegt & {"f11", "f12"}
+
+
+def test_footer_beginnt_mit_den_f_tasten_in_der_richtigen_reihenfolge() -> None:
+    bindings = keymap.resolve(Settings(keymap_style="function_keys")).bindings
+    sichtbar = [keymap.key_display(b.keys[0]) for b in bindings.values() if b.show]
+    # F3 fehlt bewusst - der Filter steht nicht im Footer.
+    assert sichtbar[:9] == ["F1", "F2", "F4", "F5", "F6", "F7", "F8", "F9", "F10"]
+    assert all(not e.startswith("F") for e in sichtbar[9:])
+
+
+def test_klassischer_stil_behaelt_seine_reihenfolge() -> None:
+    # Dort hat nur refresh eine F-Taste - die allein nach vorn zu ziehen waere
+    # eine Aenderung ohne Gewinn.
+    reihenfolge = list(keymap.resolve(Settings(keymap_style="classic")).bindings)
+    assert reihenfolge == list(keymap.CLASSIC)
+
+
+def test_jede_f_taste_hat_eine_anzeige() -> None:
+    # Ohne Eintrag in KEY_DISPLAY stuende im Footer "f10" statt "F10".
+    bindings = keymap.resolve(Settings(keymap_style="function_keys")).bindings
+    for action, binding in bindings.items():
+        erste = binding.keys[0]
+        if function_key_number(binding) is not None and erste.startswith("f"):
+            assert keymap.key_display(erste) == erste.upper(), f"{action}: {erste}"
 
 
 @pytest.mark.parametrize(
