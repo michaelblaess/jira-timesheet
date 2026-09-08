@@ -37,6 +37,9 @@ dev = [
     "poethepoet>=0.29",
     "ruff>=0.3",
     "types-openpyxl>=3.1.5.20260518",
+    # Prueft die Schichtgrenzen. Ohne ihn ist "der Kern kennt keine
+    # Oberflaeche" eine Konvention, an die man sich erinnern muss.
+    "import-linter>=2.0",
     # Nur fuer assets/make_screenshots.py: reduziert die aufgenommenen Bilder
     # auf eine 256er-Palette. Kam bisher nur transitiv mit und war damit
     # nicht zugesichert.
@@ -55,6 +58,39 @@ typecheck = { cmd = "mypy src", help = "mypy strict ueber src/" }
 lint = { cmd = "ruff check .", help = "Ruff Linting" }
 fmt = { cmd = "ruff format .", help = "Ruff Formatting" }
 fix = { cmd = "ruff check --fix .", help = "Ruff Auto-Fix" }
+layers = { cmd = "lint-imports", help = "Prueft die Schichtgrenzen (import-linter)" }
+
+[tool.importlinter]
+root_package = "jira_timesheet"
+# Fuer die Regel "der Kern zieht kein Textual" muss der Linter auch Pakete
+# ausserhalb des Projekts sehen.
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Schichten von oben nach unten"
+type = "layers"
+layers = [
+    "jira_timesheet.app",
+    "jira_timesheet.screens",
+    "jira_timesheet.widgets",
+    "jira_timesheet.services",
+    "jira_timesheet.models",
+]
+
+[[tool.importlinter.contracts]]
+name = "Der Kern kennt keine Oberflaeche"
+type = "forbidden"
+source_modules = [
+    "jira_timesheet.services",
+    "jira_timesheet.models",
+]
+forbidden_modules = [
+    "jira_timesheet.app",
+    "jira_timesheet.screens",
+    "jira_timesheet.widgets",
+    "textual",
+    "textual_widgets",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

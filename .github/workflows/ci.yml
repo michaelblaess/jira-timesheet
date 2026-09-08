@@ -40,5 +40,16 @@ jobs:
       - name: Lint (ruff)
         run: uv run poe lint
 
+      # War bis zum 08.09.2026 nicht in der CI: mypy lief nur lokal ueber
+      # "poe typecheck". Ein Typfehler konnte damit auf main landen, obwohl
+      # die Pruefung streng eingestellt ist und durchlaeuft.
+      - name: Typen (mypy)
+        run: uv run poe typecheck
+
+      # Haelt die Schichtgrenzen fest: der Kern zieht keine Oberflaeche und
+      # kein Textual. Ohne die Pruefung ist das eine Konvention.
+      - name: Schichten (import-linter)
+        run: uv run poe layers
+
       - name: Tests (pytest)
         run: uv run poe test
