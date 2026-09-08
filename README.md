@@ -393,26 +393,72 @@ Qt edition - the terminal is not wide enough for a third chart.
 
 ## Keyboard Shortcuts
 
+Key bindings are **switchable** - *Settings -> Keyboard* offers two switches
+that combine independently.
+
+### Always the same
+
 | Key | Action |
-|-------|--------|
+|-----|--------|
 | E | Excel export |
 | P | PDF export |
 | D | Show ticket details |
-| B | Ticket analysis (interactive report as an HTML file) |
-| M | Record manual time, or edit the selected entry |
-| DEL | Delete the selected manual entry (with confirmation) |
-| TAB | Switch tab (timesheet / calendar / year view / my tickets / my activity / my team) |
-| F5 | Refreshes the visible view and **always the timesheet as well**, fresh from Jira. The remaining views reload when you switch to them |
-| / | Focus the search field of the current tab |
+| B | Ticket analysis (interactive HTML report) |
+| M | Add manual time entry or edit the highlighted one |
+| DEL | Delete the highlighted manual entry (with confirmation) |
+| TAB | Switch tab (Timesheet / Calendar / Year / My Tickets / My Activity / My Team) |
+| F5 | Refreshes the visible view and **always the timesheet as well**, straight from Jira. The remaining views reload the next time you switch to them |
 | R | Reset cache |
 | A | Anonymize data |
-| < / > | Switch month |
-| S | Settings |
-| I | Info |
+| < / > | Change month |
+| T | Change theme |
 | C | Copy log |
-| L | Show/hide log |
-| Ctrl+P | Switch theme |
+| ? | Show this overview inside the app |
 | Q | Quit |
+
+### What the style changes
+
+| Action | Classic | With function keys |
+|--------|---------|--------------------|
+| Info | `I` | `F1` or `I` |
+| Settings | `S` | `F2` or `S` |
+| Focus filter | `/` | `F3` or `/` |
+| Toggle log | `L` | `F4` or `Alt+L` |
+
+Function keys are added **alongside** the letters, they do not replace them.
+The single exception is the log: it moves away from `L`, because `L` means
+"move right" in vim navigation, and a binding on the widget shadows the one on
+the application.
+
+Without an explicit choice the operating system decides: classic on macOS,
+because the system grabs F3, F4 and F11 there, function keys everywhere else.
+
+### Vim navigation (optional, off by default)
+
+Only while a table has focus.
+
+| Key | Meaning |
+|-----|---------|
+| J / K | Row down / up |
+| H / L | Column left / right |
+| G / Shift+G | Jump to start / end |
+| Ctrl+D / Ctrl+U | Half page down / up |
+
+### Remapping individual keys
+
+If your terminal grabs a key, remap it in `~/.jira-timesheet/settings.json`
+under `keymap_custom`:
+
+```json
+"keymap_custom": {
+  "show_settings": ["f2", "alt+s"],
+  "toggle_log": ["alt+l"]
+}
+```
+
+A custom binding wins over the style. If it takes the last key away from
+another action, that is reported in the log instead of passing silently.
+`Q` for quit cannot be taken away.
 
 ## Configuration
 

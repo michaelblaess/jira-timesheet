@@ -401,6 +401,11 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 
 ## Tastenkürzel
 
+Die Belegung ist **umschaltbar** - unter *Einstellungen -> Tastatur* stehen zwei
+Schalter, die sich unabhängig kombinieren lassen.
+
+### Immer gleich
+
 | Taste | Aktion |
 |-------|--------|
 | E | Excel-Export |
@@ -411,16 +416,57 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
 | F5 | Aktualisiert die sichtbare Ansicht und **immer auch den Stundenzettel**, frisch aus Jira. Die übrigen Ansichten laden beim nächsten Hinwechseln nach |
-| / | Suchfeld des aktuellen Reiters fokussieren |
 | R | Cache zurücksetzen |
 | A | Daten anonymisieren |
 | < / > | Monat wechseln |
-| S | Settings |
-| I | Info |
+| T | Theme wechseln |
 | C | Log kopieren |
-| L | Log ein/ausblenden |
-| Ctrl+P | Theme wechseln |
+| ? | Diese Übersicht im Programm anzeigen |
 | Q | Beenden |
+
+### Was der Stil ändert
+
+| Aktion | Klassisch | Mit F-Tasten |
+|--------|-----------|--------------|
+| Info | `I` | `F1` oder `I` |
+| Einstellungen | `S` | `F2` oder `S` |
+| Filter fokussieren | `/` | `F3` oder `/` |
+| Log ein/ausblenden | `L` | `F4` oder `Alt+L` |
+
+Die F-Tasten treten **neben** die Buchstaben, sie ersetzen sie nicht. Einzige
+Ausnahme ist das Log: Es zieht von `L` weg, weil `L` in der Vim-Navigation
+"nach rechts" bedeutet und eine Tastenbindung am Widget die der Anwendung
+verdeckt.
+
+Ohne eigene Wahl entscheidet das Betriebssystem: auf macOS klassisch, weil das
+System dort F3, F4 und F11 selbst abfängt, sonst mit F-Tasten.
+
+### Vim-Navigation (abschaltbar, standardmäßig aus)
+
+Gilt nur, solange eine Tabelle den Fokus hat.
+
+| Taste | Bedeutung |
+|-------|-----------|
+| J / K | Zeile runter / hoch |
+| H / L | Spalte links / rechts |
+| G / Umschalt+G | an den Anfang / ans Ende |
+| Strg+D / Strg+U | halbe Seite runter / hoch |
+
+### Einzelne Tasten selbst belegen
+
+Wenn dein Terminal eine Taste abfängt, biege sie in
+`~/.jira-timesheet/settings.json` unter `keymap_custom` um:
+
+```json
+"keymap_custom": {
+  "show_settings": ["f2", "alt+s"],
+  "toggle_log": ["alt+l"]
+}
+```
+
+Eine eigene Belegung gewinnt gegen den Stil. Nimmt sie einer anderen Aktion
+ihre letzte Taste, wird das im Log gemeldet statt stillschweigend hingenommen.
+`Q` zum Beenden lässt sich nicht wegnehmen.
 
 ## Konfiguration
 

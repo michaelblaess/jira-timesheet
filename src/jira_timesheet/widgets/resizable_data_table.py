@@ -20,6 +20,7 @@ from textual.geometry import Size
 from textual.message import Message
 from textual.widgets import DataTable
 from textual.widgets.data_table import ColumnKey, RowKey
+from textual_widgets import vim_navigation_bindings
 
 
 class ResizableDataTable(DataTable[Any]):
@@ -89,6 +90,24 @@ class ResizableDataTable(DataTable[Any]):
         # Spalte, die den Rest der Tabellenbreite fuellt.
         self._flex_key: ColumnKey | None = None
         self._flex_min_width: int = 10
+
+    def _on_mount(self, event: events.Mount) -> None:
+        """Haengt die Vim-Navigation ein, wenn der Anwender sie eingeschaltet hat.
+
+        Bewusst `_on_mount` und nicht `on_mount`: In Textual laeuft jeder
+        `_on_*`-Haken der MRO, ein oeffentliches `on_mount` wuerde dagegen das
+        einer Ableitung verdecken.
+
+        Die Bindung haengt am Widget und nicht an der App, weil sie nur gelten
+        soll, solange die Tabelle den Fokus hat. Das ist zugleich der Grund,
+        warum das Log nicht mehr auf `l` liegen darf - eine Widget-Bindung
+        schlaegt die gleichnamige an der App, und die App-Aktion feuert dann
+        gar nicht.
+        """
+        if not getattr(self.app, "vim_navigation", False):
+            return
+        for key, action in vim_navigation_bindings():
+            self._bindings.bind(key, action, show=False)
 
     # --- Public API -------------------------------------------------
 
