@@ -40,6 +40,10 @@ dev = [
     # Prueft die Schichtgrenzen. Ohne ihn ist "der Kern kennt keine
     # Oberflaeche" eine Konvention, an die man sich erinnern muss.
     "import-linter>=2.0",
+    # Faengt httpx auf Transportebene ab. Damit laeuft der ECHTE JiraClient
+    # gegen hinterlegte Antworten, statt im Test durch eine Attrappe ersetzt
+    # zu werden - anders ist sein Parsing nicht pruefbar.
+    "respx>=0.21",
     # Nur fuer assets/make_screenshots.py: reduziert die aufgenommenen Bilder
     # auf eine 256er-Palette. Kam bisher nur transitiv mit und war damit
     # nicht zugesichert.
