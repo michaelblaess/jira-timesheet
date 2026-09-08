@@ -20,8 +20,10 @@ class SummaryPanel(StatusBar):  # type: ignore[misc]
     spreizt Label und Wert auseinander.
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(hint=t("summary.generate_hint"), **kwargs)
+    def __init__(self, hint: str = "", **kwargs: Any) -> None:
+        # Der Hinweis kommt von der App, nicht aus dem Widget: er nennt eine
+        # Taste, und welche das ist, weiss nur die aufgeloeste Belegung.
+        super().__init__(hint=hint, **kwargs)
         self._timesheet: Timesheet | None = None
         self._target_hours: float = 0.0
         self._hourly_rate: float = 0.0

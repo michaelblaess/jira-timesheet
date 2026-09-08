@@ -244,3 +244,44 @@ def test_grossschreibung_wird_als_dublette_erkannt() -> None:
     assert not _ist_grossschreibung("q")
     assert not _ist_grossschreibung("f5")
     assert not _ist_grossschreibung("alt+l")
+
+
+# --- Meldungen mit Tastenhinweis ------------------------------------------------
+
+
+def test_keine_meldung_nennt_eine_taste_woertlich() -> None:
+    """Bis v1.21.0 nannten drei Texte [G] - eine Taste, die es nicht mehr gibt.
+
+    Wer in einem dieser Texte wieder eine Taste festschreibt, faellt hier auf.
+    """
+    import json
+    from pathlib import Path
+
+    betroffen = (
+        "log.ready",
+        "log.hint_settings",
+        "notify.email_not_set",
+        "notify.host_not_set",
+        "notify.token_not_set",
+        "notify.settings_first",
+        "notify.generate_first",
+        "summary.generate_hint",
+    )
+    wurzel = Path(__file__).resolve().parent.parent / "src/jira_timesheet/locale"
+    for sprache in ("de", "en"):
+        texte = json.loads((wurzel / f"{sprache}.json").read_text(encoding="utf-8"))
+        for schluessel in betroffen:
+            assert "{shortcut}" in texte[schluessel], f"{sprache}/{schluessel} hat keinen Platzhalter"
+
+
+def test_tastenhinweis_folgt_dem_stil() -> None:
+    def hinweis(stil: str, aktion: str) -> str:
+        bindings = keymap.resolve(Settings(keymap_style=stil)).bindings
+        taste = keymap.key_display(bindings[aktion].keys[0])
+        return taste.upper() if len(taste) == 1 else taste
+
+    assert hinweis("classic", "show_settings") == "S"
+    assert hinweis("function_keys", "show_settings") == "F2"
+    # refresh liegt in beiden Stilen auf F5 - die Meldung darf niemals G sagen.
+    assert hinweis("classic", "refresh") == "F5"
+    assert hinweis("function_keys", "refresh") == "F5"
