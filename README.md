@@ -396,27 +396,10 @@ Qt edition - the terminal is not wide enough for a third chart.
 Key bindings are **switchable** - *Settings -> Keyboard* offers two switches
 that combine independently.
 
-### Always the same
-
-| Key | Action |
-|-----|--------|
-| E | Excel export |
-| P | PDF export |
-| D | Show ticket details |
-| B | Ticket analysis (interactive HTML report) |
-| M | Add manual time entry or edit the highlighted one |
-| DEL | Delete the highlighted manual entry (with confirmation) |
-| TAB | Switch tab (Timesheet / Calendar / Year / My Tickets / My Activity / My Team) |
-| F5 | Refreshes the visible view and **always the timesheet as well**, straight from Jira. The remaining views reload the next time you switch to them |
-| R | Reset cache |
-| A | Anonymize data |
-| < / > | Change month |
-| T | Change theme |
-| C | Copy log |
-| ? | Show this overview inside the app |
-| Q | Quit |
-
 ### What the style changes
+
+Function keys are added **to** the letters, they take none away. If you are
+used to `S`, keep pressing `S`.
 
 | Action | Classic | With function keys |
 |--------|---------|--------------------|
@@ -424,11 +407,36 @@ that combine independently.
 | Settings | `S` | `F2` or `S` |
 | Focus filter | `/` | `F3` or `/` |
 | Toggle log | `L` | `F4` or `Alt+L` |
+| Refresh | `F5` | `F5` |
+| Ticket details | `D` | `F6` or `D` |
+| Ticket analysis | `B` | `F7` or `B` |
+| Manual time entry | `M` | `F8` or `M` |
+| Excel export | `E` | `F9` or `E` |
+| PDF export | `P` | `F10` or `P` |
 
-Function keys are added **alongside** the letters, they do not replace them.
-The single exception is the log: it moves away from `L`, because `L` means
-"move right" in vim navigation, and a binding on the widget shadows the one on
-the application.
+**One exception:** the log moves from `L` to `F4` respectively `Alt+L`. In vim
+navigation `L` means "column right", and a binding on the widget shadows the
+one on the application - on `L` the log toggle would be silent whenever a table
+has focus.
+
+`F11` and `F12` are deliberately left free, many terminals claim them.
+
+### The same in both styles
+
+| Key | Action |
+|-----|--------|
+| TAB | Switch tab (Timesheet / Calendar / Year / My Tickets / My Activity / My Team) |
+| DEL | Delete the highlighted manual entry (with confirmation) |
+| A | Anonymize data |
+| R | Reset cache |
+| T | Change theme |
+| C | Copy log |
+| < / > | Change month |
+| ? | Overview of the current bindings |
+| Q | Quit |
+
+`F5` refreshes the visible view and **always the timesheet as well**, straight
+from Jira. The remaining views reload the next time you switch to them.
 
 Without an explicit choice the operating system decides: classic on macOS,
 because the system grabs F3, F4 and F11 there, function keys everywhere else.

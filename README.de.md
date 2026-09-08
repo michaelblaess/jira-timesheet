@@ -404,27 +404,10 @@ Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 Die Belegung ist **umschaltbar** - unter *Einstellungen -> Tastatur* stehen zwei
 Schalter, die sich unabhängig kombinieren lassen.
 
-### Immer gleich
-
-| Taste | Aktion |
-|-------|--------|
-| E | Excel-Export |
-| P | PDF-Export |
-| D | Ticket-Details anzeigen |
-| B | Ticket-Analyse (interaktiver Bericht als HTML-Datei) |
-| M | Manuelle Zeit erfassen bzw. markierten Eintrag bearbeiten |
-| ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
-| TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
-| F5 | Aktualisiert die sichtbare Ansicht und **immer auch den Stundenzettel**, frisch aus Jira. Die übrigen Ansichten laden beim nächsten Hinwechseln nach |
-| R | Cache zurücksetzen |
-| A | Daten anonymisieren |
-| < / > | Monat wechseln |
-| T | Theme wechseln |
-| C | Log kopieren |
-| ? | Diese Übersicht im Programm anzeigen |
-| Q | Beenden |
-
 ### Was der Stil ändert
+
+Die F-Tasten kommen zu den Buchstaben **dazu**, sie nehmen keine weg. Wer `S`
+gewohnt ist, drückt weiter `S`.
 
 | Aktion | Klassisch | Mit F-Tasten |
 |--------|-----------|--------------|
@@ -432,11 +415,36 @@ Schalter, die sich unabhängig kombinieren lassen.
 | Einstellungen | `S` | `F2` oder `S` |
 | Filter fokussieren | `/` | `F3` oder `/` |
 | Log ein/ausblenden | `L` | `F4` oder `Alt+L` |
+| Aktualisieren | `F5` | `F5` |
+| Ticket-Details | `D` | `F6` oder `D` |
+| Ticket-Analyse | `B` | `F7` oder `B` |
+| Manuelle Zeit | `M` | `F8` oder `M` |
+| Excel-Export | `E` | `F9` oder `E` |
+| PDF-Export | `P` | `F10` oder `P` |
 
-Die F-Tasten treten **neben** die Buchstaben, sie ersetzen sie nicht. Einzige
-Ausnahme ist das Log: Es zieht von `L` weg, weil `L` in der Vim-Navigation
-"nach rechts" bedeutet und eine Tastenbindung am Widget die der Anwendung
-verdeckt.
+**Eine Ausnahme:** Das Log zieht von `L` auf `F4` beziehungsweise `Alt+L` um.
+`L` bedeutet in der Vim-Navigation "Spalte nach rechts", und eine Tastenbindung
+am Widget verdeckt die der Anwendung - auf `L` wäre der Log-Umschalter stumm,
+sobald eine Tabelle den Fokus hat.
+
+`F11` und `F12` bleiben absichtlich frei, viele Terminals belegen sie selbst.
+
+### In beiden Stilen gleich
+
+| Taste | Aktion |
+|-------|--------|
+| TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
+| ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
+| A | Daten anonymisieren |
+| R | Cache zurücksetzen |
+| T | Theme wechseln |
+| C | Log kopieren |
+| < / > | Monat wechseln |
+| ? | Übersicht der aktuellen Belegung |
+| Q | Beenden |
+
+`F5` aktualisiert die sichtbare Ansicht und **immer auch den Stundenzettel**,
+frisch aus Jira. Die übrigen Ansichten laden beim nächsten Hinwechseln nach.
 
 Ohne eigene Wahl entscheidet das Betriebssystem: auf macOS klassisch, weil das
 System dort F3, F4 und F11 selbst abfängt, sonst mit F-Tasten.
