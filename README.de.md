@@ -110,8 +110,10 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — Eigener Reiter: 12 Monatskacheln mit Progressbar und Forecast, geladen beim ersten Ansehen
-- **Excel-Export** — Formatierter Stundenzettel mit Logo und Unterschriftszeile
-- **PDF-Export** — Adobe-signierbar, Unicode-Schriftart (Arial)
+- **Export in vier Formate** — das Format wählst du im Speichern-Dialog:
+  Excel (formatierter Stundenzettel mit Logo und Unterschriftszeile), PDF
+  (Adobe-signierbar, Unicode-Schriftart Arial), JSON (vollständiger Datensatz
+  zum Weiterverarbeiten) und Markdown (Tabelle für Tickets, Mails und Doku)
 - **Feiertage** — Deutsche Feiertage pro Bundesland, Lücken-Erkennung
 - **Soll/Ist** — Arbeitszeitvergleich mit Differenz-Anzeige
 - **MwSt konfigurierbar** — MwSt-Satz als Setting für die Netto/Brutto-Berechnung (Standard 19 %)
@@ -419,8 +421,8 @@ gewohnt ist, drückt weiter `S`.
 | Ticket-Details | `D` | `F6` oder `D` |
 | Ticket-Analyse | `B` | `F7` oder `B` |
 | Manuelle Zeit | `M` | `F8` oder `M` |
-| Excel-Export | `E` | `F9` oder `E` |
-| PDF-Export | `P` | `F10` oder `P` |
+| Daten anonymisieren | `A` | `F9` oder `A` |
+| Export | `E` | `F10` oder `E` |
 
 **Eine Ausnahme:** Das Log zieht von `L` auf `F4` beziehungsweise `Alt+L` um.
 `L` bedeutet in der Vim-Navigation "Spalte nach rechts", und eine Tastenbindung

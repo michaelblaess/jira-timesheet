@@ -39,6 +39,7 @@ from textual_widgets import (
 from jira_timesheet import __author__, __version__, __year__, keymap
 from jira_timesheet.i18n import REDACTED_MONEY, current_language, format_eur, format_number, t
 from jira_timesheet.models.export_column import parse_columns
+from jira_timesheet.models.export_format import DEFAULT_FORMAT, format_for_path
 from jira_timesheet.models.settings import Settings, normalize_color
 from jira_timesheet.models.ticket_lifecycle import TicketLifecycleData
 from jira_timesheet.models.timesheet import Timesheet, WorklogEntry
@@ -840,34 +841,27 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         with contextlib.suppress(Exception):
             webbrowser.open(path.resolve().as_uri())
 
-    def action_export_excel(self) -> None:
-        """Oeffnet den Speichern-Dialog und exportiert als Excel-Datei."""
-        from jira_timesheet.services.excel_exporter import ExcelExporter
+    def action_export(self) -> None:
+        """Oeffnet den Speichern-Dialog. Das Format waehlt der Anwender dort.
+
+        Frueher lagen Excel und PDF auf zwei Tasten, die denselben Dialog
+        oeffneten. Das Format gehoert in den Dialog, nicht in die Taste - so
+        kommen JSON und Markdown ohne weitere Tastenkuerzel dazu.
+        """
+        from jira_timesheet.screens.export_save_screen import ExportSaveScreen
+        from jira_timesheet.services.exporters import suggested_filename
 
         if self._timesheet is None:
             self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
-        suggested = ExcelExporter.suggested_filename(self._timesheet)
-        self._open_save_dialog(
-            suggested,
-            (t("save_dialog.filter_excel"), lambda p: p.suffix.lower() == ".xlsx"),
-            self._do_export_excel,
-        )
-
-    def action_export_pdf(self) -> None:
-        """Oeffnet den Speichern-Dialog und exportiert als PDF-Datei."""
-        from jira_timesheet.services.pdf_exporter import PdfExporter
-
-        if self._timesheet is None:
-            self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
-            return
-
-        suggested = PdfExporter.suggested_filename(self._timesheet)
-        self._open_save_dialog(
-            suggested,
-            (t("save_dialog.filter_pdf"), lambda p: p.suffix.lower() == ".pdf"),
-            self._do_export_pdf,
+        self.push_screen(
+            ExportSaveScreen(
+                location=self._last_export_dir,
+                default_file=suggested_filename(DEFAULT_FORMAT, self._timesheet),
+                start_format=DEFAULT_FORMAT,
+            ),
+            callback=self._do_export,
         )
 
     def _open_save_dialog(
@@ -906,65 +900,35 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         export_target_h = target_h if self._settings.show_target_hours_in_export else 0.0
         return missing, export_target_h
 
-    def _do_export_excel(self, target: Path | None) -> None:
-        """Callback des Speichern-Dialogs: schreibt die Excel-Datei."""
+    def _do_export(self, target: Path | None) -> None:
+        """Callback des Speichern-Dialogs: schreibt die Datei im gewaehlten Format.
+
+        Das Format steht in der Endung des Pfades - der Dialog sorgt dafuer,
+        dass sie stimmt (siehe `ExportSaveScreen`).
+
+        Args:
+            target: Der gewaehlte Pfad, oder None beim Abbrechen.
+        """
         if target is None or self._timesheet is None:
             return
+
+        export_format = format_for_path(target) or DEFAULT_FORMAT
+        name = t(export_format.name_key)
         try:
-            from jira_timesheet.services.excel_exporter import ExcelExporter
+            from jira_timesheet.services.exporters import build_exporter
 
             missing, export_target_h = self._export_context()
-            exporter = ExcelExporter(
-                logo_path=self._settings.logo_path,
-                jira_host=self._settings.jira_host,
-                hours_per_day=self._settings.hours_per_day,
-                show_ticket_links=self._settings.show_ticket_links_in_export,
-                columns=self._settings.export_columns,
-                default_customer=self._settings.default_customer,
-                mark_manual=self._settings.mark_manual_entries,
-                manual_color=self._settings.manual_entry_color,
-            )
-            path = exporter.export(
+            path = build_exporter(export_format, self._settings).export(
                 self._timesheet,
                 missing_days=missing,
                 target_hours=export_target_h,
                 output_path=str(target),
             )
             self._last_export_dir = str(target.parent)
-            self._write_log(t("log.excel_saved", link=self.link_markup(path, path)))
-            self.notify(t("notify.excel_saved", path=path))
+            self._write_log(t("log.export_saved", format=name, link=self.link_markup(path, path)))
+            self.notify(t("notify.export_saved", format=name, path=path))
         except Exception as exc:
-            self._write_log(t("log.excel_error", error=exc))
-            self.notify(t("notify.export_error", error=exc), severity="error")
-
-    def _do_export_pdf(self, target: Path | None) -> None:
-        """Callback des Speichern-Dialogs: schreibt die PDF-Datei."""
-        if target is None or self._timesheet is None:
-            return
-        try:
-            from jira_timesheet.services.pdf_exporter import PdfExporter
-
-            missing, export_target_h = self._export_context()
-            exporter = PdfExporter(
-                logo_path=self._settings.logo_path,
-                jira_host=self._settings.jira_host,
-                hours_per_day=self._settings.hours_per_day,
-                columns=self._settings.export_columns,
-                default_customer=self._settings.default_customer,
-                mark_manual=self._settings.mark_manual_entries,
-                manual_color=self._settings.manual_entry_color,
-            )
-            path = exporter.export(
-                self._timesheet,
-                missing_days=missing,
-                target_hours=export_target_h,
-                output_path=str(target),
-            )
-            self._last_export_dir = str(target.parent)
-            self._write_log(t("log.pdf_saved", link=self.link_markup(path, path)))
-            self.notify(t("notify.pdf_saved", path=path))
-        except Exception as exc:
-            self._write_log(t("log.pdf_error", error=exc))
+            self._write_log(t("log.export_error", format=name, error=exc))
             self.notify(t("notify.export_error", error=exc), severity="error")
 
     def action_show_settings(self) -> None:
@@ -1122,7 +1086,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if self._active_tab() == "tab-calendar":
             return
         # Ohne geladenen Stundenzettel gibt es keine Zeile - gleicher
-        # Toast wie bei Excel/PDF-Export.
+        # Toast wie beim Export.
         if self._timesheet is None:
             self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
@@ -2051,7 +2015,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # ModalScreen-Isolation: bei offenem Dialog alle App-Bindings sperren.
         if len(self.screen_stack) > 1:
             return None
-        if action in ("export_excel", "export_pdf") and self._timesheet is None:
+        if action == "export" and self._timesheet is None:
             return None
         # Das Neuladen der Ticket-Ansicht gibt es nur in ihren beiden Reitern.
         board_mode = self._board_mode()

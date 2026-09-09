@@ -110,8 +110,10 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — Own tab: 12 monthly tiles with progress bar and forecast, loaded on first view
-- **Excel export** — Formatted timesheet with logo and signature line
-- **PDF export** — Adobe-signable, Unicode font (Arial)
+- **Export to four formats** — pick the format in the save dialog: Excel
+  (formatted timesheet with logo and signature line), PDF (Adobe-signable,
+  Unicode font Arial), JSON (complete data set for further processing) and
+  Markdown (table for tickets, mails and docs)
 - **Public holidays** — German public holidays per federal state, gap detection
 - **Target/actual** — Working time comparison with difference display
 - **Configurable VAT** — VAT rate as a setting for the net/gross calculation (default 19%)
@@ -411,8 +413,8 @@ used to `S`, keep pressing `S`.
 | Ticket details | `D` | `F6` or `D` |
 | Ticket analysis | `B` | `F7` or `B` |
 | Manual time entry | `M` | `F8` or `M` |
-| Excel export | `E` | `F9` or `E` |
-| PDF export | `P` | `F10` or `P` |
+| Anonymize data | `A` | `F9` or `A` |
+| Export | `E` | `F10` or `E` |
 
 **One exception:** the log moves from `L` to `F4` respectively `Alt+L`. In vim
 navigation `L` means "column right", and a binding on the widget shadows the
