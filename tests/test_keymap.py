@@ -77,8 +77,7 @@ def test_fachliche_buchstaben_bleiben_in_beiden_stilen() -> None:
             ("toggle_anon", "a"),
             ("reset_cache", "r"),
             ("manual_entry", "m"),
-            ("export_excel", "e"),
-            ("export_pdf", "p"),
+            ("export", "e"),
             ("cycle_theme", "t"),
         ):
             assert buchstabe in bindings[action].keys, f"{stil}: {action} hat {buchstabe} verloren"

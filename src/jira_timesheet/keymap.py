@@ -33,8 +33,7 @@ from textual_widgets.keymap import (
 
 CLASSIC: dict[str, KeyBinding] = {
     "quit": KeyBinding(("q", "Q")),
-    "export_excel": KeyBinding(("e", "E")),
-    "export_pdf": KeyBinding(("p", "P")),
+    "export": KeyBinding(("e", "E")),
     "show_details": KeyBinding(("d", "D")),
     # copy_log: Shortcut bleibt, aber nicht im Footer - das Log-Kontextmenue
     # bietet "Log kopieren" ohnehin an.
@@ -67,8 +66,7 @@ CLASSIC: dict[str, KeyBinding] = {
 
 LABEL_KEYS: dict[str, str] = {
     "quit": "binding.quit",
-    "export_excel": "binding.excel",
-    "export_pdf": "binding.pdf",
+    "export": "binding.export",
     "show_details": "binding.details",
     "copy_log": "binding.copy_log",
     "show_settings": "binding.settings",
@@ -92,8 +90,7 @@ LABEL_KEYS: dict[str, str] = {
 TOOLTIP_KEYS: dict[str, str] = {
     "quit": "tooltip.quit",
     "refresh": "tooltip.refresh",
-    "export_excel": "tooltip.excel",
-    "export_pdf": "tooltip.pdf",
+    "export": "tooltip.export",
     "show_details": "tooltip.details",
     "show_settings": "tooltip.settings",
     "show_about": "tooltip.info",
@@ -167,21 +164,25 @@ def style_from_settings(settings: Any) -> KeymapStyle:
 APP_FUNCTION_KEYS: dict[str, KeyBinding] = {
     "ticket_report": KeyBinding(("f7", "b", "B")),
     "manual_entry": KeyBinding(("f8", "m", "M")),
-    "export_excel": KeyBinding(("f9", "e", "E")),
-    "export_pdf": KeyBinding(("f10", "p", "P")),
+    "toggle_anon": KeyBinding(("f9", "a", "A")),
+    "export": KeyBinding(("f10", "e", "E")),
 }
 """Die F-Tasten, die diese Anwendung selbst vergibt.
 
 `f1` bis `f6` kommen aus der gemeinsamen Konvention. Ab `f7` haengt es davon
-ab, was die Anwendung kann - hier die vier haeufigsten fachlichen Aktionen,
-paarweise sortiert: erst ansehen (Analyse), dann erfassen, dann die beiden
-Ausgaben.
+ab, was die Anwendung kann - hier die vier haeufigsten fachlichen Aktionen:
+erst ansehen (Analyse), dann erfassen, dann anonymisieren, dann ausgeben.
+
+`export` hatte bis dahin zwei Tasten, `f9` fuer Excel und `f10` fuer PDF.
+Beide oeffneten denselben Dialog - das Format gehoert dort hinein und nicht
+auf die Taste. Die frei gewordene `f9` bekommt `toggle_anon`: die Aktion wird
+vor jedem Screenshot gebraucht, und genau dann sucht man keine Buchstabentaste.
 
 Damit ist die Reihe f1..f10 voll. Ohne F-Taste bleiben bewusst:
 
 - `tab` Ansicht wechseln und `q` Beenden - beide sind schon eindeutig und in
   allen Anwendungen gleich, eine F-Taste daneben braeuchte niemand.
-- `a` Anonymisieren, `r` Cache zuruecksetzen, `t` Theme - selten gebraucht.
+- `r` Cache zuruecksetzen und `t` Theme - selten gebraucht.
 - `f11` und `f12` bleiben frei: viele Terminals und Browser belegen sie selbst
   mit Vollbild.
 """
