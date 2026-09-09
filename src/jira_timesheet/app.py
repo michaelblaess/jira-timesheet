@@ -857,12 +857,34 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         self.push_screen(
             ExportSaveScreen(
-                location=self._last_export_dir,
+                location=self._save_dialog_location(),
                 default_file=suggested_filename(DEFAULT_FORMAT, self._timesheet),
                 start_format=DEFAULT_FORMAT,
             ),
             callback=self._do_export,
         )
+
+    def _save_dialog_location(self) -> str:
+        """Das Verzeichnis, in dem der Speichern-Dialog aufgeht.
+
+        Der Reihe nach: das zuletzt genutzte Ziel, der Schreibtisch, das
+        Heimatverzeichnis. Geprueft wird jedes Mal, ob es den Pfad wirklich
+        gibt - `textual_fspicker` geht bei einem nicht vorhandenen
+        Startverzeichnis mit einem Fehlerbildschirm hoch, und der Anwender
+        sieht statt des Dialogs einen Absturz.
+
+        Aufgefallen auf dem Linux-Runner der CI: dort gibt es kein
+        Verzeichnis "Desktop", und genau darauf stand die Vorbelegung fest.
+        Auf Windows faellt das nie auf.
+
+        Returns:
+            Ein Verzeichnis, das existiert.
+        """
+        kandidaten = (self._last_export_dir, str(Path.home() / "Desktop"), str(Path.home()))
+        for kandidat in kandidaten:
+            if kandidat and Path(kandidat).is_dir():
+                return kandidat
+        return str(Path.cwd())
 
     def _open_save_dialog(
         self,
@@ -875,7 +897,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
         self.push_screen(
             FileSave(
-                location=self._last_export_dir,
+                location=self._save_dialog_location(),
                 title=t("save_dialog.title"),
                 save_button=t("save_dialog.save_button"),
                 cancel_button=t("save_dialog.cancel_button"),

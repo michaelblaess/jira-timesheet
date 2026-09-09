@@ -137,3 +137,36 @@ async def test_der_footer_zeigt_den_export_nur_einmal() -> None:
         assert bindings["toggle_anon"].keys[0] == "f9"
         # Tabs bleiben unberuehrt - reine Absicherung, dass die App steht.
         assert app.query_one(Tabs) is not None
+
+async def test_der_dialog_geht_auch_ohne_schreibtisch_auf(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """Auf einem Rechner ohne Verzeichnis "Desktop" darf der Dialog nicht abstuerzen.
+
+    Genau das ist auf dem Linux-Runner der CI passiert: die Vorbelegung stand
+    fest auf `~/Desktop`, textual_fspicker fand das Verzeichnis nicht und
+    Textual schob einen Fehlerbildschirm ueber die Anwendung. Unter Windows
+    faellt das nie auf, weil es den Schreibtisch dort immer gibt.
+    """
+    from pathlib import Path
+
+    from jira_timesheet.screens.export_save_screen import ExportSaveScreen
+    from tests.test_export_formats import beispiel_stundenzettel
+
+    heim = tmp_path / "heim-ohne-schreibtisch"
+    heim.mkdir()
+    assert not (heim / "Desktop").exists()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: heim))
+
+    app = JiraTimesheetApp()
+    async with app.run_test() as pilot:
+        await _settle(pilot)
+        app._timesheet = beispiel_stundenzettel()
+        # So steht es nach dem Bau der Anwendung: ein Pfad, den es nicht gibt.
+        app._last_export_dir = str(heim / "Desktop")
+        assert Path(app._save_dialog_location()).is_dir()
+
+        app.action_export()
+        await _settle(pilot)
+
+        assert isinstance(app.screen, ExportSaveScreen), type(app.screen).__name__
