@@ -26,7 +26,7 @@ from textual.widgets import Checkbox, DataTable, Input, Select, Static
 
 from jira_timesheet.i18n import format_number, t
 from jira_timesheet.services.ticket_board import Board, Group, Marker, Role, Ticket
-from jira_timesheet.services.ticket_board_loader import MODE_TEAM
+from jira_timesheet.services.ticket_board_loader import MODE_RELEVANT, MODE_TEAM
 from jira_timesheet.widgets.resizable_data_table import ResizableDataTable
 
 # Reihenfolge und i18n-Schluessel der Spalten.
@@ -123,6 +123,15 @@ _ALL_STATUS = "\x00alle"
 # ein Auswahlfeld ohne Optionen ab, wenn es keinen Leerwert haben darf - und das
 # Feld muss auch leer schon existieren, damit es sich spaeter fuellen laesst.
 _NO_MEMBER = "\x00niemand"
+
+# Wert des Bearbeiterfilters fuer "alle". Wie beim Status: leer waere
+# mehrdeutig, denn ein Ticket kann tatsaechlich ohne Bearbeiter dastehen.
+_ALL_ASSIGNEES = "\x00alle-bearbeiter"
+
+# Wert fuer die Tickets ohne Bearbeiter. Genau die will man in "Meine
+# Aktivitaeten" oft sehen - sie sind der Grund, warum ein Filter ueber das
+# Suchfeld hier nicht ausreicht.
+_NO_ASSIGNEE = "\x00ohne-bearbeiter"
 
 
 class TicketBoardTable(Vertical):
@@ -221,6 +230,11 @@ class TicketBoardTable(Vertical):
         self._jira_host = jira_host.rstrip("/")
         self._board: Board | None = None
         self._status = _ALL_STATUS
+        # Bearbeiterfilter nur dort, wo Tickets mehrerer Personen zusammen
+        # stehen. In "Meine Tickets" ist der Bearbeiter immer derselbe, und in
+        # "Mein Team" waehlt schon das Feld darueber die Person aus.
+        self._has_assignee_filter = mode == MODE_RELEVANT
+        self._assignee = _ALL_ASSIGNEES
         self._actionable_only = False
         self._filter_text = ""
         # Ticket je Zeilenschluessel; Gruppenzeilen fehlen hier bewusst.
@@ -263,6 +277,16 @@ class TicketBoardTable(Vertical):
                 allow_blank=False,
                 id=f"board-status-{self._mode}",
             )
+            if self._has_assignee_filter:
+                # Hinter dem Status: beide waehlen aus demselben Bestand aus,
+                # und der Status ist der haeufiger benutzte von beiden.
+                yield Static(t("board.filter.assignee"), classes="board-filter-label")
+                yield Select[str](
+                    [(t("board.filter.all"), _ALL_ASSIGNEES)],
+                    value=_ALL_ASSIGNEES,
+                    allow_blank=False,
+                    id=f"board-assignee-{self._mode}",
+                )
             yield Checkbox(
                 t("board.filter.actionable"),
                 value=False,
@@ -297,6 +321,7 @@ class TicketBoardTable(Vertical):
         """Uebernimmt ein neues Board und baut die Tabelle neu auf."""
         self._board = board
         self._sync_status_options()
+        self._sync_assignee_options()
         self._refresh()
 
     def set_jira_host(self, host: str) -> None:
@@ -333,6 +358,30 @@ class TicketBoardTable(Vertical):
             self._status = _ALL_STATUS
         select.value = self._status
 
+    def _sync_assignee_options(self) -> None:
+        """Fuellt den Bearbeiterfilter mit den tatsaechlich vorkommenden Namen.
+
+        Wie beim Status kommt die Liste aus der Antwort und nicht aus einer
+        festen Aufzaehlung. Tickets ohne Bearbeiter bekommen einen eigenen
+        Eintrag - sie sind in "Meine Aktivitaeten" das Interessante, ueber ein
+        Suchfeld aber gar nicht zu treffen.
+
+        Der Eintrag "ohne Bearbeiter" erscheint nur, wenn es solche Tickets
+        gibt. Ein Filter, der garantiert nichts findet, hilft niemandem.
+        """
+        if not self._has_assignee_filter:
+            return
+        select = self.query_one(f"#board-assignee-{self._mode}", Select)
+        tickets = self._tickets()
+        names = sorted({ticket.assignee for ticket in tickets if ticket.assignee})
+        options = [(t("board.filter.all"), _ALL_ASSIGNEES)] + [(name, name) for name in names]
+        if any(not ticket.assignee for ticket in tickets):
+            options.append((t("board.filter.no_assignee"), _NO_ASSIGNEE))
+        select.set_options(options)
+        if self._assignee not in {value for _label, value in options}:
+            self._assignee = _ALL_ASSIGNEES
+        select.value = self._assignee
+
     def _tickets(self) -> list[Ticket]:
         """Alle Tickets des Boards, ungefiltert."""
         return list(self._board.tickets) if self._board is not None else []
@@ -354,15 +403,33 @@ class TicketBoardTable(Vertical):
         return groups
 
     def _matches(self, ticket: Ticket, needle: str) -> bool:
-        """Prueft ein Ticket gegen alle drei Filter."""
+        """Prueft ein Ticket gegen alle Filter."""
         if self._status != _ALL_STATUS and ticket.status != self._status:
+            return False
+        if not self._assignee_matches(ticket):
             return False
         if self._actionable_only and not ticket.markers:
             return False
         return not (needle and needle not in f"{ticket.key} {ticket.summary}".casefold())
 
+    def _assignee_matches(self, ticket: Ticket) -> bool:
+        """Prueft ein Ticket gegen den Bearbeiterfilter.
+
+        Args:
+            ticket: Das zu pruefende Ticket.
+
+        Returns:
+            True, wenn das Ticket sichtbar bleiben soll.
+        """
+
+        if self._assignee == _ALL_ASSIGNEES:
+            return True
+        if self._assignee == _NO_ASSIGNEE:
+            return not ticket.assignee
+        return ticket.assignee == self._assignee
+
     def on_select_changed(self, event: Select.Changed) -> None:
-        """Status- oder Personenfilter geaendert."""
+        """Status-, Bearbeiter- oder Personenfilter geaendert."""
         if event.select.id == f"board-member-{self._mode}":
             event.stop()
             name = "" if str(event.value) == _NO_MEMBER else str(event.value)
@@ -375,6 +442,11 @@ class TicketBoardTable(Vertical):
             # Eine andere Person heisst ein anderer Bestand, nicht eine
             # andere Sicht auf denselben. Das Nachladen macht die Anwendung.
             self.post_message(self.MemberChanged(name))
+            return
+        if event.select.id == f"board-assignee-{self._mode}":
+            event.stop()
+            self._assignee = str(event.value)
+            self._refresh()
             return
         if event.select.id != f"board-status-{self._mode}":
             return
