@@ -261,6 +261,11 @@ async def aufnehmen(theme: str, ansicht: str, lage: Lage, browser: Path, ablage:
     app._settings.max_yearly_hours = 1720.0
     app._settings.theme = theme
     app._settings.log_visible = False
+    # Die Aufnahme zeigt immer den August: ein ganz vergangener Monat mit
+    # Buchungen. Im laufenden Monat stuende je nach Aufnahmetag kaum etwas,
+    # und ab September hat der erfundene Jahrgang gar keine Stunden.
+    app._settings.last_date_from = date(app._settings.year, 8, 1).isoformat()
+    app._settings.last_date_to = date(app._settings.year, 8, 31).isoformat()
 
     datei = ansicht if ansicht in OHNE_THEME_SUFFIX else f"{ansicht}-{theme}"
     svg = ablage / f"{datei}.svg"
