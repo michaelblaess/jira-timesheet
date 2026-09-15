@@ -22,7 +22,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Checkbox, DataTable, Input, Select, Static
+from textual.widgets import Button, Checkbox, DataTable, Input, Select, Static
 
 from jira_timesheet.i18n import format_number, t
 from jira_timesheet.services.ticket_board import Board, Group, Marker, Role, Ticket
@@ -124,6 +124,12 @@ _ALL_STATUS = "\x00alle"
 # Feld muss auch leer schon existieren, damit es sich spaeter fuellen laesst.
 _NO_MEMBER = "\x00niemand"
 
+# Wert des Gast-Eintrags im Personenfilter: eine Person, die ueber einen
+# Personen-Link kam und nicht auf der Merkliste steht. Kein Name - ein Gast
+# kann genauso heissen wie jemand auf der Liste. Das Nullzeichen vorn haelt
+# ihn wie die Platzhalter oben von echten Namen fern.
+_GUEST = chr(0) + "gast"
+
 # Wert des Bearbeiterfilters fuer "alle". Wie beim Status: leer waere
 # mehrdeutig, denn ein Ticket kann tatsaechlich ohne Bearbeiter dastehen.
 _ALL_ASSIGNEES = "\x00alle-bearbeiter"
@@ -160,6 +166,9 @@ class TicketBoardTable(Vertical):
             super().__init__()
             self.name = name
 
+    class GuestAddRequested(Message):
+        """Der Gast im Personenfilter soll dauerhaft auf die Merkliste."""
+
     DEFAULT_CSS = """
     TicketBoardTable {
         height: 1fr;
@@ -185,6 +194,16 @@ class TicketBoardTable(Vertical):
 
     TicketBoardTable Checkbox {
         width: auto;
+    }
+
+    TicketBoardTable .board-add-guest {
+        display: none;
+        width: auto;
+        min-width: 0;
+    }
+
+    TicketBoardTable .board-add-guest.-visible {
+        display: block;
     }
 
     TicketBoardTable .board-hint {
@@ -227,6 +246,8 @@ class TicketBoardTable(Vertical):
         # Zuletzt gemeldete Person. Trennt die Erstbelegung des Auswahlfelds
         # von einer echten Auswahl durch den Benutzer.
         self._selected_member = self._members[0] if self._members else ""
+        # Name des Gasts im Personenfilter, leer ohne Gast.
+        self._guest = ""
         self._jira_host = jira_host.rstrip("/")
         self._board: Board | None = None
         self._status = _ALL_STATUS
@@ -269,6 +290,12 @@ class TicketBoardTable(Vertical):
                     value=self._members[0] if self._members else _NO_MEMBER,
                     allow_blank=False,
                     id=f"board-member-{self._mode}",
+                )
+                # Nur sichtbar, solange ein Gast gewaehlt ist.
+                yield Button(
+                    t("board.add_guest"),
+                    id=f"board-add-guest-{self._mode}",
+                    classes="board-add-guest",
                 )
             yield Static(t("board.filter.status"), classes="board-filter-label")
             yield Select[str](
@@ -432,6 +459,11 @@ class TicketBoardTable(Vertical):
         """Status-, Bearbeiter- oder Personenfilter geaendert."""
         if event.select.id == f"board-member-{self._mode}":
             event.stop()
+            # Beim Neubelegen (erst die Optionen, dann der Wert) meldet Textual
+            # auch den Zwischenstand. Er kommt erst an, wenn schon der
+            # endgueltige Wert steht, und gilt dann nicht mehr.
+            if str(event.value) != str(event.select.value):
+                return
             name = "" if str(event.value) == _NO_MEMBER else str(event.value)
             # Textual meldet auch die Erstbelegung beim Aufbau als Aenderung.
             # Ungefiltert wuerde das beim ersten Oeffnen des Reiters einen
@@ -439,9 +471,10 @@ class TicketBoardTable(Vertical):
             if name == self._selected_member:
                 return
             self._selected_member = name
+            self._sync_guest_button()
             # Eine andere Person heisst ein anderer Bestand, nicht eine
             # andere Sicht auf denselben. Das Nachladen macht die Anwendung.
-            self.post_message(self.MemberChanged(name))
+            self.post_message(self.MemberChanged("" if name == _GUEST else name))
             return
         if event.select.id == f"board-assignee-{self._mode}":
             event.stop()
@@ -455,43 +488,131 @@ class TicketBoardTable(Vertical):
         self._refresh()
 
     def _member_options(self) -> list[tuple[str, str]]:
-        """Optionen des Personenfilters, mit Platzhalter bei leerer Liste."""
-        if not self._members:
-            return [(t("board.filter.no_member"), _NO_MEMBER)]
-        return [(name, name) for name in self._members]
+        """Optionen des Personenfilters: die Merkliste, dahinter ein Gast.
+
+        Ohne beides steht ein Platzhalter darin.
+        """
+        options = [(name, name) for name in self._members]
+        if self._guest:
+            options.append((t("board.filter.guest", name=self._guest), _GUEST))
+        return options or [(t("board.filter.no_member"), _NO_MEMBER)]
+
+    def _member_select(self) -> Select[str] | None:
+        """Das Personen-Auswahlfeld, None vor dem Aufbau oder ohne Personenfilter."""
+        try:
+            return self.query_one(f"#board-member-{self._mode}", Select)
+        except Exception:  # noqa: BLE001 - diese Ansicht hat keinen Filter
+            return None
 
     @property
     def member(self) -> str:
-        """Name der gewaehlten Person, leer ohne Auswahl."""
+        """Name der gewaehlten Person der Merkliste, leer ohne Auswahl oder bei einem Gast."""
         if not self._members:
             return ""
-        try:
-            gewaehlt = str(self.query_one(f"#board-member-{self._mode}", Select).value)
-        except Exception:  # noqa: BLE001 - vor dem Aufbau gibt es das Feld nicht
+        select = self._member_select()
+        if select is None:
             return self._members[0]
-        return "" if gewaehlt == _NO_MEMBER else gewaehlt
+        gewaehlt = str(select.value)
+        return "" if gewaehlt in (_NO_MEMBER, _GUEST) else gewaehlt
+
+    @property
+    def guest(self) -> str:
+        """Name des Gasts, leer ohne Gast."""
+        return self._guest
+
+    @property
+    def guest_selected(self) -> bool:
+        """True, wenn im Personenfilter der Gast gewaehlt ist."""
+        select = self._member_select()
+        return bool(self._guest) and select is not None and str(select.value) == _GUEST
 
     def set_members(self, members: Sequence[str]) -> None:
         """Uebernimmt eine geaenderte Merkliste ins Auswahlfeld.
 
         Die zuvor gewaehlte Person bleibt stehen, solange es sie noch gibt -
         sonst ruecken die Einstellungen den Blick unbemerkt auf jemand
-        anderen.
+        anderen. Ein gewaehlter Gast bleibt ebenso gewaehlt.
         """
         vorher = self.member
+        gast_gewaehlt = self.guest_selected
         self._members = list(members)
-        try:
-            select = self.query_one(f"#board-member-{self._mode}", Select)
-        except Exception:  # noqa: BLE001 - diese Ansicht hat keinen Filter
+        select = self._member_select()
+        if select is None:
+            return
+        select.set_options(self._member_options())
+        if gast_gewaehlt or (self._guest and not self._members):
+            self._select(select, _GUEST)
+        elif not self._members:
+            self._select(select, _NO_MEMBER)
+        else:
+            self._select(select, vorher if vorher in self._members else self._members[0])
+
+    def show_guest(self, name: str) -> None:
+        """Waehlt eine Person, die nicht auf der Merkliste steht.
+
+        Meldet keine Aenderung - die Anwendung laedt selbst nach.
+
+        Args:
+            name:
+                Anzeigename der Person, wie Jira ihn liefert.
+        """
+        self._guest = name
+        select = self._member_select()
+        if select is None:
+            return
+        select.set_options(self._member_options())
+        self._select(select, _GUEST)
+
+    def clear_guest(self) -> None:
+        """Nimmt den Gast aus dem Personenfilter.
+
+        War er gewaehlt, rueckt die Auswahl still auf den ersten Eintrag der
+        Merkliste. Die Anwendung waehlt danach selbst, wen sie zeigen will.
+        """
+        if not self._guest:
+            return
+        vorher = self.member
+        self._guest = ""
+        select = self._member_select()
+        if select is None:
             return
         select.set_options(self._member_options())
         if not self._members:
-            self._selected_member = ""
-            select.value = _NO_MEMBER
+            self._select(select, _NO_MEMBER)
+        else:
+            self._select(select, vorher if vorher in self._members else self._members[0])
+
+    def select_member(self, name: str) -> None:
+        """Waehlt eine Person der Merkliste, ohne eine Aenderung zu melden.
+
+        Args:
+            name:
+                Anzeigename aus der Merkliste. Ein unbekannter Name aendert nichts.
+        """
+        select = self._member_select()
+        if select is None or name not in self._members:
             return
-        gewaehlt = vorher if vorher in self._members else self._members[0]
-        self._selected_member = gewaehlt
-        select.value = gewaehlt
+        self._select(select, name)
+
+    def _select(self, select: Select[str], value: str) -> None:
+        """Setzt den Personenfilter, ohne dass MemberChanged ausgeloest wird."""
+        # Erst merken, dann setzen: on_select_changed vergleicht mit diesem
+        # Wert und schweigt, wenn er schon stimmt.
+        self._selected_member = "" if value == _NO_MEMBER else value
+        select.value = value
+        self._sync_guest_button()
+
+    def _sync_guest_button(self) -> None:
+        """Zeigt den Knopf "Zur Merkliste hinzufuegen" nur bei gewaehltem Gast."""
+        for button in self.query(f"#board-add-guest-{self._mode}").results(Button):
+            button.set_class(self.guest_selected, "-visible")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Knopf "Zur Merkliste hinzufuegen"."""
+        if event.button.id != f"board-add-guest-{self._mode}":
+            return
+        event.stop()
+        self.post_message(self.GuestAddRequested())
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Schalter "nur mit Handlungsbedarf" geaendert."""
