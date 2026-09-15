@@ -106,7 +106,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Month view** - Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
 - **My activity** — Tickets not assigned to you that you have touched: reported, watched, worked on, updated or mentioned by name
-- **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway
+- **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway. From every ticket list, "Show tickets of X" in the context menu leads straight there, matched by the Jira account id. Anyone not yet on the roster appears temporarily and can be added with a button
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — Own tab: 12 monthly tiles with progress bar and forecast, loaded on first view

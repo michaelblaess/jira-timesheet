@@ -106,7 +106,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Monatsansicht** - Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
 - **Meine Aktivitäten** — Tickets, die dir nicht zugewiesen sind, an denen du aber drangewesen bist: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
-- **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt
+- **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt. Aus jeder Ticketliste führt "Tickets von X anzeigen" im Kontextmenü direkt dorthin, erkannt an der Jira-Kennung. Wer noch nicht auf der Merkliste steht, erscheint vorübergehend und lässt sich per Knopf aufnehmen
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — Eigener Reiter: 12 Monatskacheln mit Progressbar und Forecast, geladen beim ersten Ansehen

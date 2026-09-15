@@ -51,8 +51,8 @@ from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
 from jira_timesheet.services.ssl_support import TlsSettings, tls_from_settings
-from jira_timesheet.services.team import Roster, TeamMember, from_storage
-from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role
+from jira_timesheet.services.team import Roster, TeamMember, from_storage, to_storage
+from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role, check_account_id
 from jira_timesheet.services.ticket_board import Ticket as BoardTicket
 from jira_timesheet.services.ticket_board_loader import (
     MODE_ASSIGNED,
@@ -96,6 +96,10 @@ _BOARD_TABS: dict[str, str] = {
 # Reiter, die die Monatsdaten zeigen. Laeuft ein Abruf, waehrend einer von
 # ihnen im Vordergrund steht, darf er die Anzeige anfassen - sonst nicht.
 _TIMESHEET_TABS: frozenset[str] = frozenset({"tab-list", "tab-calendar"})
+
+# Praefix der Kontextmenue-Aktionen "Tickets von ... anzeigen". Dahinter steht
+# die Nummer der Person in self._menu_people, nicht ihre accountId.
+_PERSON_ACTION = "person-"
 
 
 def visible_missing_days(missing_days: list[tuple[date, str]], today: date) -> list[tuple[date, str]]:
@@ -193,6 +197,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._year_loaded_for: int | None = None
         # Ticket der Zeile, auf der das Kontextmenue der Ansicht steht.
         self._menu_ticket: BoardTicket | None = None
+        # Personen des zuletzt geoeffneten Kontextmenues, als (Name, accountId).
+        self._menu_people: list[tuple[str, str]] = []
+        # Person im Reiter "Mein Team", die nicht auf der Merkliste steht.
+        self._team_guest: TeamMember | None = None
 
         # Beanstandungen aus der Tastenbelegung. Sie gehoeren ins Log, nicht in
         # einen Dialog - sie betreffen die Einstellungsdatei, nicht den Vorgang.
@@ -1011,6 +1019,7 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # loest den Neu-Abruf aus und braucht die gewaehlte Person.
         with contextlib.suppress(Exception):
             self._board_widget(MODE_TEAM).set_members(self._member_names())
+        self._adopt_guest_from_roster()
         if self._board_fingerprint() != board_before:
             self._invalidate_boards()
         if self._year_fingerprint() != year_before:
@@ -1667,9 +1676,16 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         return [member.display_name for member in self._members().members]
 
     def _current_member(self) -> TeamMember | None:
-        """Die im Reiter "Mein Team" gewaehlte Person, oder None."""
+        """Die im Reiter "Mein Team" gewaehlte Person, oder None.
+
+        Ein Gast steht nicht auf der Merkliste - fuer ihn gilt der Eintrag,
+        den show_person_tickets angelegt hat.
+        """
         with contextlib.suppress(Exception):
-            name = self._board_widget(MODE_TEAM).member
+            widget = self._board_widget(MODE_TEAM)
+            if widget.guest_selected:
+                return self._team_guest
+            name = widget.member
             if name:
                 return self._members().find(name)
         return None
@@ -1685,6 +1701,92 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._board_loaded[MODE_TEAM] = False
         self._real_boards[MODE_TEAM] = None
         self._ensure_board(MODE_TEAM)
+
+    def show_person_tickets(self, account_id: str, name: str) -> None:
+        """Oeffnet "Mein Team" mit den Tickets einer Person.
+
+        Erkannt wird sie an der accountId, nicht am Namen - die Merkliste
+        fuehrt Personen bewusst unter eigenem Namen. Wer dort nicht steht,
+        erscheint voruebergehend als Gast.
+
+        Args:
+            account_id:
+                accountId der Person. Eine ungueltige Kennung aendert nichts.
+            name:
+                Anzeigename aus Jira, fuer den Gast-Eintrag.
+        """
+        try:
+            checked = check_account_id(account_id)
+        except AccountIdError:
+            return
+        widget = self._board_widget(MODE_TEAM)
+        member = next((m for m in self._members().members if checked in m.account_ids), None)
+        if member is not None:
+            self._team_guest = None
+            widget.clear_guest()
+            widget.select_member(member.display_name)
+        else:
+            self._team_guest = TeamMember(display_name=name, account_ids=(checked,))
+            widget.show_guest(name)
+        self._board_loaded[MODE_TEAM] = False
+        self._real_boards[MODE_TEAM] = None
+        tabs = self.query_one("#view-tabs", TabbedContent)
+        if tabs.active == "tab-team":
+            self._ensure_board(MODE_TEAM)
+        else:
+            # Der Reiterwechsel laedt die Ansicht, siehe on_tabbed_content_tab_activated.
+            tabs.active = "tab-team"
+
+    def on_ticket_board_table_guest_add_requested(self, event: TicketBoardTable.GuestAddRequested) -> None:
+        """Nimmt den Gast dauerhaft in die Merkliste auf.
+
+        Gibt es den Namen dort schon, bekommt der neue Eintrag eine Nummer -
+        zwei Menschen koennen gleich heissen, und die Auswahl geht ueber den
+        Namen.
+        """
+        event.stop()
+        guest = self._team_guest
+        if guest is None:
+            return
+        roster = self._members()
+        taken = {m.display_name.casefold() for m in roster.members}
+        name = guest.display_name
+        number = 2
+        while name.casefold() in taken:
+            name = f"{guest.display_name} ({number})"
+            number += 1
+        roster.members.append(guest.with_name(name))
+        self._settings.team_members = to_storage(roster)
+        self._settings.save()
+        self._team_guest = None
+        widget = self._board_widget(MODE_TEAM)
+        widget.clear_guest()
+        widget.set_members(self._member_names())
+        # Dieselbe Person, die geladenen Tickets bleiben also richtig.
+        widget.select_member(name)
+        self.notify(t("notify.guest_added", name=name))
+
+    def _adopt_guest_from_roster(self) -> None:
+        """Loest den Gast auf, sobald seine Kennung auf der Merkliste steht.
+
+        War er gewaehlt, rueckt die Auswahl auf den Eintrag der Merkliste -
+        dieselbe Person, die geladenen Tickets bleiben also richtig.
+        """
+        guest = self._team_guest
+        if guest is None:
+            return
+        member = next(
+            (m for m in self._members().members if set(guest.account_ids) & set(m.account_ids)),
+            None,
+        )
+        if member is None:
+            return
+        self._team_guest = None
+        widget = self._board_widget(MODE_TEAM)
+        was_selected = widget.guest_selected
+        widget.clear_guest()
+        if was_selected:
+            widget.select_member(member.display_name)
 
     def _board_mode(self) -> str | None:
         """Ansicht des aktiven Reiters, None ausserhalb der Ticket-Reiter."""
@@ -1941,6 +2043,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 # ins Leere.
                 enabled=has_access and not self._anonymized,
             ),
+            ContextMenuItem.separator(),
+            *self._person_menu_items(event.ticket),
         ]
         self.push_screen(
             ContextMenuScreen(items, at=(event.screen_x, event.screen_y)),
@@ -1957,6 +2061,46 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             webbrowser.open(ticket.url)
         elif action == "ticket_report":
             self._fetch_ticket_report(ticket.key)
+        elif action.startswith(_PERSON_ACTION):
+            number = action.removeprefix(_PERSON_ACTION)
+            if number.isdigit() and int(number) < len(self._menu_people):
+                name, account_id = self._menu_people[int(number)]
+                self.show_person_tickets(account_id, name)
+
+    def _person_menu_items(self, ticket: BoardTicket) -> list[ContextMenuItem]:
+        """Eintraege "Tickets von ... anzeigen" fuer Bearbeiter und Autor.
+
+        Je Person ein Eintrag, dieselbe Person nur einmal. Ohne Person mit
+        brauchbarer Kennung bleibt ein ausgegrauter Eintrag stehen - so ist
+        das Menue an jeder Zeile gleich aufgebaut. Im Screenshot-Modus
+        gesperrt: die Namen sind dort erfunden.
+
+        Args:
+            ticket:
+                Das Ticket der angeklickten Zeile.
+
+        Returns:
+            Die Eintraege in der Reihenfolge Bearbeiter, Autor.
+        """
+        people: list[tuple[str, str]] = []
+        if not self._anonymized:
+            for name, account_id in (
+                (ticket.assignee, ticket.assignee_id),
+                (ticket.reporter, ticket.reporter_id),
+            ):
+                try:
+                    checked = check_account_id(account_id)
+                except AccountIdError:
+                    continue
+                if name and all(checked != known for _, known in people):
+                    people.append((name, checked))
+        self._menu_people = people
+        if not people:
+            return [ContextMenuItem(f"{_PERSON_ACTION}none", t("menu.person_tickets_none"), enabled=False)]
+        return [
+            ContextMenuItem(f"{_PERSON_ACTION}{number}", t("menu.person_tickets", name=name))
+            for number, (name, _) in enumerate(people)
+        ]
 
     def action_next_tab(self) -> None:
         """Wechselt zum naechsten Reiter (im Kreis).
