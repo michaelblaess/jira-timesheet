@@ -98,6 +98,25 @@ _BOARD_TABS: dict[str, str] = {
 _TIMESHEET_TABS: frozenset[str] = frozenset({"tab-list", "tab-calendar"})
 
 
+def visible_missing_days(missing_days: list[tuple[date, str]], today: date) -> list[tuple[date, str]]:
+    """Filtert die Tage ohne Buchung auf das, was in der Anzeige fehlt.
+
+    Eine Luecke gilt nur fuer vergangene Arbeitstage - fuer heute und die
+    kommenden Tage kann noch nichts fehlen. Feiertage bleiben immer stehen.
+    Der Export rechnet weiter mit der vollstaendigen Liste, wie in der
+    Qt-Fassung.
+
+    Args:
+        missing_days: (Datum, Grund) aus HolidayService.get_missing_workdays.
+        today: Stichtag, in der Anwendung date.today().
+
+    Returns:
+        Die gefilterte Liste in derselben Reihenfolge.
+    """
+    # Der Em-Dash im Grund markiert die Luecke, siehe get_missing_workdays.
+    return [(day, reason) for day, reason in missing_days if "\u2014" not in reason or day < today]
+
+
 class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  # type: ignore[misc]
     """TUI fuer Jira Stundenzettel."""
 
@@ -675,10 +694,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
             holiday_svc = HolidayService(self._settings.federal_state)
             worked_dates = {e.date for e in entries}
-            missing_days = holiday_svc.get_missing_workdays(
-                config.date_from,
-                config.date_to,
-                worked_dates,
+            missing_days = visible_missing_days(
+                holiday_svc.get_missing_workdays(config.date_from, config.date_to, worked_dates),
+                date.today(),
             )
             target_workdays = holiday_svc.count_workdays(config.date_from, config.date_to)
             target_hours = target_workdays * self._settings.hours_per_day
