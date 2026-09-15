@@ -40,16 +40,16 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
   <img src="docs/screenshots/01-main-miami.png" width="32%" alt="Listenansicht (Miami)">
 </p>
 
-### Kalenderansicht
+### Monatsansicht
 
 <p align="center">
-  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Kalenderansicht (Beastie)">
-  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Kalenderansicht (BeBox)">
-  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Kalenderansicht (Classic Terminal)">
-  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Kalenderansicht (Corleone)">
-  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Kalenderansicht (Gemstone)">
-  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Kalenderansicht (Metropolis)">
-  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Kalenderansicht (Miami)">
+  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Monatsansicht (Beastie)">
+  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Monatsansicht (BeBox)">
+  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Monatsansicht (Classic Terminal)">
+  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Monatsansicht (Corleone)">
+  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Monatsansicht (Gemstone)">
+  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Monatsansicht (Metropolis)">
+  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Monatsansicht (Miami)">
 </p>
 
 ### Jahresansicht mit Forecast
@@ -103,7 +103,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Spaltenbreiten ziehen** — Trennlinie im Spaltenkopf mit der Maus ziehen; Doppelklick setzt zurück, die Breiten werden gespeichert. Die Beschreibung füllt sonst automatisch die freie Breite
 - **Manuelle Zeiterfassung** — Zeiten, die nicht in Jira gebucht sind, per Dialog erfassen (`m`), bearbeiten und löschen (`ENTF`); gespeichert in SQLite, farblich markiert in Liste, Excel und PDF
 - **Konfigurierbare Export-Spalten** — jede Spalte an-/abwählbar und frei benennbar (Settings-Tab "Spalten"), inklusive Kunden-Spalte
-- **Kalenderansicht** — Monatskalender mit farbcodierten Tageskacheln
+- **Monatsansicht** - Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
 - **Meine Aktivitäten** — Tickets, die dir nicht zugewiesen sind, an denen du aber drangewesen bist: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
 - **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt
@@ -291,7 +291,7 @@ werden, wie man ihn ohnehin notiert: `3h 30m`, `3:30`, `3,5` oder `45m`.
 
 Diese Einträge landen in einer eigenen SQLite-Datei
 (`~/.jira-timesheet/manual-entries.db`) und **nie** im Jira-Cache. Sie zählen
-überall mit — Tagessumme, Monatssumme, Soll/Ist, Kalender, Jahresansicht,
+überall mit — Tagessumme, Monatssumme, Soll/Ist, Monatsansicht, Jahresansicht,
 Excel und PDF — und sind farblich markiert, damit auf einen Blick klar ist,
 was aus Jira kommt und was nicht. Wie viel davon manuell erfasst wurde, steht
 in der Kennzahlen-Zeile, in jeder Monatskachel der Jahresansicht und in deren
@@ -435,7 +435,7 @@ sobald eine Tabelle den Fokus hat.
 
 | Taste | Aktion |
 |-------|--------|
-| TAB | Tab wechseln (Stundenzettel / Kalender / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
+| TAB | Tab wechseln (Stundenzettel / Monat / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | A | Daten anonymisieren |
 | R | Cache zurücksetzen |

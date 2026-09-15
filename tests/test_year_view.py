@@ -207,7 +207,7 @@ async def test_manuelle_ablage_liegt_wirklich_im_testverzeichnis(
 
 
 async def test_jahresansicht_ist_der_dritte_reiter(app: JiraTimesheetApp) -> None:
-    """Sie steht direkt hinter dem Kalender - wie in der Qt-Fassung."""
+    """Sie steht direkt hinter dem Monat - wie in der Qt-Fassung."""
     async with app.run_test() as pilot:
         await pilot.pause()
         assert _tabs(app)[:3] == ["tab-list", "tab-calendar", "tab-year"]
