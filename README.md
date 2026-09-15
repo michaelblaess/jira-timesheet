@@ -40,16 +40,16 @@ The interface ships with retro themes. Every view is shown below across a range 
   <img src="docs/screenshots/01-main-miami.png" width="32%" alt="List view (Miami)">
 </p>
 
-### Calendar view
+### Month view
 
 <p align="center">
-  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Calendar view (Beastie)">
-  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Calendar view (BeBox)">
-  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Calendar view (Classic Terminal)">
-  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Calendar view (Corleone)">
-  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Calendar view (Gemstone)">
-  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Calendar view (Metropolis)">
-  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Calendar view (Miami)">
+  <img src="docs/screenshots/02-month-view-beastie.png" width="32%" alt="Month view (Beastie)">
+  <img src="docs/screenshots/02-month-view-bebox.png" width="32%" alt="Month view (BeBox)">
+  <img src="docs/screenshots/02-month-view-classic-terminal.png" width="32%" alt="Month view (Classic Terminal)">
+  <img src="docs/screenshots/02-month-view-corleone.png" width="32%" alt="Month view (Corleone)">
+  <img src="docs/screenshots/02-month-view-gemstone.png" width="32%" alt="Month view (Gemstone)">
+  <img src="docs/screenshots/02-month-view-metropolis.png" width="32%" alt="Month view (Metropolis)">
+  <img src="docs/screenshots/02-month-view-miami.png" width="32%" alt="Month view (Miami)">
 </p>
 
 ### Year view with forecast
@@ -103,7 +103,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Resizable columns** — Drag the divider in the column header; double-click resets it, widths are persisted. Otherwise the description column fills the remaining width automatically
 - **Manual time tracking** — Record time that is not booked in Jira via a dialog (`m`), edit and delete it (`DEL`); stored in SQLite, colour-marked in the list, Excel and PDF
 - **Configurable export columns** — Every column can be toggled and renamed (settings tab "Columns"), including a customer column
-- **Calendar view** — Monthly calendar with color-coded day tiles
+- **Month view** - Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
 - **My activity** — Tickets not assigned to you that you have touched: reported, watched, worked on, updated or mentioned by name
 - **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway
@@ -286,7 +286,7 @@ note it anyway: `3h 30m`, `3:30`, `3.5` or `45m`.
 
 These entries live in their own SQLite file
 (`~/.jira-timesheet/manual-entries.db`) and **never** in the Jira cache. They
-count everywhere — daily total, monthly total, target/actual, calendar, year
+count everywhere — daily total, monthly total, target/actual, month view, year
 view, Excel and PDF — and are colour-marked so it is obvious at a glance what
 comes from Jira and what does not. How much of it was entered manually is shown
 in the stats line, in every month tile of the year view and in its yearly total.
@@ -427,7 +427,7 @@ has focus.
 
 | Key | Action |
 |-----|--------|
-| TAB | Switch tab (Timesheet / Calendar / Year / My Tickets / My Activity / My Team) |
+| TAB | Switch tab (Timesheet / Month / Year / My Tickets / My Activity / My Team) |
 | DEL | Delete the highlighted manual entry (with confirmation) |
 | A | Anonymize data |
 | R | Reset cache |
