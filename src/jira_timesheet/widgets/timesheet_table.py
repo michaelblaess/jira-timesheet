@@ -12,6 +12,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.message import Message
+from textual.widget import Widget
 from textual.widgets import DataTable, Input, Static
 from textual_widgets import SearchInputWithHistory
 
@@ -194,7 +195,18 @@ class TimesheetTable(Vertical):
         # Tabelle initial fokussieren - sonst zieht das Such-Input den Start-
         # Fokus und einzelne Buchstaben-Shortcuts (g/s/...) landen im Suchfeld
         # statt eine Aktion auszuloesen.
-        self.call_after_refresh(table.focus)
+        self.call_after_refresh(self._initial_focus)
+
+    def _initial_focus(self) -> None:
+        """Nimmt den Startfokus - aber nur, wenn der eigene Reiter vorn steht.
+
+        TabbedContent holt den Reiter mit dem Fokus nach vorn. Startet die
+        Anwendung auf einem anderen Reiter ("Neue Tickets"), zoege ein
+        Fokus hier den Stundenzettel wieder davor.
+        """
+        table = self.query_one("#timesheet-data", ResizableDataTable)
+        if all(node.display for node in table.ancestors_with_self if isinstance(node, Widget)):
+            table.focus()
 
     def _build_columns(self, table: ResizableDataTable) -> None:
         """Legt die sichtbaren Spalten an und stellt gemerkte Breiten wieder her."""

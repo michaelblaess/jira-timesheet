@@ -14,6 +14,8 @@ from collections.abc import Callable, Sequence
 
 from jira_timesheet.models.settings import Settings
 from jira_timesheet.services.jira_client import JiraClient
+from jira_timesheet.services.new_tickets import FIELDS as NEW_FIELDS
+from jira_timesheet.services.new_tickets import build_new_tickets, new_tickets_jql
 from jira_timesheet.services.ssl_support import tls_from_settings
 from jira_timesheet.services.team import TeamMember
 from jira_timesheet.services.ticket_board import (
@@ -24,6 +26,7 @@ from jira_timesheet.services.ticket_board import (
     BoardConfig,
     Role,
     Statistics,
+    Ticket,
     WorklogInfo,
     assigned_jql,
     build_board,
@@ -243,3 +246,34 @@ async def load_statistics(
     client = build_client(settings, on_log)
     _, issues = await client.fetch_issues(lambda _aid: [history_jql()], STATS_FIELDS)
     return build_statistics(issues, dt.datetime.now(dt.UTC))
+
+
+async def load_new_tickets(
+    settings: Settings,
+    config: BoardConfig,
+    members: Sequence[TeamMember],
+    since: dt.date,
+    on_log: Reporter | None = None,
+) -> list[Ticket]:
+    """Holt die neuen Tickets aller Mitglieder seit einem Tag - eine einzige Suche.
+
+    Args:
+        settings:
+            Zugang und Host.
+        config:
+            Rollenzuordnung und Prioritaeten.
+        members:
+            Die Merkliste, nur Mitglieder mit Kennung.
+        since:
+            Erster Tag des Abrufs, einschliesslich.
+        on_log:
+            Rueckruf fuer die ausfuehrliche Ausgabe.
+
+    Returns:
+        Die Tickets, neueste zuerst.
+    """
+    # Vor der Sitzung bauen, damit eine kaputte Kennung ohne Netzverkehr abbricht.
+    jql = new_tickets_jql(members, since)
+    client = build_client(settings, on_log)
+    _, issues = await client.fetch_issues(lambda _aid: [jql], NEW_FIELDS)
+    return build_new_tickets(issues, members, config, dt.datetime.now(dt.UTC), browse_base=settings.jira_host)

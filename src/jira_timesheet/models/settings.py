@@ -180,6 +180,9 @@ class Settings:
     # Einstellungen. Je Eintrag stehen darin display_name und account_ids,
     # letzteres als LISTE - eine Person kann mehrere Konten fuehren.
     team_members: list[dict[str, object]] = field(default_factory=list)
+    # Reiter "Neue Tickets": beim Start oeffnen und zuletzt gewaehlter Zeitraum.
+    start_with_new_tickets: bool = False
+    new_tickets_window: str = "1T"
 
     SETTINGS_DIR: Path = Path.home() / ".jira-timesheet"
     SETTINGS_FILE: Path = SETTINGS_DIR / "settings.json"
@@ -227,6 +230,8 @@ class Settings:
         "board_threshold_acceptance",
         "board_threshold_closing",
         "team_members",
+        "start_with_new_tickets",
+        "new_tickets_window",
         "keymap_style",
         "keymap_vim",
         "keymap_custom",
@@ -303,6 +308,8 @@ class Settings:
                 board_threshold_acceptance=Settings._parse_float(data.get("board_threshold_acceptance"), 10.0),
                 board_threshold_closing=Settings._parse_float(data.get("board_threshold_closing"), 0.0),
                 team_members=Settings._parse_team(data.get("team_members")),
+                start_with_new_tickets=bool(data.get("start_with_new_tickets", False)),
+                new_tickets_window=str(data.get("new_tickets_window", "1T") or "1T"),
                 keymap_style=str(data.get("keymap_style", "") or ""),
                 keymap_vim=bool(data.get("keymap_vim", False)),
                 keymap_custom=Settings._parse_keymap_custom(data.get("keymap_custom")),

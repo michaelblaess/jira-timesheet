@@ -179,9 +179,12 @@ class TestKontextmenue:
         async with app.run_test() as pilot:
             await _settle(pilot)
             eintraege = app._person_menu_items(_ticket())
+        # Ohne Merkliste steht hinter jeder Person auch "zu meinem Team hinzufuegen".
         assert [e.label for e in eintraege] == [
             t("menu.person_tickets", name="Muster, Anna"),
+            t("menu.add_to_team", name="Muster, Anna"),
             t("menu.person_tickets", name="Gast, Gerda"),
+            t("menu.add_to_team", name="Gast, Gerda"),
         ]
         assert all(e.enabled for e in eintraege)
 
@@ -192,7 +195,10 @@ class TestKontextmenue:
         async with app.run_test() as pilot:
             await _settle(pilot)
             eintraege = app._person_menu_items(_ticket(reporter="Muster, Anna", reporter_id=ID_ANNA))
-        assert [e.label for e in eintraege] == [t("menu.person_tickets", name="Muster, Anna")]
+        assert [e.label for e in eintraege] == [
+            t("menu.person_tickets", name="Muster, Anna"),
+            t("menu.add_to_team", name="Muster, Anna"),
+        ]
 
     async def test_ohne_kennung_bleibt_ein_gesperrter_eintrag(self) -> None:
         from jira_timesheet.app import JiraTimesheetApp
