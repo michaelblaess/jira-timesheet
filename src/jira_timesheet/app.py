@@ -51,8 +51,8 @@ from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
 from jira_timesheet.services.ssl_support import TlsSettings, tls_from_settings
-from jira_timesheet.services.team import Roster, TeamMember, from_storage, to_storage
-from jira_timesheet.services.ticket_board import AccountIdError, Board, Marker, Role, check_account_id
+from jira_timesheet.services.team import Roster, TeamMember, add_person, from_storage, to_storage
+from jira_timesheet.services.ticket_board import AccountIdError, Board, Group, Marker, Role, check_account_id
 from jira_timesheet.services.ticket_board import Ticket as BoardTicket
 from jira_timesheet.services.ticket_board_loader import (
     MODE_ASSIGNED,
@@ -60,11 +60,13 @@ from jira_timesheet.services.ticket_board_loader import (
     MODE_TEAM,
     config_from,
     load_board,
+    load_new_tickets,
     load_statistics,
 )
 from jira_timesheet.services.timesheet_service import TimesheetService
 from jira_timesheet.widgets.calendar_view import CalendarView
 from jira_timesheet.widgets.config_panel import ConfigPanel
+from jira_timesheet.widgets.new_tickets_panel import NewTicketsPanel
 from jira_timesheet.widgets.summary_panel import SummaryPanel
 from jira_timesheet.widgets.ticket_board_table import TicketBoardTable
 from jira_timesheet.widgets.ticket_stats_panel import TicketStatsPanel
@@ -100,6 +102,8 @@ _TIMESHEET_TABS: frozenset[str] = frozenset({"tab-list", "tab-calendar"})
 # Praefix der Kontextmenue-Aktionen "Tickets von ... anzeigen". Dahinter steht
 # die Nummer der Person in self._menu_people, nicht ihre accountId.
 _PERSON_ACTION = "person-"
+# Praefix der Aktionen "... zu meinem Team hinzufuegen", ebenfalls mit der Nummer.
+_TEAM_ADD_ACTION = "team-add-"
 
 
 def visible_missing_days(missing_days: list[tuple[date, str]], today: date) -> list[tuple[date, str]]:
@@ -201,6 +205,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._menu_people: list[tuple[str, str]] = []
         # Person im Reiter "Mein Team", die nicht auf der Merkliste steht.
         self._team_guest: TeamMember | None = None
+        # Reiter "Neue Tickets": geladen-Flag und die echte Liste - im
+        # Screenshot-Modus zeigt das Widget eine Kopie.
+        self._new_loaded = False
+        self._real_new: list[BoardTicket] | None = None
 
         # Beanstandungen aus der Tastenbelegung. Sie gehoeren ins Log, nicht in
         # einen Dialog - sie betreffen die Einstellungsdatei, nicht den Vorgang.
@@ -320,7 +328,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         """Erstellt das UI-Layout."""
         yield Header()
         yield ConfigPanel(self._settings, id="config-panel")
-        with TabbedContent(id="view-tabs"):
+        # Fuer den Blick am Morgen: auf Wunsch gleich die neuen Tickets zeigen.
+        # Ueber initial - ein spaeteres Umschalten in on_mount ueberschreibt
+        # TabbedContent beim Aufbau wieder mit dem ersten Reiter.
+        initial = "tab-new" if self._settings.start_with_new_tickets else ""
+        with TabbedContent(id="view-tabs", initial=initial):
             with TabPane(t("tab.list"), id="tab-list"):
                 yield TimesheetTable(
                     hours_per_day=self._settings.hours_per_day,
@@ -368,6 +380,12 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     members=self._member_names(),
                     id="board-team",
                 )
+            with TabPane(t("tab.new_tickets"), id="tab-new"):
+                yield NewTicketsPanel(
+                    members=self._member_names(),
+                    window=self._settings.new_tickets_window,
+                    id="new-tickets",
+                )
         yield SummaryPanel(hint=t("summary.generate_hint", shortcut=self._key_hint("refresh")), id="summary-panel")
         yield HorizontalSplitter(target_id="view-tabs", min_size=10, id="log-splitter")
         yield LogPanel(lang=current_language(), export_name="jira-timesheet", id="log-panel")
@@ -405,6 +423,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         #   den frischen Abruf, wenn er gebraucht wird.
         if self._settings_complete():
             self._generate(force_refresh=False)
+
+        self._new_panel().set_workday_check(HolidayService(self._settings.federal_state).is_workday)
 
     def _ask_disclaimer(self) -> None:
         """Holt den Haftungshinweis ein, solange er nicht (in dieser Fassung) bestaetigt ist."""
@@ -565,6 +585,8 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 self._board_loaded[anderer] = False
         if aktiv != "tab-year":
             self._invalidate_year()
+        if aktiv != "tab-new":
+            self._new_loaded = False
 
         if aktiv == "tab-year":
             if not self._settings_complete():
@@ -573,6 +595,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                 self._load_year(force_refresh=True)
         elif mode is not None:
             self._reload_board(mode)
+        elif aktiv == "tab-new":
+            self._new_loaded = False
+            self._ensure_new()
 
         # Der Stundenzettel immer. Steht er nicht im Vordergrund, laeuft der
         # Abruf im Hintergrund und laesst die sichtbare Anzeige in Ruhe.
@@ -1019,6 +1044,14 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # loest den Neu-Abruf aus und braucht die gewaehlte Person.
         with contextlib.suppress(Exception):
             self._board_widget(MODE_TEAM).set_members(self._member_names())
+        with contextlib.suppress(Exception):
+            panel = self._new_panel()
+            panel.set_members(self._member_names())
+            panel.set_workday_check(HolidayService(self._settings.federal_state).is_workday)
+        # Die Merkliste kann sich geaendert haben - beim naechsten Blick neu holen.
+        self._new_loaded = False
+        if self._active_tab() == "tab-new":
+            self._ensure_new()
         self._adopt_guest_from_roster()
         if self._board_fingerprint() != board_before:
             self._invalidate_boards()
@@ -1583,12 +1616,19 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         # Auch eine geladene Ticket-Ansicht oder die Jahresansicht zaehlt: wer
         # nur sie geoeffnet hat, muss sie fuer einen Screenshot ebenso
         # zensieren koennen.
-        if self._timesheet is None and not any(self._real_boards.values()) and self._year_loaded_for is None:
+        if (
+            self._timesheet is None
+            and not any(self._real_boards.values())
+            and self._year_loaded_for is None
+            and self._real_new is None
+        ):
             self.notify(t("notify.generate_first", shortcut=self._key_hint("refresh")), severity="warning")
             return
 
         self._anonymized = not self._anonymized
         self._refresh_boards_anonymization()
+        with contextlib.suppress(Exception):
+            self._new_panel().set_display(self._display_new if self._anonymized else None)
         # Die Jahresansicht bleibt beim Umschalten stehen - ihre Geldbetraege
         # muessen trotzdem mitziehen, sonst steht der Umsatz im Screenshot.
         with contextlib.suppress(Exception):
@@ -1662,6 +1702,112 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self.notify(t("notify.cache_empty"))
 
     # --- Ticket-Ansichten ---------------------------------------------
+
+    # --- Neue Tickets ---------------------------------------------------
+
+    def _new_panel(self) -> NewTicketsPanel:
+        """Das Widget des Reiters "Neue Tickets"."""
+        return self.query_one("#new-tickets", NewTicketsPanel)
+
+    @staticmethod
+    def _display_new(tickets: list[BoardTicket]) -> list[BoardTicket]:
+        """Die Screenshot-Kopie einer Liste - ueber dieselbe Umformung wie die Ticketlisten."""
+        from jira_timesheet.services.anonymizer import anonymize_board
+
+        return anonymize_board(Board(groups=[Group(role=Role.UNKNOWN, tickets=tickets)], tickets=tickets)).tickets
+
+    def _ensure_new(self) -> None:
+        """Startet den Abruf der neuen Tickets, wenn noch nichts geladen ist.
+
+        Ein Abruf ueber den laengsten Zeitraum und alle Mitglieder. Person und
+        Zeitraum filtern danach lokal im Widget.
+        """
+        if self._new_loaded:
+            return
+        panel = self._new_panel()
+        if not self._settings_complete():
+            panel.show_message(t("board.needs_settings"))
+            return
+        members = [m for m in self._members().members if m.account_ids]
+        if not members:
+            panel.show_message(t("new.needs_team"))
+            return
+        self._new_loaded = True
+        self._real_new = None
+        panel.show_message(t("new.loading"))
+        self.run_worker(self._load_new(members, panel.since_longest()), group="new-tickets", exclusive=True)
+
+    async def _load_new(self, members: list[TeamMember], since: date) -> None:
+        """Holt die Liste und uebergibt sie an das Widget."""
+        panel = self._new_panel()
+        try:
+            tickets = await load_new_tickets(
+                self._settings, config_from(self._settings), members, since, on_log=self._write_log
+            )
+        except AccountIdError:
+            self._new_failed(t("new.bad_account"))
+            return
+        except JiraClientError as exc:
+            self._new_failed(t("new.failed", error=str(exc)))
+            return
+        except Exception as exc:  # noqa: BLE001 - ein Abruf darf nie unbemerkt sterben
+            self._new_failed(t("new.failed", error=f"{type(exc).__name__}: {exc}"))
+            return
+        self._real_new = tickets
+        panel.set_display(self._display_new if self._anonymized else None)
+        panel.set_tickets(tickets)
+        self._update_new_tab_label()
+        self._write_log(t("new.loaded", count=len(tickets), date=f"{since:%d.%m.%Y}"))
+        if self._active_tab() == "tab-new":
+            self._show_new_summary()
+
+    def _new_failed(self, message: str) -> None:
+        """Meldet einen gescheiterten Abruf - der naechste Blick versucht es erneut."""
+        self._new_loaded = False
+        self._new_panel().show_message(message)
+        self._write_log(f"[red]{message}[/red]")
+        self.notify(message, severity="error")
+
+    def _show_new_summary(self) -> None:
+        """Traegt die Anzahl der sichtbaren neuen Tickets in die Zusammenfassung ein."""
+        summary = self.query_one("#summary-panel", SummaryPanel)
+        panel = self._new_panel()
+        if panel.tickets is None:
+            summary.show_items([])
+            return
+        summary.show_items(
+            [
+                StatusItem(t("new.summary.tickets"), str(len(panel.filtered())), value_style="bold"),
+                StatusItem(t("new.summary.since"), f"{panel.since():%d.%m.%Y}"),
+            ]
+        )
+
+    def on_new_tickets_panel_window_changed(self, event: NewTicketsPanel.WindowChanged) -> None:
+        """Merkt sich den Zeitraum fuer den naechsten Start."""
+        event.stop()
+        self._settings.new_tickets_window = event.kind
+        self._settings.save()
+
+    def on_new_tickets_panel_count_changed(self, event: NewTicketsPanel.CountChanged) -> None:
+        """Filter oder Inhalt haben sich geaendert - Reitertitel und Zusammenfassung nachziehen."""
+        event.stop()
+        self._update_new_tab_label()
+        if self._active_tab() == "tab-new":
+            self._show_new_summary()
+
+    def _update_new_tab_label(self) -> None:
+        """Traegt die Anzahl in den Reitertitel - dann sieht man sie schon beim Start.
+
+        Aus dem aktuellen Stand des Widgets, nicht aus der Nachricht: der
+        Ladehinweis und die fertige Liste melden sich kurz nacheinander, und
+        welche Meldung zuletzt ankommt, darf den Titel nicht bestimmen.
+        """
+        panel = self._new_panel()
+        label = t("tab.new_tickets")
+        if panel.tickets is not None:
+            label = f"{label} ({len(panel.filtered())})"
+        with contextlib.suppress(Exception):
+            self.query_one("#view-tabs", TabbedContent).get_tab("tab-new").label = label
 
     def _board_widget(self, mode: str) -> TicketBoardTable:
         """Liefert die Tabelle einer Ansicht."""
@@ -2066,6 +2212,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             if number.isdigit() and int(number) < len(self._menu_people):
                 name, account_id = self._menu_people[int(number)]
                 self.show_person_tickets(account_id, name)
+        elif action.startswith(_TEAM_ADD_ACTION):
+            number = action.removeprefix(_TEAM_ADD_ACTION)
+            if number.isdigit() and int(number) < len(self._menu_people):
+                name, account_id = self._menu_people[int(number)]
+                self.add_person_to_team(account_id, name)
 
     def _person_menu_items(self, ticket: BoardTicket) -> list[ContextMenuItem]:
         """Eintraege "Tickets von ... anzeigen" fuer Bearbeiter und Autor.
@@ -2097,10 +2248,43 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         self._menu_people = people
         if not people:
             return [ContextMenuItem(f"{_PERSON_ACTION}none", t("menu.person_tickets_none"), enabled=False)]
-        return [
-            ContextMenuItem(f"{_PERSON_ACTION}{number}", t("menu.person_tickets", name=name))
-            for number, (name, _) in enumerate(people)
-        ]
+        # Wer schon auf der Merkliste steht, bekommt kein "hinzufuegen".
+        team_ids = {a for member in self._members().members for a in member.account_ids}
+        items: list[ContextMenuItem] = []
+        for number, (name, account_id) in enumerate(people):
+            items.append(ContextMenuItem(f"{_PERSON_ACTION}{number}", t("menu.person_tickets", name=name)))
+            if account_id not in team_ids:
+                items.append(ContextMenuItem(f"{_TEAM_ADD_ACTION}{number}", t("menu.add_to_team", name=name)))
+        return items
+
+    def add_person_to_team(self, account_id: str, name: str) -> None:
+        """Nimmt eine Person aus einem Kontextmenue in die Merkliste auf.
+
+        Args:
+            account_id:
+                accountId der Person. Eine unbrauchbare Kennung aendert nichts.
+            name:
+                Anzeigename aus Jira.
+        """
+        try:
+            roster, entry, added = add_person(self._members(), account_id, name)
+        except AccountIdError:
+            return
+        if not added:
+            self.notify(t("notify.already_in_team", name=entry))
+            return
+        self._settings.team_members = to_storage(roster)
+        self._settings.save()
+        with contextlib.suppress(Exception):
+            self._board_widget(MODE_TEAM).set_members(self._member_names())
+        with contextlib.suppress(Exception):
+            self._new_panel().set_members(self._member_names())
+        self._adopt_guest_from_roster()
+        # Die neuen Tickets fragen die Merkliste ab - beim naechsten Blick neu holen.
+        self._new_loaded = False
+        if self._active_tab() == "tab-new":
+            self._ensure_new()
+        self.notify(t("notify.guest_added", name=entry))
 
     def action_next_tab(self) -> None:
         """Wechselt zum naechsten Reiter (im Kreis).
@@ -2242,6 +2426,10 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
         if self._active_tab() == "tab-year":
             self._ensure_year()
             self._show_year_summary()
+            return
+        if self._active_tab() == "tab-new":
+            self._ensure_new()
+            self._show_new_summary()
             return
         mode = self._board_mode()
         if mode is None:

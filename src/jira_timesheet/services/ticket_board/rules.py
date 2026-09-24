@@ -26,6 +26,24 @@ from .models import Board, Group, Marker, Role, Ticket, WorklogInfo
 _HOURS_PER_WORKDAY = WORK_END_HOUR - WORK_START_HOUR
 
 
+def key_sort_value(key: str) -> tuple[str, int, str]:
+    """Sortierwert einer Ticketnummer: erst das Projekt, dann die Zahl.
+
+    Als Text sortiert stuende ABC-5979 hinter ABC-17741, weil "5" nach "1"
+    kommt. So aufgefallen in der Qt-Fassung am 23.09.2026.
+
+    Args:
+        key:
+            Ticketnummer wie "ABC-5979".
+
+    Returns:
+        (Projekt, Nummer, Rohtext). Eine Nummer ohne Zahl sortiert mit 0 und
+        faellt ueber den Rohtext in eine feste Reihenfolge.
+    """
+    project, _, number = (key or "").rpartition("-")
+    return (project.casefold(), int(number), key) if number.isdigit() else ((key or "").casefold(), 0, key)
+
+
 def parse_ts(raw: str) -> dt.datetime | None:
     """Liest einen Jira-Zeitstempel.
 

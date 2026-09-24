@@ -406,6 +406,11 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
                 stored if isinstance(stored, list) else [],
                 self._current_credentials,
             )
+            yield Checkbox(
+                t("settings.start_new_tickets"),
+                value=bool(self._settings.get("start_with_new_tickets", False)),
+                id="set-start-new-tickets",
+            )
 
         with TabPane(t("settings.tab_keyboard"), id="settings-tab-keyboard"), VerticalScroll():
             yield Static(t("settings.keymap_intro"), classes="hint")
@@ -640,6 +645,7 @@ class SettingsScreen(BaseSettingsScreen):  # type: ignore[misc]
 
         self._collect_board_settings(settings)
         settings["team_members"] = self.query_one(TeamRosterPanel).storage()
+        settings["start_with_new_tickets"] = self.query_one("#set-start-new-tickets", Checkbox).value
 
     def _current_credentials(self) -> tuple[str, str, str, str]:
         """Liefert Host, Mailadresse, Token und Proxy aus den Eingabefeldern.
