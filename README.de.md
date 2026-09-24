@@ -106,7 +106,8 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Monatsansicht** - Monatskalender mit farbcodierten Tageskacheln
 - **Meine Tickets** — Alle offenen Tickets, gruppiert danach, wer gerade am Zug ist: was du selbst bearbeitest, was auf Freigabe wartet, was im Backlog liegt, was zurückzugeben ist und was Jira für fertig hält, obwohl noch Arbeit bleibt. Mit Merkmalen wie "verwaist", "blockiert" oder "Pile of Shame" und einer Liegezeit in echten Arbeitstagen
 - **Meine Aktivitäten** — Tickets, die dir nicht zugewiesen sind, an denen du aber drangewesen bist: selbst angelegt, beobachtet, Zeit gebucht, bearbeitet oder namentlich erwähnt
-- **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt. Aus jeder Ticketliste führt "Tickets von X anzeigen" im Kontextmenü direkt dorthin, erkannt an der Jira-Kennung. Wer noch nicht auf der Merkliste steht, erscheint vorübergehend und lässt sich per Knopf aufnehmen
+- **Mein Team** — Derselbe Blick auf den Ticketstand von Kolleginnen und Kollegen, ohne dass diese etwas installieren müssen. Ohne Zeitbuchungen und ohne Auswertung: gezeigt wird, was das Jira-Board ohnehin jedem im Team zeigt. Aus jeder Ticketliste führt "Tickets von X anzeigen" im Kontextmenü direkt dorthin, erkannt an der Jira-Kennung. Wer noch nicht auf der Merkliste steht, erscheint vorübergehend und lässt sich per Knopf aufnehmen. Im Kontextmenü jeder Ticketliste nimmt "X zu meinem Team hinzufügen" eine Person direkt auf.
+- **Neue Tickets** - Der Blick am Morgen: welche Tickets die Kolleginnen und Kollegen aus "Mein Team" zuletzt angelegt haben. Die Person wählst Du im Auswahlfeld, "Alle" steht vorn, den Zeitraum über 1T, 2T, 3T oder 7T. Gezählt wird in Arbeitstagen: 1T heißt seit Beginn des letzten Arbeitstags, am Montag also ab Freitag, und Feiertage zählen nicht mit. Die Anzahl steht im Reitertitel, und auf Wunsch öffnet der Reiter gleich beim Start
 - **Auswertung** — Zulauf gegen Abgang je Monat und die Altersverteilung der offenen Tickets, als echte Diagramme mit Achsen direkt im Terminal (zuklappbar, über [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab-Navigation** — Zwischen Ansichten wechseln mit TAB oder Klick
 - **Jahresansicht** — Eigener Reiter: 12 Monatskacheln mit Progressbar und Forecast, geladen beim ersten Ansehen
@@ -122,7 +123,7 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Anonymisierung** — Daten per Tastendruck anonymisieren für sichere Screenshots
 - **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort
 - **Zweisprachige Oberfläche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
-- **31 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
+- **41 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Voraussetzungen
 
@@ -435,7 +436,7 @@ sobald eine Tabelle den Fokus hat.
 
 | Taste | Aktion |
 |-------|--------|
-| TAB | Tab wechseln (Stundenzettel / Monat / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team) |
+| TAB | Tab wechseln (Stundenzettel / Monat / Jahresansicht / Meine Tickets / Meine Aktivitäten / Mein Team / Neue Tickets) |
 | ENTF | Markierten manuellen Eintrag löschen (mit Rückfrage) |
 | A | Daten anonymisieren |
 | R | Cache zurücksetzen |

@@ -106,7 +106,8 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Month view** - Monthly calendar with color-coded day tiles
 - **My tickets** — All open tickets, grouped by whose turn it is: what you are working on, what waits for approval, what sits in the backlog, what should be handed back, and what Jira counts as done although work remains. With flags such as "stale", "blocked" or "pile of shame" and an idle time counted in real working days
 - **My activity** — Tickets not assigned to you that you have touched: reported, watched, worked on, updated or mentioned by name
-- **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway. From every ticket list, "Show tickets of X" in the context menu leads straight there, matched by the Jira account id. Anyone not yet on the roster appears temporarily and can be added with a button
+- **My team** — The same view on a colleague's tickets, without them having to install anything. No worklogs and no analysis: it shows what the Jira board shows everyone on the team anyway. From every ticket list, "Show tickets of X" in the context menu leads straight there, matched by the Jira account id. Anyone not yet on the roster appears temporarily and can be added with a button. "Add X to my team" in the context menu of every ticket list adds a person directly.
+- **New tickets** - The morning view: which tickets the colleagues on your "My team" list created recently. Pick a person in the drop-down, with "All" first, and a period with 1T, 2T, 3T or 7T. The period counts working days: 1T means since the start of the last working day, so on a Monday since Friday, and public holidays do not count. The count shows in the tab title, and the tab can open right on start
 - **Analysis** — Inflow versus outflow per month and the age distribution of open tickets, drawn as real charts with axes right in the terminal (collapsible, via [textual-plotext](https://github.com/Textualize/textual-plotext))
 - **Tab navigation** — Switch between views with TAB or click
 - **Year view** — Own tab: 12 monthly tiles with progress bar and forecast, loaded on first view
@@ -122,7 +123,7 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Anonymization** — Anonymize data with a keypress for safe screenshots
 - **Worklog cache** — Completed months cached, year view loads instantly
 - **Bilingual UI** — German/English, switchable via `--lang` or the settings dialog
-- **31 retro themes** — via theme picker (Ctrl+P), see [textual-themes](https://github.com/michaelblaess/textual-themes)
+- **41 retro themes** — via theme picker (Ctrl+P), see [textual-themes](https://github.com/michaelblaess/textual-themes)
 
 ## Prerequisites
 
@@ -427,7 +428,7 @@ has focus.
 
 | Key | Action |
 |-----|--------|
-| TAB | Switch tab (Timesheet / Month / Year / My Tickets / My Activity / My Team) |
+| TAB | Switch tab (Timesheet / Month / Year / My Tickets / My Activity / My Team / New Tickets) |
 | DEL | Delete the highlighted manual entry (with confirmation) |
 | A | Anonymize data |
 | R | Reset cache |
