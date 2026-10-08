@@ -27,6 +27,7 @@ Beispiele:
   jira-timesheet
   jira-timesheet --lang en
   jira-timesheet --version
+  jira-timesheet --new-tickets-json --days 2
 """
 
 
@@ -55,11 +56,26 @@ def main() -> None:
         version=f"%(prog)s {__version__}",
     )
 
+    parser.add_argument(
+        "--new-tickets-json",
+        action="store_true",
+        help="Gibt die neuen Tickets der Merkliste als JSON aus und beendet sich, ohne die Oberfläche zu starten",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help="Arbeitstage zurück für --new-tickets-json (Default: der zuletzt gewählte Zeitraum)",
+    )
+
     args = parser.parse_args()
 
     # Sprache laden, BEVOR die App-Klasse importiert wird - sonst sind
     # t()-Aufrufe auf Modul-Ebene leer.
     load_locale(args.lang)
+
+    if args.new_tickets_json:
+        sys.exit(_print_new_tickets(settings, args.days))
 
     # Per CLI gewaehlte Sprache persistieren.
     if args.lang != saved_lang:
@@ -79,6 +95,35 @@ def main() -> None:
         # Maus-Tracking an - danach kippt jede Mausbewegung Steuerzeichen-Muell
         # in die Shell. Hier abschalten, auch bei Crash (finally).
         _reset_mouse_tracking()
+
+
+def _print_new_tickets(settings: Settings, days: int | None) -> int:
+    """Schreibt die neuen Tickets als JSON auf die Standardausgabe.
+
+    Geschrieben wird in Bytes und immer als UTF-8: die Ausgabe liest ein
+    anderes Programm, und die Windows-Konsole wuerde Umlaute sonst in ihrer
+    eigenen Codepage ausgeben.
+
+    Args:
+        settings:
+            Zugang, Host und Merkliste.
+        days:
+            Arbeitstage zurueck, None nimmt den zuletzt gewaehlten Zeitraum.
+
+    Returns:
+        Der Rueckgabewert des Prozesses: 0 bei Erfolg, 1 bei einem gescheiterten Abruf.
+    """
+    import asyncio
+    import json
+
+    from jira_timesheet.services.new_tickets_export import default_workdays, export_new_tickets
+
+    workdays = days if days is not None and days > 0 else default_workdays(settings)
+    result = asyncio.run(export_new_tickets(settings, workdays))
+    sys.stdout.buffer.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+    sys.stdout.buffer.write(b"\n")
+    sys.stdout.buffer.flush()
+    return 1 if "error" in result else 0
 
 
 def _enable_faulthandler() -> None:

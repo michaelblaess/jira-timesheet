@@ -394,6 +394,44 @@ outflow per month and the age distribution of open tickets, plus a line with
 backlog, throughput and balance. The cumulative backlog curve exists only in the
 Qt edition - the terminal is not wide enough for a third chart.
 
+### New tickets for other programs
+
+The list of the "New Tickets" tab is also available without the interface, as JSON on standard
+output. Another tool can show it without talking to Jira itself and without knowing the
+credentials:
+
+```bash
+jira-timesheet --new-tickets-json --days 2
+```
+
+`--days` counts working days back, today is always included. Without it the period last chosen
+in the tab applies.
+
+```json
+{
+  "format": 1,
+  "since": "2026-10-07",
+  "tickets": [
+    {
+      "key": "ABC-123",
+      "summary": "Counter overflows",
+      "type": "Bug",
+      "priority": "High",
+      "status": "Open",
+      "reporter": "Anna",
+      "assignee": "",
+      "created": "2026-10-08T14:50:09+02:00",
+      "url": "https://jira.example.com/browse/ABC-123"
+    }
+  ]
+}
+```
+
+A failed run prints the same shape with an empty list plus `error` (`settings`, `team`,
+`account` or `jira`) and a `message` to read, and ends with exit code 1. The
+[turbo-mod](https://github.com/michaelblaess/turbo-mod) for Claude Code shows this list in its
+side pane.
+
 ## Keyboard Shortcuts
 
 Key bindings are **switchable** - *Settings -> Keyboard* offers two switches

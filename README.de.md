@@ -402,6 +402,44 @@ Abgang je Monat und die Altersverteilung der offenen Tickets, dazu eine Zeile
 mit Bestand, Durchsatz und Saldo. Den kumulierten Bestandsverlauf zeigt nur die
 Qt-Fassung - im Terminal reicht die Breite nicht für ein drittes Diagramm.
 
+### Neue Tickets für andere Programme
+
+Die Liste des Reiters "Neue Tickets" gibt es auch ohne Oberfläche, als JSON auf der
+Standardausgabe. Ein anderes Werkzeug kann sie anzeigen, ohne selbst mit Jira zu sprechen und
+ohne die Zugangsdaten zu kennen:
+
+```bash
+jira-timesheet --new-tickets-json --days 2
+```
+
+`--days` zählt Arbeitstage zurück, heute ist immer dabei. Ohne die Angabe gilt der Zeitraum,
+der im Reiter zuletzt gewählt war.
+
+```json
+{
+  "format": 1,
+  "since": "2026-10-07",
+  "tickets": [
+    {
+      "key": "ABC-123",
+      "summary": "Counter overflows",
+      "type": "Bug",
+      "priority": "High",
+      "status": "Open",
+      "reporter": "Anna",
+      "assignee": "",
+      "created": "2026-10-08T14:50:09+02:00",
+      "url": "https://jira.example.com/browse/ABC-123"
+    }
+  ]
+}
+```
+
+Ein gescheiterter Abruf liefert dieselbe Form mit leerer Liste, dazu `error` (`settings`,
+`team`, `account` oder `jira`) und eine `message` zum Lesen, und endet mit Rückgabewert 1. Der
+[turbo-mod](https://github.com/michaelblaess/turbo-mod) für Claude Code zeigt diese Liste in
+seinem Pane.
+
 ## Tastenkürzel
 
 Die Belegung ist **umschaltbar** - unter *Einstellungen -> Tastatur* stehen zwei
