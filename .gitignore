@@ -38,3 +38,6 @@ last-crash.txt
 
 # Planungs-/Design-Notizen bleiben lokal, nicht im Repo
 PLAN*.md
+
+# Absturzprotokolle der Git-Bash
+*.stackdump
