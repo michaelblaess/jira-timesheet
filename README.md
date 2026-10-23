@@ -121,7 +121,8 @@ The interface ships with retro themes. Every view is shown below across a range 
 - **Ticket details** — Enter/D shows status, type, assignee, components in the log
 - **Ticket analysis** - Turns any ticket into an interactive report: a true-to-scale timeline of its life cycle, waiting time per status (calendar time versus actual working hours), the people involved, key figures such as flow efficiency and first response, plus findings with evidence. The result is a single HTML file that works offline (key `B`) Unusually long waiting times are marked in red, related tickets show their title, and the finished report opens straight in the browser.
 - **Anonymization** — Anonymize data with a keypress for safe screenshots
-- **Worklog cache** — Completed months cached, year view loads instantly
+- **Worklog cache** — Completed months cached, year view loads instantly. A refresh (F5) reconciles
+  instead of overwriting: worklogs on tickets that Jira has archived since stay in the cache
 - **Bilingual UI** — German/English, switchable via `--lang` or the settings dialog
 - **41 retro themes** — via theme picker (Ctrl+P), see [textual-themes](https://github.com/michaelblaess/textual-themes)
 

@@ -121,7 +121,8 @@ Die Oberfläche bringt Retro-Themes mit. Jede Ansicht ist unten in mehreren davo
 - **Ticket-Details** — Enter/D zeigt Status, Typ, Bearbeiter, Komponenten im Log
 - **Ticket-Analyse** - Macht aus einem Ticket einen interaktiven Bericht: maßstabsgetreue Zeitachse des Lebenszyklus, Liegezeit je Status (Kalenderzeit gegen echte Arbeitszeit), Beteiligte, Kennzahlen wie Flow-Effizienz und erste Reaktion, dazu Befunde mit Beleg. Ergebnis ist eine einzelne HTML-Datei, die offline läuft (Taste `B`) Auffällig lange Liegezeiten werden rot markiert, verwandte Tickets zeigen ihren Titel, und der fertige Bericht öffnet sich gleich im Browser.
 - **Anonymisierung** — Daten per Tastendruck anonymisieren für sichere Screenshots
-- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort
+- **Worklog-Cache** — Abgeschlossene Monate gecached, Jahresansicht lädt sofort. Ein Neuladen (F5)
+  gleicht ab statt zu überschreiben: Buchungen auf Tickets, die Jira inzwischen archiviert hat, bleiben im Cache
 - **Zweisprachige Oberfläche** — Deutsch/Englisch, umschaltbar via `--lang` oder Settings-Dialog
 - **41 Retro-Themes** — via Theme-Picker (Ctrl+P), siehe [textual-themes](https://github.com/michaelblaess/textual-themes)
 

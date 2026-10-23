@@ -46,6 +46,10 @@ class FakeJiraClient:
     def reset(cls) -> None:
         cls.calls = []
 
+    async def is_issue_visible(self, key: str) -> bool | None:
+        # Der Abgleich mit dem Monats-Cache fragt verschwundene Tickets nach.
+        return True
+
     async def get_worklogs(self, date_from: date, date_to: date) -> list[WorklogEntry]:
         FakeJiraClient.calls.append((date_from, date_to))
         return [

@@ -166,6 +166,8 @@
   "log.export_error": "[red]{format}-Export Fehler: {error}[/red]",
   "log.export_saved": "[green]{format} gespeichert: {link}[/green]",
   "log.from_cache": "[dim]Daten aus Cache geladen[/dim]",
+  "log.cache_rescued": "[yellow]{month}: {count} nicht mehr sichtbare Tickets aus dem Cache ergänzt ({hours} h): {tickets}[/yellow]",
+  "log.cache_unclear": "[yellow]Sichtbarkeit nicht prüfbar, vorsorglich behalten: {tickets}[/yellow]",
   "log.gaps": "[yellow]{count} Arbeitstag(e) ohne Eintrag[/yellow]",
   "log.hint_settings": "[yellow]Hinweis: Jira Host und/oder Token nicht gesetzt. Drücke [bold]{shortcut}[/bold] für Settings.[/yellow]",
   "log.holidays": "Feiertage ({state}): {names}",

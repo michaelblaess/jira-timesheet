@@ -50,6 +50,7 @@ from jira_timesheet.services.cache_service import CacheService
 from jira_timesheet.services.holiday_service import HolidayService
 from jira_timesheet.services.jira_client import JiraClient, JiraClientError
 from jira_timesheet.services.manual_entry_service import ManualEntry, ManualEntryService
+from jira_timesheet.services.month_cache import reconcile
 from jira_timesheet.services.ssl_support import TlsSettings, tls_from_settings
 from jira_timesheet.services.team import Roster, TeamMember, add_person, from_storage, to_storage
 from jira_timesheet.services.ticket_board import AccountIdError, Board, Group, Marker, Role, check_account_id
@@ -702,7 +703,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     date_from=config.date_from,
                     date_to=config.date_to,
                 )
-                CacheService.save(m_year, m_month, self._settings.email, entries)
+                # Abgleichen statt ueberschreiben: Buchungen auf Tickets, die
+                # Jira inzwischen archiviert hat, bleiben aus dem Cache erhalten.
+                entries = await self._reconcile_with_cache(client, entries, config.date_from, config.date_to)
 
             # Manuelle Zeiten NACH dem Cache dazumischen - sie duerfen nie in
             # den Jira-Cache geraten, sonst wuerden sie beim naechsten Abgleich
@@ -1543,8 +1546,9 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
                     fetched_count += 1
                     source = ""
 
-                    # Abgeschlossene Monate cachen
-                    CacheService.save(year, month, self._settings.email, entries)
+                    # Abgeschlossene Monate abgleichen und cachen - nie mit dem
+                    # Live-Stand ueberschreiben (Archivierung in Jira).
+                    entries = await self._reconcile_with_cache(client, entries, first, last)
 
                 # Manuelle Zeiten erst nach dem Cache dazumischen (siehe
                 # action_refresh) - sonst fehlen sie in der Jahressumme.
@@ -2445,6 +2449,39 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
     def on_unmount(self) -> None:
         """Schliesst die SQLite-Verbindung der manuellen Eintraege."""
         self._manual_entries.close()
+
+    async def _reconcile_with_cache(
+        self,
+        client: JiraClient,
+        entries: list[WorklogEntry],
+        first: date,
+        last: date,
+    ) -> list[WorklogEntry]:
+        """Gleicht einen frischen Abruf mit dem Cache der abgeschlossenen Monate ab.
+
+        Args:
+            client: Der Jira-Client fuer die Sichtbarkeitsfrage.
+            entries: Die frisch abgerufenen Eintraege, ohne manuelle Zeiten.
+            first: Erster Tag des Zeitraums.
+            last: Letzter Tag des Zeitraums.
+
+        Returns:
+            Die Eintraege samt der aus dem Cache geretteten.
+        """
+        result = await reconcile(entries, first, last, self._settings.email, client.is_issue_visible)
+        for rescue in result.rescued:
+            self._write_log(
+                t(
+                    "log.cache_rescued",
+                    month=f"{rescue.month:02d}/{rescue.year}",
+                    count=len(rescue.tickets),
+                    hours=f"{rescue.hours:.2f}".replace(".", ","),
+                    tickets=", ".join(rescue.tickets),
+                )
+            )
+            if rescue.unclear:
+                self._write_log(t("log.cache_unclear", tickets=", ".join(rescue.unclear)))
+        return result.entries
 
     def _write_log(self, message: str) -> None:
         """Schreibt eine Zeile ins Log-Panel; http(s)-URLs werden klickbar.
