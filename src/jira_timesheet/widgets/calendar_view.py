@@ -142,14 +142,17 @@ class WeekSummaryTile(Widget):
     }
     """
 
-    def __init__(self, week_hours: float, hours_per_day: float = 8.0, **kwargs: Any) -> None:
+    def __init__(self, week_hours: float, hours_per_day: float = 8.0, week_number: int = 0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._week_hours = week_hours
         self._hours_per_day = hours_per_day
+        self._week_number = week_number
 
     def render(self) -> Text:
-        """Rendert die Wochensumme."""
+        """Rendert Kalenderwoche und Wochensumme."""
         text = Text()
+        if self._week_number:
+            text.append(f"{t('table.col.week')} {self._week_number}\n", style="dim")
         target = self._hours_per_day * 5
         if self._week_hours == 0:
             text.append(f"{format_number(0.0)}h", style="dim")
@@ -261,6 +264,7 @@ class CalendarView(VerticalScroll):
                 WeekSummaryTile(
                     week_hours=week_hours,
                     hours_per_day=self._hours_per_day,
+                    week_number=week[0].isocalendar().week,
                 )
             )
 
