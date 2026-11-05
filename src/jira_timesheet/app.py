@@ -1687,23 +1687,38 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
             self._show_board_summary(active)
 
     def action_reset_cache(self) -> None:
-        """Loescht den Worklog-Cache."""
-        import shutil
+        """Fragt nach und verschiebt den Worklog-Cache dann in den Papierkorb."""
+        from jira_timesheet.screens.confirm_screen import ConfirmScreen
+        from jira_timesheet.services import cache_service
 
-        from jira_timesheet.services.cache_service import CACHE_DIR
+        if not cache_service.CACHE_DIR.is_dir():
+            self._write_log(t("log.cache_empty"))
+            self.notify(t("notify.cache_empty"))
+            return
+        count = len(list(cache_service.CACHE_DIR.glob("*.json")))
+        # Der Cache haelt Buchungen auf archivierten Tickets, die kein Abruf
+        # zurueckholt - deshalb nie ohne Rueckfrage.
+        self.push_screen(
+            ConfirmScreen(t("confirm.reset_cache", count=count, trash=str(cache_service.trash_dir()))),
+            callback=self._on_reset_cache_confirmed,
+        )
 
+    def _on_reset_cache_confirmed(self, confirmed: bool | None) -> None:
+        """Callback der Rueckfrage: verschiebt nur bei ausdruecklicher Zustimmung."""
+        from jira_timesheet.services.cache_service import move_cache_to_trash
+
+        if not confirmed:
+            return
         # Ohne Cache stimmt auch die Jahresansicht nicht mehr: sie ist genau
         # aus diesen Dateien zusammengesetzt.
         self._invalidate_year()
-
-        if CACHE_DIR.is_dir():
-            count = len(list(CACHE_DIR.glob("*.json")))
-            shutil.rmtree(CACHE_DIR)
-            self._write_log(t("log.cache_cleared", count=count))
-            self.notify(t("notify.cache_cleared", count=count))
-        else:
+        result = move_cache_to_trash()
+        if result is None:
             self._write_log(t("log.cache_empty"))
             self.notify(t("notify.cache_empty"))
+            return
+        self._write_log(t("log.cache_cleared", count=result.count, target=str(result.target)))
+        self.notify(t("notify.cache_cleared", count=result.count))
 
     # --- Ticket-Ansichten ---------------------------------------------
 

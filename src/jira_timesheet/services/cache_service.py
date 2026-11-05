@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date
+import shutil
+from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 from jira_timesheet.models.timesheet import WorklogEntry
@@ -18,6 +20,59 @@ CACHE_DIR = Path.home() / ".jira-timesheet" / "cache"
 # dort noch haeufig Worklogs nachgetragen werden (z.B. die letzte Woche zu
 # Monatsbeginn). Erst danach ist ein Monat stabil genug fuers Cachen.
 _CACHE_GRACE_DAYS = 7
+
+# So viele zurueckgesetzte Caches bleiben im Papierkorb liegen. Der Cache haelt
+# Buchungen auf Tickets, die Jira inzwischen archiviert hat - die holt kein
+# Abruf zurueck, deshalb wird er nie sofort geloescht.
+TRASH_KEEP = 5
+
+
+@dataclass(frozen=True)
+class TrashResult:
+    """Ergebnis von move_cache_to_trash.
+
+    Attributes:
+        count: Anzahl der verschobenen Monatsdateien.
+        target: Ordner im Papierkorb, der den alten Cache jetzt enthaelt.
+    """
+
+    count: int
+    target: Path
+
+
+def trash_dir() -> Path:
+    """Papierkorb fuer zurueckgesetzte Caches, neben dem Cache-Ordner."""
+    return CACHE_DIR.parent / "cache-papierkorb"
+
+
+def move_cache_to_trash(now: datetime | None = None) -> TrashResult | None:
+    """Verschiebt den Cache-Ordner in den Papierkorb, statt ihn zu loeschen.
+
+    Aelter als die neuesten TRASH_KEEP Eintraege im Papierkorb wird entfernt.
+
+    Args:
+        now: Zeitpunkt fuer den Ordnernamen. Ohne Angabe jetzt.
+
+    Returns:
+        Was verschoben wurde, oder None, wenn kein Cache da war.
+    """
+    if not CACHE_DIR.is_dir():
+        return None
+    count = len(list(CACHE_DIR.glob("*.json")))
+    stamp = (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
+    target = trash_dir() / stamp
+    suffix = 1
+    while target.exists():
+        suffix += 1
+        target = trash_dir() / f"{stamp}_{suffix}"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(CACHE_DIR), str(target))
+    logger.info("Cache mit %d Dateien in den Papierkorb verschoben: %s", count, target)
+
+    entries = sorted(p for p in trash_dir().iterdir() if p.is_dir())
+    for old in entries[:-TRASH_KEEP]:
+        shutil.rmtree(old, ignore_errors=True)
+    return TrashResult(count, target)
 
 
 class CacheService:
