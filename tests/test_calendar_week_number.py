@@ -26,7 +26,7 @@ def test_kachel_nennt_die_kw(lang: str) -> None:
 
 def test_ohne_kw_bleibt_die_kachel_wie_bisher() -> None:
     load_locale("de")
-    assert "\n" not in WeekSummaryTile(week_hours=8.0).render().plain
+    assert WeekSummaryTile(week_hours=8.0).render().plain.splitlines()[0] == "8,00h"
 
 
 def test_wochen_beginnen_montags_mit_der_iso_kw() -> None:

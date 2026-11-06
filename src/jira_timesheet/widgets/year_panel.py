@@ -20,6 +20,7 @@ from textual.widgets import Static
 
 from jira_timesheet.i18n import REDACTED_MONEY, format_eur, format_number, t
 from jira_timesheet.models.settings import DEFAULT_MANUAL_COLOR
+from jira_timesheet.widgets.overtime import format_delta, hours_bar, is_over, over_color
 
 _QUARTER_NAMES = ["Q1", "Q2", "Q3", "Q4"]
 
@@ -126,7 +127,9 @@ class MonthTile(Widget):
         name = t(f"month.{self._month}")
 
         if self._actual > 0 and self._target > 0:
-            pct = min(self._actual / self._target * 100, 100)
+            # Bewusst nicht bei 100 gedeckelt - Mehrarbeit soll sichtbar sein.
+            pct = self._actual / self._target * 100
+            over = is_over(self._actual, self._target)
             if pct >= 95:
                 bar_style = "green"
                 pct_style = "bold green"
@@ -140,15 +143,14 @@ class MonthTile(Widget):
             text.append(f"{name}", style="bold")
             text.append(f"  {pct:.0f}%\n", style=pct_style)
 
-            # Mini-Progressbar
-            bar_len = 18
-            filled = int(pct / 100 * bar_len)
-            text.append("█" * filled, style=bar_style)
-            text.append("░" * (bar_len - filled), style="dim")
+            text.append_text(hours_bar(self._actual, self._target, 18, bar_style, over_color(self)))
             text.append("\n")
 
             text.append(f"{format_number(self._actual, 1)}h", style=pct_style)
-            text.append(f" / {format_number(self._target, 0)}h\n", style="dim")
+            text.append(f" / {format_number(self._target, 0)}h", style="dim")
+            if over:
+                text.append(f"  {format_delta(self._actual, self._target, 1)}", style="dim")
+            text.append("\n")
 
             days = t("year.month_days", days=self._working_days, target=self._target_days)
             text.append(f"▸ {days}", style="dim")

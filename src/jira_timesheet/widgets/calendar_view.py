@@ -13,6 +13,7 @@ from textual.widgets import Static
 
 from jira_timesheet.i18n import format_number, t
 from jira_timesheet.models.timesheet import Timesheet, TimesheetDay
+from jira_timesheet.widgets.overtime import format_delta
 
 
 class DayTile(Widget):
@@ -57,9 +58,11 @@ class DayTile(Widget):
         is_outside: bool = False,
         hours_per_day: float = 8.0,
         jira_host: str = "",
+        is_holiday: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self._is_holiday = is_holiday
         self._date = day_date
         self._day_data = day_data
         self._holiday_name = holiday_name
@@ -97,7 +100,10 @@ class DayTile(Widget):
 
         if self._day_data and self._day_data.entries:
             total = self._day_data.total_hours
-            hour_style = "bold green" if total >= self._hours_per_day else "bold yellow"
+            # Am Wochenende und an Feiertagen ist das Soll 0 - jede Buchung ist Mehrarbeit.
+            is_workday = self._date.weekday() < 5 and not self._is_holiday
+            target = self._hours_per_day if is_workday else 0.0
+            hour_style = "bold green" if total >= target else "bold yellow"
 
             text.append(f"{day_num} {weekday} ", style="bold")
             text.append(f"{format_number(total)}h", style=hour_style)
@@ -133,7 +139,7 @@ class WeekSummaryTile(Widget):
 
     DEFAULT_CSS = """
     WeekSummaryTile {
-        width: 10;
+        width: 11;
         height: 100%;
         min-height: 6;
         padding: 0 1;
@@ -142,25 +148,41 @@ class WeekSummaryTile(Widget):
     }
     """
 
-    def __init__(self, week_hours: float, hours_per_day: float = 8.0, week_number: int = 0, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        week_hours: float,
+        hours_per_day: float = 8.0,
+        week_number: int = 0,
+        target_hours: float | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._week_hours = week_hours
         self._hours_per_day = hours_per_day
         self._week_number = week_number
+        # Ohne Angabe gilt die volle Woche (Bestand vor dem Arbeitstage-Soll).
+        self._target = hours_per_day * 5 if target_hours is None else target_hours
 
     def render(self) -> Text:
         """Rendert Kalenderwoche und Wochensumme."""
         text = Text()
         if self._week_number:
             text.append(f"{t('table.col.week')} {self._week_number}\n", style="dim")
-        target = self._hours_per_day * 5
+        target = self._target
         if self._week_hours == 0:
             text.append(f"{format_number(0.0)}h", style="dim")
-        elif self._week_hours >= target:
-            text.append(f"{format_number(self._week_hours)}h", style="bold green")
         else:
-            text.append(f"{format_number(self._week_hours)}h", style="bold yellow")
+            reached = self._week_hours >= target
+            text.append(f"{format_number(self._week_hours)}h", style="bold green" if reached else "bold yellow")
+            # Abweichung gedaempft wie in der Qt-Fassung, in beide Richtungen.
+            if abs(self._week_hours - target) > 0.005:
+                text.append(f"\n{format_delta(self._week_hours, target)}", style="dim")
         return text
+
+    @property
+    def target_hours(self) -> float:
+        """Sollstunden dieser Woche (Arbeitstage im Monat mal Tagessoll)."""
+        return self._target
 
 
 class WeekRow(Horizontal):
@@ -193,7 +215,7 @@ class CalendarView(VerticalScroll):
     }
 
     CalendarView .cal-header-sum {
-        width: 10;
+        width: 11;
         height: 1;
         padding: 0 1;
         text-style: bold;
@@ -221,14 +243,23 @@ class CalendarView(VerticalScroll):
         self,
         timesheet: Timesheet,
         missing_days: list[tuple[date, str]] | None = None,
+        holidays: set[date] | None = None,
     ) -> None:
-        """Baut den Kalender aus Timesheet-Daten auf."""
+        """Baut den Kalender aus Timesheet-Daten auf.
+
+        Args:
+            timesheet: Die Buchungen des Monats.
+            missing_days: Feiertage und Luecken ohne Buchung (Datum, Grund).
+            holidays: Alle Feiertage des Zeitraums, auch die mit Buchung. Sie
+                zaehlen nicht ins Wochensoll.
+        """
         for widget in self.query("WeekRow"):
             widget.remove()
 
         day_map = {day.date: day for day in timesheet.days}
         gap_map = dict(missing_days or [])
         holiday_map = {d: reason for d, reason in (missing_days or []) if "\u2014" not in reason}
+        holiday_dates = set(holidays or ()) | set(holiday_map)
 
         weeks = self._build_weeks(timesheet.date_from, timesheet.date_to)
 
@@ -239,6 +270,12 @@ class CalendarView(VerticalScroll):
             self.mount(row)
 
             week_hours = 0.0
+            # Soll nur fuer die Arbeitstage, die in diesem Monat liegen.
+            week_target = sum(
+                self._hours_per_day
+                for d in week
+                if d.month == target_month and d.weekday() < 5 and d not in holiday_dates
+            )
 
             for d in week:
                 is_outside = d.month != target_month
@@ -257,6 +294,7 @@ class CalendarView(VerticalScroll):
                     is_outside=is_outside,
                     hours_per_day=self._hours_per_day,
                     jira_host=self._jira_host,
+                    is_holiday=d in holiday_dates,
                 )
                 row.mount(tile)
 
@@ -265,6 +303,7 @@ class CalendarView(VerticalScroll):
                     week_hours=week_hours,
                     hours_per_day=self._hours_per_day,
                     week_number=week[0].isocalendar().week,
+                    target_hours=week_target,
                 )
             )
 

@@ -748,7 +748,11 @@ class JiraTimesheetApp(CrashGuard, ClickableLinksMixin, LogRouter, App[None]):  
 
                 anzeige = anonymize_timesheet(self._timesheet)
             table.load_timesheet(anzeige, missing_days=missing_days)
-            cal.load_timesheet(anzeige, missing_days=missing_days)
+            cal.load_timesheet(
+                anzeige,
+                missing_days=missing_days,
+                holidays=set(holiday_svc.get_holidays_in_range(config.date_from, config.date_to)),
+            )
             summary.update_timesheet(
                 self._timesheet,
                 target_hours=target_hours,
